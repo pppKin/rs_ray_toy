@@ -1,0 +1,13 @@
+[package]
+name = "rs_ray_toy"
+version = "0.0.1"
+authors = ["pppkin <leoihungkin@outlook.com>"]
+edition = "2018"
+license = "LGPL-3.0-or-later"
+
+[dependencies]
+image = "0.23.3"
+
+[[bin]]
+name = "rs_ray_toy"
+path = "src/main.rs"

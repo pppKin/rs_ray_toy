@@ -1,0 +1,6 @@
+. Implement proper thin lens
+. Improve Reflection model
+. Improve Sampling
+. Clean up the spaghetti code
+. Add support for more primitives
+. Improve render quality
