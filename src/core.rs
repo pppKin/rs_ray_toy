@@ -30,7 +30,7 @@ pub fn calc_shadow(scn: &Scene, r: &mut geometry::Ray, collision_obj: i32) -> f6
     return shadow;
 }
 
-pub fn trace(scn: &Scene, r: &mut Ray, depth: u32, inter_tx: Sender<bool>) -> Color {
+pub fn trace(scn: &Scene, r: &mut Ray, depth: u32) -> Color {
     let mut c = Color::new();
 
     for i in 0..scn.object_list.len() {
@@ -39,7 +39,6 @@ pub fn trace(scn: &Scene, r: &mut Ray, depth: u32, inter_tx: Sender<bool>) -> Co
     }
 
     if r.inter_obj >= 0 {
-        inter_tx.send(true).unwrap();
         let its_obj = &scn.object_list[r.inter_obj as usize];
         let mat_idx = its_obj.mat();
         let inter_point = r.origin + (r.direction * r.inter_dist);
@@ -99,14 +98,14 @@ pub fn trace(scn: &Scene, r: &mut Ray, depth: u32, inter_tx: Sender<bool>) -> Co
                         inter_dist: MAX_DIST,
                         inter_obj: -1,
                     };
-                    c += trace(&scn, &mut ray_o_ref, depth + 1, inter_tx.clone());
+                    c += trace(&scn, &mut ray_o_ref, depth + 1);
                 }
             }
             if t_mat.transmit_col > SMALL {
                 let mut rn = vec3_dot_nrm(&(-incident_v), &v_normal);
                 incident_v = incident_v.normalize();
-                let mut n1 = 0.0;
-                let mut n2 = 0.0;
+                let n1;
+                let n2;
                 if vec3_dot_nrm(&incident_v, &v_normal) > 0.0 {
                     v_normal = -v_normal;
                     rn = -rn;
@@ -118,7 +117,7 @@ pub fn trace(scn: &Scene, r: &mut Ray, depth: u32, inter_tx: Sender<bool>) -> Co
                 }
 
                 if n1 != 0.0 && n2 != 0.0 {
-                    let par_sqrt = (1 as f64 - (n1 * n1 / n2 * n2) * (1 as f64 - rn * rn)).sqrt();
+                    let par_sqrt = (1.0 - (n1 * n1 / n2 * n2) * (1.0 - rn * rn)).sqrt();
                     let refract_dir = incident_v + Vector3f::from(v_normal * rn * (n1 / n2))
                         - Vector3f::from(v_normal * par_sqrt);
                     let v_offset_inter = inter_point + refract_dir * SMALL;
@@ -128,40 +127,34 @@ pub fn trace(scn: &Scene, r: &mut Ray, depth: u32, inter_tx: Sender<bool>) -> Co
                         inter_dist: MAX_DIST,
                         inter_obj: -1,
                     };
-                    c += trace(scn, &mut refract_ray, depth + 1, inter_tx.clone());
+                    c += trace(scn, &mut refract_ray, depth + 1);
                 }
             }
         }
-    } else {
-        inter_tx.send(false).unwrap();
     }
 
     return c;
 }
 
-pub fn render_pixel(
-    line_rx: Arc<Mutex<Receiver<i32>>>,
-    done_tx: Sender<bool>,
-    scn: &Scene,
-    inter_tx: Sender<bool>,
-) {
+pub fn render_pixel(line_rx: Arc<Mutex<Receiver<i32>>>, done_tx: Sender<bool>, scn: &Scene) {
     loop {
         let rx = line_rx.lock().unwrap();
         match rx.recv() {
             Ok(y) => {
                 for x in 0..scn.img_width {
                     let mut c: Color = Color::new();
-                    let mut yo = y * (scn.oversampling as i32);
-                    let mut xo = (x * scn.oversampling) as i32;
+                    let yo = y * (scn.oversampling as i32);
+                    let xo = (x * scn.oversampling) as i32;
                     for _i in 0..scn.oversampling {
                         for _j in 0..scn.oversampling {
                             let mut r = Ray::new();
-                            scn.cam.generate_ray(&mut r, xo as f64, yo as f64);
-                            let i_tx = inter_tx.clone();
-                            c += trace(scn, &mut r, 1, i_tx);
-                            yo += 1;
+                            scn.cam.generate_ray(
+                                &mut r,
+                                (xo + _i as i32) as f64,
+                                (yo + _j as i32) as f64,
+                            );
+                            c += trace(scn, &mut r, 1);
                         }
-                        xo += 1;
                     }
                     c /= scn.oversampling.pow(2) as f64;
                     let mut img = scn.img.lock().unwrap();
@@ -181,7 +174,6 @@ pub fn deploy_renderer(scene_filename: &str, workers_num: u8, save_path: &str) {
 
     println!("Rendering {}", scene_filename);
     let (done_tx, done_rx): (Sender<bool>, Receiver<bool>) = mpsc::channel();
-    let (intersect_tx, intersect_rx): (Sender<bool>, Receiver<bool>) = mpsc::channel();
     let (line_tx, line_rx): (Sender<i32>, Receiver<i32>) = mpsc::channel();
     let l_rx = Arc::new(Mutex::new(line_rx));
     let mut hns = vec![];
@@ -189,9 +181,8 @@ pub fn deploy_renderer(scene_filename: &str, workers_num: u8, save_path: &str) {
         let c_scn = Arc::clone(&scn);
         let l_rx_mt = Arc::clone(&l_rx);
         let d_tx = done_tx.clone();
-        let i_tx = intersect_tx.clone();
         hns.push(thread::spawn(move || {
-            render_pixel(l_rx_mt, d_tx, &c_scn, i_tx);
+            render_pixel(l_rx_mt, d_tx, &c_scn);
         }));
     }
 
@@ -201,7 +192,7 @@ pub fn deploy_renderer(scene_filename: &str, workers_num: u8, save_path: &str) {
 
     drop(done_tx);
     drop(line_tx);
-    drop(intersect_tx);
+
     for hn in hns {
         hn.join().unwrap();
     }
@@ -213,23 +204,6 @@ pub fn deploy_renderer(scene_filename: &str, workers_num: u8, save_path: &str) {
             done_result[1] += 1;
         }
     }
-
-    let mut inter_result_y = 0;
-    let mut inter_result_n = 0;
-    for itere in intersect_rx {
-        if itere {
-            inter_result_y += 1;
-        } else {
-            inter_result_n += 1;
-        }
-    }
-
-    println!(
-        "intersection test result :: total: {}, success:{}, failure: {}",
-        inter_result_y + inter_result_n,
-        inter_result_y,
-        inter_result_n
-    );
 
     println!(
         "Renderers Result Success:{} Failure: {}",

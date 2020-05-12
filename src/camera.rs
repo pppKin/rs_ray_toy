@@ -112,17 +112,16 @@ impl Camera {
     pub fn generate_ray(&self, ray: &mut Ray, sample_x: f64, sample_y: f64) -> f64 {
         // We will use a simplified version here
 
-        // // TODO: ProfilePhase prof(Prof::GenerateCameraRay);
-        // // compute raster and camera sample positions
+        // compute raster and camera sample positions
         let p_film: Point3f = Point3f {
             x: sample_x,
             y: sample_y,
             z: 0.0,
         };
-        let p_camera: Point3f = self.raster_to_camera.transform_point(&p_film);
 
+        let p_camera = self.raster_to_camera.transform_point(&p_film);
         ray.origin = p_camera;
-        ray.direction = Vector3f::from_xyz(p_camera.x, p_camera.y, 1.0).normalize();
+        ray.direction = Vector3f::from_xyz(p_camera.x, -p_camera.y, 1.0).normalize();
         ray.inter_dist = MAX_DIST;
 
         *ray = self.camera_to_world.transform_ray(&ray);
@@ -150,13 +149,6 @@ mod tests {
         };
         let cam = Camera::create(it, resolution, 0.0, 0.0, 14.5, 26.0);
 
-        // println!("raster to camera :: {:?}", cam.raster_to_screen.transform_point(&Point3f{x : 16.0, y:16.0, z:0.0}));
-        // println!("raster to camera :: {:?}", cam.raster_to_screen.transform_point(&Point3f{x : 0.0, y:0.0, z:0.0}));
-        // println!("raster to camera :: {:?}", cam.raster_to_screen.transform_point(&Point3f{x : 64.0, y:64.0, z:0.0}));
-        // println!("raster to camera :: {:?}", cam.raster_to_screen.transform_point(&Point3f{x : 32.0, y:32.0, z:0.0}));
-        // println!("Camera to World :: {:?}", it);
-        // println!("Raster to Camera :: {:?}", cam.raster_to_camera);
-
         let mut r1 = Ray::new();
         let mut r2 = Ray::new();
         let mut r3 = Ray::new();
@@ -173,6 +165,7 @@ mod tests {
         println!("Generated ray direction 2:: {:?}", r2.direction);
         println!("Generated ray direction 3:: {:?}", r3.direction);
         println!("Generated ray direction 4:: {:?}", r4.direction);
+        println!("Generated ray direction 5:: {:?}", r5.direction);
 
         let s2 = primitives::Primitive::Sphere(Arc::new(primitives::Sphere {
             mat: 1,
@@ -187,6 +180,6 @@ mod tests {
         assert!(!s2.intersect(&mut r1, 8));
         assert!(s2.intersect(&mut r4, 8));
         assert!(s2.intersect(&mut r5, 8));
-        // panic!();
+        panic!();
     }
 }

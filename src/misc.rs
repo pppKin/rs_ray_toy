@@ -1,4 +1,4 @@
-use crate::core::{MACHINE_EPSILON, MAX_DIST, SMALL};
+use crate::core::MACHINE_EPSILON;
 use crate::geometry::{Point2f, Vector2f};
 use std::f64::consts::PI;
 use std::fs::File;
