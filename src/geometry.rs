@@ -10,8 +10,8 @@
 // 	x, y, z float64
 // }
 
-use crate::core::{MAX_DIST, SMALL};
-use crate::misc::{clamp_t, float_nearly_equal, gamma, lerp, next_float_down, next_float_up};
+use crate::core::MAX_DIST;
+use crate::misc::{clamp_t, float_nearly_equal, lerp, next_float_down, next_float_up};
 use std;
 use std::f64::consts::PI;
 use std::fmt::Debug;
@@ -1622,7 +1622,7 @@ pub fn nearly_equal(a: &impl Cxyz, b: &impl Cxyz) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use crate::core::SMALL;
     #[test]
     fn test_vec3() {
         let sv = Vector3f {

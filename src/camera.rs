@@ -1,5 +1,5 @@
 use crate::core::MAX_DIST;
-use crate::geometry::{Bounds2f, Cxyz, Point2i, Point3f, Ray, Vector3f};
+use crate::geometry::{Bounds2f, Cxyz, Point2f, Point2i, Point3f, Ray, Vector3f};
 use crate::misc::concentric_sample_disk;
 use crate::transform::Transform;
 
@@ -17,6 +17,13 @@ pub struct Camera {
 
     pub dx_camera: Vector3f,
     pub dy_camera: Vector3f,
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+pub struct CameraSample {
+    pub p_film: Point2f,
+    pub p_lens: Point2f,
+    pub time: f64,
 }
 
 impl Camera {

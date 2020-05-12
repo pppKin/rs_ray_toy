@@ -7,5 +7,6 @@ pub mod lights;
 pub mod material;
 pub mod misc;
 pub mod primitives;
+pub mod sampler;
 pub mod scene;
 pub mod transform;
