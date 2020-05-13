@@ -16,11 +16,8 @@ pub struct Scene {
     pub img_width: u32,
     pub img_height: u32,
     pub trace_depth: u32,
-    pub oversampling: u32,
     pub startline: u32,
     pub endline: u32,
-    pub grid_width: u32,
-    pub grid_height: u32,
     pub cam: Arc<Camera>,
     pub img: Arc<Mutex<RgbaImage>>,
     pub object_list: Vec<Arc<Primitive>>,
@@ -65,7 +62,6 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     let mut img_h: u32 = 240;
 
     let mut trace_depth = 3; // bounces
-    let mut oversampling = 1; // no oversampling
     let mut lens_radius = 14.5;
     let mut focal_distance = 26.0;
     let mut startline = 0; // Start rendering line
@@ -74,6 +70,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     let mut camera_pos: Point3f = Point3f::default();
     let mut camera_look: Point3f = Point3f::default();
     let mut camera_up: Vector3f = zero_vec3;
+    let mut fov = 90.0;
 
     let mut obj_list: Vec<Arc<Primitive>> = vec![];
     let mut light_list: Vec<Arc<Light>> = vec![];
@@ -111,10 +108,6 @@ pub fn make_scene(scene_filename: &str) -> Scene {
                         trace_depth = u32::from_str(data[0])
                             .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
                     }
-                    "oversampling" => {
-                        oversampling = u32::from_str(data[0])
-                            .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
-                    }
                     "renderslice" => {
                         startline = u32::from_str(data[0])
                             .expect(&(parse_err("start line", cur_line_num, scene_filename)));
@@ -139,6 +132,10 @@ pub fn make_scene(scene_filename: &str) -> Scene {
                     }
                     "focal_distance" => {
                         focal_distance = f64::from_str(data[0])
+                            .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
+                    }
+                    "fov" => {
+                        fov = f64::from_str(data[0])
                             .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
                     }
                     "sphere" => {
@@ -230,9 +227,6 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     let img_buf = ImageBuffer::new(img_w as u32, img_h as u32);
     let img = Arc::new(Mutex::new(img_buf));
 
-    let grid_width = img_w * oversampling;
-    let grid_height = img_h * oversampling;
-
     let t: Transform = Transform::look_at(&camera_pos, &camera_look, &camera_up);
 
     let it: Transform = Transform {
@@ -241,21 +235,18 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     };
 
     let resolution = Point2i {
-        x: (img_w * oversampling) as i32,
-        y: (img_h * oversampling) as i32,
+        x: img_w as i32,
+        y: img_h as i32,
     };
 
-    let cam = Camera::create(it, resolution, 0.0, 0.0, lens_radius, focal_distance);
+    let cam = Camera::create(it, resolution, fov, 0.0, 0.0, lens_radius, focal_distance);
 
     return Scene {
         img_width: img_w,
         img_height: img_h,
         trace_depth: trace_depth,
-        oversampling: oversampling,
         startline: startline,
         endline: endline,
-        grid_width: grid_width,
-        grid_height: grid_height,
         cam: Arc::new(cam),
         img: img,
         object_list: obj_list,

@@ -1,6 +1,6 @@
+use crate::camera::CameraSample;
 use crate::color::Color;
-use crate::geometry;
-use crate::geometry::{vec3_dot_nrm, Ray, Vector3f};
+use crate::geometry::{vec3_dot_nrm, Point2f, Ray, Vector3f};
 use crate::primitives::Object;
 use crate::scene;
 use scene::Scene;
@@ -14,7 +14,7 @@ pub const MAX_DIST: f64 = 1999999999.0;
 pub const SMALL: f64 = 0.000000001;
 pub const MACHINE_EPSILON: f64 = std::f64::EPSILON * 0.5;
 
-pub fn calc_shadow(scn: &Scene, r: &mut geometry::Ray, collision_obj: i32) -> f64 {
+pub fn calc_shadow(scn: &Scene, r: &mut Ray, collision_obj: i32) -> f64 {
     let mut shadow: f64 = 1.0;
 
     for i in 0..(scn.object_list.len() - 1) {
@@ -143,20 +143,14 @@ pub fn render_pixel(line_rx: Arc<Mutex<Receiver<i32>>>, done_tx: Sender<bool>, s
             Ok(y) => {
                 for x in 0..scn.img_width {
                     let mut c: Color = Color::new();
-                    let yo = y * (scn.oversampling as i32);
-                    let xo = (x * scn.oversampling) as i32;
-                    for _i in 0..scn.oversampling {
-                        for _j in 0..scn.oversampling {
-                            let mut r = Ray::new();
-                            scn.cam.generate_ray(
-                                &mut r,
-                                (xo + _i as i32) as f64,
-                                (yo + _j as i32) as f64,
-                            );
-                            c += trace(scn, &mut r, 1);
-                        }
-                    }
-                    c /= scn.oversampling.pow(2) as f64;
+                    let mut r = Ray::new();
+                    let mut sample = CameraSample::default();
+                    sample.p_film = Point2f {
+                        x: x as f64,
+                        y: y as f64,
+                    };
+                    let weight = scn.cam.generate_ray(&sample, &mut r);
+                    c += trace(scn, &mut r, 1) * weight;
                     let mut img = scn.img.lock().unwrap();
                     img.put_pixel(x, y as u32, c.to_pixel());
                     done_tx.send(true).unwrap();

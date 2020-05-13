@@ -6,7 +6,7 @@ mod lights;
 mod material;
 mod misc;
 mod primitives;
-pub mod sampler;
+mod sampler;
 mod scene;
 mod transform;
 

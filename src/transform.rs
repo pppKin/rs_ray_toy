@@ -415,6 +415,8 @@ impl Transform {
             0.0,
         );
         // scale canonical perspective view to specified field of view
+        // Here the adjacent side has length 1, so the opposite side has the length tan(fov/2).
+        // Scaling by the reciprocal of this length maps the field of view to range from [−1, 1].
         let inv_tan_ang: f64 = 1.0 / (radians(fov) / 2.0).tan();
         let scale: Transform = Transform::scale(inv_tan_ang, inv_tan_ang, 1.0);
         let persp_trans: Transform = Transform {
