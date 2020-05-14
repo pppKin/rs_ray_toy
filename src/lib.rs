@@ -1,4 +1,6 @@
 extern crate image;
+extern crate rand;
+
 pub mod camera;
 pub mod color;
 pub mod core;

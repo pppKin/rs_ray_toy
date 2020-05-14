@@ -6,6 +6,7 @@ edition = "2018"
 license = "LGPL-3.0-or-later"
 
 [dependencies]
+rand = "0.7"
 image = "0.23.3"
 
 [[bin]]

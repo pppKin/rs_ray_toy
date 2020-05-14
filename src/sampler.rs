@@ -1,4 +1,5 @@
 use crate::geometry::{Point2f, Point2i};
+use rand::prelude::*;
 use std::sync::RwLock;
 
 pub struct HaltonSampler {

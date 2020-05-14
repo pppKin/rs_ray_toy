@@ -6,6 +6,7 @@ use std::io::{self, BufRead};
 use std::path::Path;
 pub const PI_OVER_2: f64 = 1.570_796_326_794_896_619_23;
 pub const PI_OVER_4: f64 = 0.785_398_163_397_448_309_61;
+pub const ONE_MINUS_EPSILON: f64 = 1.0 - MACHINE_EPSILON;
 
 pub fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where

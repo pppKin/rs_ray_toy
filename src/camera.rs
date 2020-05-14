@@ -149,8 +149,23 @@ impl Camera {
         let p_camera = self.raster_to_camera.transform_point(&p_film);
         // every ray passed in here has default origin 0.0
         // ray.origin = Point3f::default();
-        ray.direction = Vector3f::from(p_camera);
-        // TODO: modified according to depth of field here
+        ray.direction = Vector3f::from(p_camera).normalize();
+        // 1/z` - 1/z = 1/f where z is object depth in scene; z` is focusing film distance from lens; f is focal distance
+        // if self.lens_radius > 0.0 {
+        //     // sample point on lens
+        //     let p_lens: Point2f = concentric_sample_disk(sample.p_lens) * self.lens_radius;
+        //     // // compute point on plane of focus
+        //     let ft = self.focal_distance / ray.direction.z;
+        //     let p_focus: Point3f = ray.position(ft);
+        //     // // update ray for effect of lens
+        //     ray.origin = Point3f {
+        //         x: p_lens.x,
+        //         y: p_lens.y,
+        //         z: 0.0,
+        //     };
+        //     ray.direction = (p_focus - ray.origin).normalize();
+        // }
+
         *ray = self.camera_to_world.transform_ray(&ray);
         1.0
     }

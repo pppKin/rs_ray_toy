@@ -10,21 +10,47 @@ fov 90
 
 # camera: vector(x y z)
 camera_position -5 5 -2
-camera_look 0.0 0.0 1.0
+camera_look 0.0 -1.0 5.0
 camera_up 0.0 1.0 0.0
 
 # sphere: material_index center(x y z) radius
-sphere 3 -5 -1 5 2
-sphere 4 0 -1 5 2
-sphere 2 5 -1 5 2
+sphere 3 -4 -1 5 0.5
+sphere 4 -2 -1 5 0.5
+sphere 2 0 -1 5 0.5
+sphere 3 2 -1 5 0.5
+sphere 4 4 -1 5 0.5
+sphere 3 6 -1 5 0.5
+sphere 4 8 -1 5 0.5
+sphere 2 10 -1 5 0.5
+
+sphere 3 -4 1 0 0.5
+sphere 4 -2 1 2 0.5
+sphere 2 0 1 4 0.5
+sphere 3 2 1 6 0.5
+sphere 4 4 1 8 0.5
+sphere 3 6 1 10 0.5
+sphere 4 8 1 12 0.5
+sphere 2 10 1 14 0.5
+
+sphere 3 -4 3 5 0.5
+sphere 4 -2 3 5 0.5
+sphere 2 0 3 5 0.5
+sphere 3 2 3 5 0.5
+sphere 4 4 3 5 0.5
+sphere 3 6 3 5 0.5
+sphere 4 8 3 5 0.5
+sphere 2 10 3 5 0.5
 
 # plane: material_index normal(x y z) distance
 #plane 1 0.0 0.0 -1.0 90.0
 
 # light: type position(x y z) color(r g b)
-light point -2.0 10.0 0.0 0.8 0.1 0.1
-light point 2.0 10.0 0.0 0.2 0.6 0.6
-light ambient 0.0 0.0 0.0 0.1 0.1 0.1
+light point -5.0 10.0 2 0.3 0.1 0.1
+light point 6.0 -3.0 2 0.2 0.5 0.6
+light point -3.0 -3.0 2 0.5 0.2 0.3
+light point 4.0 7.0 2 0.2 0.2 0.6
+light point 12.0 9.0 0 0.9 0.5 0.6
+light ambient 0.0 0.0 0 0.1 0.1 0.1
 
 # material: color(r g b) diffuse specular shininess reflect transmit ior
 material 0.1 0.1 0.2 0.9 0.8 2.0 0.15 0.0 0.0
@@ -33,4 +59,4 @@ material 0.9 0.2 0.2 0.9 0.7 1.0 0.2 0.0 0.0
 material 0.2 1.0 0.2 0.4 0.8 2.0 0.15 0.0 1.1
 material 0.3 0.3 1.0 0.7 0.4 0.8 0.3 0.0 0.0
 
-lens_radius 14.5
+lens_radius 25

@@ -14,6 +14,7 @@ use std::env;
 use std::str::FromStr;
 
 extern crate image;
+extern crate rand;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

@@ -23,7 +23,7 @@ pub fn calc_shadow(scn: &Scene, r: &mut Ray, collision_obj: i32) -> f64 {
         r.inter_dist = MAX_DIST;
 
         if obj.intersect(r, i as i32) && (i as i32) != collision_obj {
-            shadow += scn.material_list[obj.mat() as usize].transmit_col;
+            shadow *= scn.material_list[obj.mat() as usize].transmit_col;
         }
     }
 
@@ -98,7 +98,7 @@ pub fn trace(scn: &Scene, r: &mut Ray, depth: u32) -> Color {
                         inter_dist: MAX_DIST,
                         inter_obj: -1,
                     };
-                    c += trace(&scn, &mut ray_o_ref, depth + 1);
+                    c += trace(&scn, &mut ray_o_ref, depth + 1) * t_mat.reflection_col;
                 }
             }
             if t_mat.transmit_col > SMALL {
@@ -127,7 +127,7 @@ pub fn trace(scn: &Scene, r: &mut Ray, depth: u32) -> Color {
                         inter_dist: MAX_DIST,
                         inter_obj: -1,
                     };
-                    c += trace(scn, &mut refract_ray, depth + 1);
+                    c += trace(scn, &mut refract_ray, depth + 1) * t_mat.transmit_col;
                 }
             }
         }
