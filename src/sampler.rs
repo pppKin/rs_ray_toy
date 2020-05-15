@@ -26,3 +26,12 @@ pub struct HaltonSampler {
     pub array_1d_offset: usize,
     pub array_2d_offset: usize,
 }
+
+impl HaltonSampler {
+    pub fn new(samples_per_pixel: i32) {}
+    pub fn start_pixel(p: &Point2i) {}
+    pub fn set_sample_num(sample_num: i64) {} //bool
+    pub fn get_1d() {} //f64
+    pub fn get_2d() {} //Point2f
+    pub fn start_next_sample() {}
+}

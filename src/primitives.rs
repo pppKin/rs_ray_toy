@@ -39,10 +39,6 @@ impl Object for Primitive {
     fn intersect(&self, r: &mut Ray, i: i32) -> bool {
         match self {
             Primitive::Sphere(sph) => {
-                // let v = geometry::vec3_dot_vec3(&sphere_ray, &(r.direction));
-                // if (v - (*sph).radius) > r.inter_dist {
-                //     return false;
-                // }
                 let obj_space_ray_o = r.origin - (*sph).position;
                 let tmp_a: f64 = r.direction.length_squared();
                 let tmp_b: f64 = 2.0
@@ -76,6 +72,9 @@ impl Object for Primitive {
                     if tmp_t > core::MAX_DIST {
                         return false;
                     }
+                }
+                if tmp_t > r.inter_dist {
+                    return false;
                 }
                 r.inter_dist = tmp_t;
                 r.inter_obj = i;

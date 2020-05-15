@@ -149,6 +149,10 @@ pub fn render_pixel(line_rx: Arc<Mutex<Receiver<i32>>>, done_tx: Sender<bool>, s
                         x: x as f64,
                         y: y as f64,
                     };
+                    // sample.p_lens = Point2f {
+                    //     x: 0.0,//x as f64,
+                    //     y: 0.0//y as f64,
+                    // };
                     let weight = scn.cam.generate_ray(&sample, &mut r);
                     c += trace(scn, &mut r, 1) * weight;
                     let mut img = scn.img.lock().unwrap();
