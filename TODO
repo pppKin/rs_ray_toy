@@ -1,6 +1,8 @@
-. Implement proper thin lens **WIP**
 . Improve Reflection model
 . Improve Sampling
 . Clean up the spaghetti code
 . Add support for more primitives
 . Improve render quality
+
+
+. Implement proper thin lens **DONE**
