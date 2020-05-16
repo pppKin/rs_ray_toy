@@ -37,6 +37,7 @@ impl Camera {
         focal_distance: f64,
     ) -> Self {
         let camera_to_screen: Transform = Transform::perspective(fov, 1e-2, 1000.0);
+
         // compute projective camera screen transformations
         let scale1 = Transform::scale(resolution.x as f64, resolution.y as f64, 1.0);
         let scale2 = Transform::scale(
@@ -157,6 +158,7 @@ impl Camera {
             // // compute point on plane of focus
             let ft = self.focal_distance / ray.direction.z;
             let p_focus: Point3f = ray.position(ft);
+
             // // update ray for effect of lens
             ray.origin = Point3f {
                 x: p_lens.x,
@@ -167,7 +169,6 @@ impl Camera {
         }
 
         *ray = self.camera_to_world.transform_ray(&ray);
-        println!("Generated ray {:?} :: {:?}", ray.origin, ray.direction);
         1.0
     }
 }

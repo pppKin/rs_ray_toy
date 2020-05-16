@@ -16,6 +16,7 @@ pub struct Scene {
     pub img_width: u32,
     pub img_height: u32,
     pub trace_depth: u32,
+    pub oversampling: u8,
     pub startline: u32,
     pub endline: u32,
     pub cam: Arc<Camera>,
@@ -60,7 +61,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     // defaults
     let mut img_w: u32 = 320;
     let mut img_h: u32 = 240;
-
+    let mut oversampling: u8 = 3;
     let mut trace_depth = 3; // bounces
     let mut lens_radius = 14.5;
     let mut focal_distance = 26.0;
@@ -106,6 +107,10 @@ pub fn make_scene(scene_filename: &str) -> Scene {
                     }
                     "depth" => {
                         trace_depth = u32::from_str(data[0])
+                            .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
+                    }
+                    "oversampling" => {
+                        oversampling = u8::from_str(data[0])
                             .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
                     }
                     "renderslice" => {
@@ -244,6 +249,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     return Scene {
         img_width: img_w,
         img_height: img_h,
+        oversampling: oversampling,
         trace_depth: trace_depth,
         startline: startline,
         endline: endline,

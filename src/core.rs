@@ -3,6 +3,7 @@ use crate::color::Color;
 use crate::geometry::{vec3_dot_nrm, Point2f, Ray, Vector3f};
 use crate::primitives::Object;
 use crate::scene;
+use rand::prelude::*;
 use scene::Scene;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -143,18 +144,21 @@ pub fn render_pixel(line_rx: Arc<Mutex<Receiver<i32>>>, done_tx: Sender<bool>, s
             Ok(y) => {
                 for x in 0..scn.img_width {
                     let mut c: Color = Color::new();
-                    let mut r = Ray::new();
-                    let mut sample = CameraSample::default();
-                    sample.p_film = Point2f {
-                        x: x as f64,
-                        y: y as f64,
-                    };
-                    // sample.p_lens = Point2f {
-                    //     x: 0.0,//x as f64,
-                    //     y: 0.0//y as f64,
-                    // };
-                    let weight = scn.cam.generate_ray(&sample, &mut r);
-                    c += trace(scn, &mut r, 1) * weight;
+                    for _elem in 0..scn.oversampling {
+                        let mut r = Ray::new();
+                        let mut sample = CameraSample::default();
+                        sample.p_film = Point2f {
+                            x: x as f64 + random::<f64>() - 0.5,
+                            y: y as f64 + random::<f64>() - 0.5,
+                        };
+                        sample.p_lens = Point2f {
+                            x: random::<f64>() - 0.5, //x as f64,
+                            y: random::<f64>() - 0.5, //y as f64,
+                        };
+                        let weight = scn.cam.generate_ray(&sample, &mut r);
+                        c += trace(scn, &mut r, 1) * weight;
+                    }
+                    c /= (scn.oversampling - 1) as f64;
                     let mut img = scn.img.lock().unwrap();
                     img.put_pixel(x, y as u32, c.to_pixel());
                     done_tx.send(true).unwrap();
@@ -209,4 +213,16 @@ pub fn deploy_renderer(scene_filename: &str, workers_num: u8, save_path: &str) {
     );
 
     scn.img.lock().unwrap().save(save_path).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_core() {
+        for _i in 0..128 {
+            println!("Random f64 :: {}", random::<f64>());
+        }
+        panic!();
+    }
 }

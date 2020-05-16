@@ -1,12 +1,16 @@
 # scene.txt
 # image_size: width height (default 320x240)
-image_size 64 40
+image_size 1280 720
 
+oversampling 128
 # trace depth: int (default 3)
 depth 2
 
 # field_of_view: int (default 60°)
-fov 90
+fov 75
+
+lens_radius 0.25
+focal_distance 4.0
 
 # camera: vector(x y z)
 camera_position -5 5 -2
@@ -31,6 +35,54 @@ sphere 4 4 1 8 0.5
 sphere 3 6 1 10 0.5
 sphere 4 8 1 12 0.5
 sphere 2 10 1 14 0.5
+sphere 2 10 1 14 0.5
+sphere 2 10 1 16 0.5
+sphere 2 10 1 18 0.5
+sphere 2 10 1 20 0.5
+sphere 2 10 1 22 0.5
+sphere 2 10 1 24 0.5
+sphere 2 10 1 26 0.5
+sphere 2 10 1 28 0.5
+sphere 2 10 1 30 0.5
+sphere 2 10 1 32 0.5
+
+sphere 3 -4 1 0 0.5
+sphere 4 -2 1 2 0.5
+sphere 2 0 1 4 0.5
+sphere 3 2 1 6 0.5
+sphere 4 4 1 8 0.5
+sphere 3 6 1 10 0.5
+sphere 4 8 1 12 0.5
+sphere 2 5 1 14 0.5
+sphere 2 5 1 14 0.5
+sphere 2 5 1 16 0.5
+sphere 2 5 1 18 0.5
+sphere 2 5 1 20 0.5
+sphere 2 5 1 22 0.5
+sphere 2 5 1 24 0.5
+sphere 2 5 1 26 0.5
+sphere 2 5 1 28 0.5
+sphere 2 5 1 30 0.5
+sphere 2 5 1 32 0.5
+
+sphere 3 -6 1 0 0.5
+sphere 4 -6 1 2 0.5
+sphere 2 -6 1 4 0.5
+sphere 3 -6 1 6 0.5
+sphere 4 -6 1 8 0.5
+sphere 3 -6 1 10 0.5
+sphere 4 -6 1 12 0.5
+sphere 2 -6 1 14 0.5
+sphere 2 -6 1 14 0.5
+sphere 2 -6 1 16 0.5
+sphere 2 -6 1 18 0.5
+sphere 2 -6 1 20 0.5
+sphere 2 -6 1 22 0.5
+sphere 2 -6 1 24 0.5
+sphere 2 -6 1 26 0.5
+sphere 2 -6 1 28 0.5
+sphere 2 -6 1 30 0.5
+sphere 2 -6 1 32 0.5
 
 sphere 3 -4 3 5 0.5
 sphere 4 -2 3 5 0.5
@@ -42,16 +94,14 @@ sphere 4 8 3 5 0.5
 sphere 2 10 3 5 0.5
 
 # plane: material_index normal(x y z) distance
-plane 1 0.0 0.0 1.0 35.0
-plane 5 0.0 1.0 0.0 35.0
-plane 1 1.0 0.0 0.0 35.0
+# plane 1 0.0 0.0 1.0 35.0
+# plane 5 0.0 1.0 0.0 35.0
+# plane 1 1.0 0.0 0.0 35.0
 
 # light: type position(x y z) color(r g b)
 light point -5.0 10.0 2 0.3 0.1 0.1
-light point 6.0 -3.0 2 0.2 0.5 0.6
-light point -3.0 -3.0 2 0.5 0.2 0.3
-light point 4.0 7.0 2 0.2 0.2 0.6
-light point 12.0 9.0 0 0.9 0.5 0.6
+light point 4.0 17.0 12.0 0.2 0.2 0.6
+light point 12.0 19.0 0 0.9 0.5 0.6
 light ambient 0.0 0.0 0 0.05 0.1 0.08
 light ambient 0.0 0.0 0 0.08 0.05 0.1
 
@@ -62,5 +112,3 @@ material 0.9 0.2 0.2 0.9 0.7 1.0 0.02 0.0 0.0
 material 0.2 1.0 0.2 0.4 0.8 2.0 0.01 0.0 1.1
 material 0.3 0.3 1.0 0.7 0.4 0.8 0.01 0.0 0.0
 material 0.7 0.8 0.8 0.7 0.4 0.8 0.12 0.0 0.0
-
-lens_radius 30
