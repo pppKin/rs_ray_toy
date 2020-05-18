@@ -1,34 +1,24 @@
-// // vector.go
-// package main
-
-// import (
-// 	"fmt"
-// 	"math"
-// )
-
-// type Vector struct {
-// 	x, y, z float64
-// }
-
-use crate::core::MAX_DIST;
-use crate::misc::{clamp_t, float_nearly_equal, lerp, next_float_down, next_float_up};
-use std;
-use std::f64::consts::PI;
-use std::fmt::Debug;
-use std::ops::{
-    Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
+use crate::{
+    medium::Medium,
+    misc::{clamp_t, float_nearly_equal, gamma, lerp, next_float_down, next_float_up},
+    rtoycore::MAX_DIST,
+};
+use std::{
+    f64::consts::PI,
+    f64::INFINITY,
+    fmt::Debug,
+    ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
+    sync::Arc,
 };
 
-// use num_trait perhaps
-
 pub type Point2f = Point2<f64>;
-pub type Point2i = Point2<i32>;
+pub type Point2i = Point2<i64>;
 pub type Point3f = Point3<f64>;
-pub type Point3i = Point3<i32>;
+pub type Point3i = Point3<i64>;
 pub type Vector2f = Vector2<f64>;
-pub type Vector2i = Vector2<i32>;
+pub type Vector2i = Vector2<i64>;
 pub type Vector3f = Vector3<f64>;
-pub type Vector3i = Vector3<i32>;
+pub type Vector3i = Vector3<i64>;
 pub type Normal3f = Normal3<f64>;
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -65,9 +55,9 @@ pub struct Normal3<T> {
 }
 
 pub type Bounds2f = Bounds2<f64>;
-pub type Bounds2i = Bounds2<i32>;
+pub type Bounds2i = Bounds2<i64>;
 pub type Bounds3f = Bounds3<f64>;
-pub type Bounds3i = Bounds3<i32>;
+pub type Bounds3i = Bounds3<i64>;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Bounds2<T> {
@@ -81,17 +71,55 @@ pub struct Bounds3<T> {
     pub p_max: Point3<T>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Ray {
-    pub origin: Point3f,
-    pub direction: Vector3f,
-    pub inter_dist: f64, // MAX_DIST
-    pub inter_obj: i32,
+    pub o: Point3f,
+    pub d: Vector3f,
+    pub t_max: f64, // MAX_DIST
+    pub time: f64,
+    pub medium: Medium,
 }
 
-pub trait Cxyz {
-    fn to_xyz(&self) -> (f64, f64, f64);
-    fn from_xyz(x: f64, y: f64, z: f64) -> Self;
+#[derive(Default, Debug, Clone)]
+pub struct RayDifferential {
+    pub ray: Ray,
+    pub has_differentials: bool,
+    pub rx_origin: Point3f,
+    pub ry_origin: Point3f,
+    pub rx_direction: Vector3f,
+    pub ry_direction: Vector3f,
+}
+// bool hasDifferentials;
+// Point3f rxOrigin, ryOrigin;
+// Vector3f rxDirection, ryDirection;
+
+pub trait IntersectP {
+    fn intersect_p(&self, r: &Ray) -> bool;
+}
+
+pub trait Cxyz<T: Copy>
+where
+    Self: Sized,
+{
+    fn to_xyz(&self) -> (T, T, T);
+    fn from_xyz(x: T, y: T, z: T) -> Self;
+}
+
+/// Product of the Euclidean magnitudes of the two vectors and the
+/// cosine of the angle between them. A return value of zero means
+/// both vectors are orthogonal, a value if one means they are
+/// codirectional.
+pub fn dot3<T: Copy + Mul<T, Output = T> + Add<T, Output = T>>(
+    a: &impl Cxyz<T>,
+    b: &impl Cxyz<T>,
+) -> T {
+    let (x1, y1, z1) = a.to_xyz();
+    let (x2, y2, z2) = b.to_xyz();
+    (x1 * x2) + (y1 * y2) + (z1 * z2)
+}
+
+pub fn abs_dot3(a: &impl Cxyz<f64>, b: &impl Cxyz<f64>) -> f64 {
+    dot3(a, b).abs()
 }
 
 // Point2 Methods
@@ -106,6 +134,25 @@ impl Point2<f64> {
     pub fn has_nans(&self) -> bool {
         self.x.is_nan() || self.y.is_nan()
     }
+}
+
+impl From<Point2f> for Point2i {
+    fn from(p: Point2f) -> Self {
+        Self::new(p.x as i64, p.y as i64)
+    }
+}
+
+impl From<Point2i> for Point2f {
+    fn from(p: Point2i) -> Self {
+        Self::new(p.x as f64, p.y as f64)
+    }
+}
+
+pub fn convert_pnt2<T, U>(incoming: Point2<T>) -> Point2<U>
+where
+    T: Into<U>,
+{
+    Point2::<U>::new(incoming.x.into(), incoming.y.into())
 }
 
 impl<T> PartialEq for Point2<T>
@@ -126,6 +173,19 @@ where
         Point2::<T> {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
+        }
+    }
+}
+
+impl<T> Add<T> for Point2<T>
+where
+    T: Add<T, Output = T> + Copy,
+{
+    type Output = Point2<T>;
+    fn add(self, rhs: T) -> Point2<T> {
+        Point2::<T> {
+            x: self.x + rhs,
+            y: self.y + rhs,
         }
     }
 }
@@ -169,6 +229,19 @@ where
     }
 }
 
+impl<T> Sub<T> for Point2<T>
+where
+    T: Sub<T, Output = T> + Copy,
+{
+    type Output = Point2<T>;
+    fn sub(self, rhs: T) -> Point2<T> {
+        Point2::<T> {
+            x: self.x - rhs,
+            y: self.y - rhs,
+        }
+    }
+}
+
 impl<T> Mul<T> for Point2<T>
 where
     T: Copy + Mul<T, Output = T>,
@@ -178,19 +251,6 @@ where
         Point2::<T> {
             x: self.x * rhs,
             y: self.y * rhs,
-        }
-    }
-}
-
-impl<T> Neg for Vector2<T>
-where
-    T: Copy + Neg<Output = T>,
-{
-    type Output = Vector2<T>;
-    fn neg(self) -> Vector2<T> {
-        Vector2::<T> {
-            x: -self.x,
-            y: -self.y,
         }
     }
 }
@@ -271,22 +331,6 @@ pub fn bnd2_union_pnt2(b: &Bounds2<f64>, p: Point2<f64>) -> Bounds2<f64> {
     Bounds2 { p_min, p_max }
 }
 
-/// Determine if a given point is inside the bounding box.
-pub fn pnt2_inside_bnd2<T>(pt: Point2<T>, b: &Bounds2<T>) -> bool
-where
-    T: PartialOrd,
-{
-    pt.x >= b.p_min.x && pt.x <= b.p_max.x && pt.y >= b.p_min.y && pt.y <= b.p_max.y
-}
-
-/// Is a 2D point inside a 2D bound?
-pub fn pnt2_inside_exclusive<T>(pt: Point2<T>, b: &Bounds2<T>) -> bool
-where
-    T: PartialOrd,
-{
-    pt.x >= b.p_min.x && pt.x < b.p_max.x && pt.y >= b.p_min.y && pt.y < b.p_max.y
-}
-
 /// Pads the bounding box by a constant factor in both dimensions.
 pub fn bnd2_expand(b: &Bounds2f, delta: f64) -> Bounds2f {
     Bounds2f {
@@ -296,19 +340,85 @@ pub fn bnd2_expand(b: &Bounds2f, delta: f64) -> Bounds2f {
 }
 
 // Point3 Methods
+impl<T> Point3<T> {
+    pub fn new(x: T, y: T, z: T) -> Self {
+        Point3::<T> { x, y, z }
+    }
+}
+
+pub trait PointMin {
+    fn min(&self, other: &Self) -> Self;
+}
+
+impl<T> PointMin for Point3<T>
+where
+    T: PartialOrd + Copy,
+{
+    fn min(&self, other: &Self) -> Self {
+        Self::new(
+            if self.x < other.x { self.x } else { other.x },
+            if self.y < other.y { self.y } else { other.y },
+            if self.z < other.z { self.z } else { other.z },
+        )
+    }
+}
+
+impl<T> PointMin for Point2<T>
+where
+    T: PartialOrd + Copy,
+{
+    fn min(&self, other: &Self) -> Self {
+        Self::new(
+            if self.x < other.x { self.x } else { other.x },
+            if self.y < other.y { self.y } else { other.y },
+        )
+    }
+}
+
+pub trait PointMax {
+    fn max(&self, other: &Self) -> Self;
+}
+
+impl<T> PointMax for Point3<T>
+where
+    T: PartialOrd + Copy,
+{
+    fn max(&self, other: &Self) -> Self {
+        Self::new(
+            if self.x > other.x { self.x } else { other.x },
+            if self.y > other.y { self.y } else { other.y },
+            if self.z > other.z { self.z } else { other.z },
+        )
+    }
+}
+
+impl<T> PointMax for Point2<T>
+where
+    T: PartialOrd + Copy,
+{
+    fn max(&self, other: &Self) -> Self {
+        Self::new(
+            if self.x > other.x { self.x } else { other.x },
+            if self.y > other.y { self.y } else { other.y },
+        )
+    }
+}
 
 impl Point3<f64> {
     pub fn has_nans(&self) -> bool {
         self.x.is_nan() || self.y.is_nan() || self.z.is_nan()
     }
+    pub fn zero() -> Self {
+        Self::new(0.0, 0.0, 0.0)
+    }
 }
 
-impl Cxyz for Point3<f64> {
-    fn to_xyz(&self) -> (f64, f64, f64) {
+impl<T: Copy> Cxyz<T> for Point3<T> {
+    fn to_xyz(&self) -> (T, T, T) {
         return (self.x, self.y, self.z);
     }
-    fn from_xyz(x: f64, y: f64, z: f64) -> Point3<f64> {
-        return Point3f { x: x, y: y, z: z };
+    fn from_xyz(x: T, y: T, z: T) -> Self {
+        return Self { x: x, y: y, z: z };
     }
 }
 
@@ -343,6 +453,31 @@ where
     }
 }
 
+impl<T> AddAssign<T> for Point3<T>
+where
+    T: AddAssign + Copy,
+{
+    fn add_assign(&mut self, rhs: T) {
+        self.x += rhs;
+        self.y += rhs;
+        self.z += rhs;
+    }
+}
+
+impl<T> Add<T> for Point3<T>
+where
+    T: Add<T, Output = T> + Copy,
+{
+    type Output = Point3<T>;
+    fn add(self, rhs: T) -> Point3<T> {
+        Point3::<T> {
+            x: self.x + rhs,
+            y: self.y + rhs,
+            z: self.z + rhs,
+        }
+    }
+}
+
 impl<T> Add<Vector3<T>> for Point3<T>
 where
     T: Add<T, Output = T>,
@@ -365,6 +500,20 @@ where
         self.x += rhs.x;
         self.y += rhs.y;
         self.z += rhs.z;
+    }
+}
+
+impl<T> Sub<T> for Point3<T>
+where
+    T: Sub<T, Output = T> + Copy,
+{
+    type Output = Point3<T>;
+    fn sub(self, rhs: T) -> Point3<T> {
+        Point3::<T> {
+            x: self.x - rhs,
+            y: self.y - rhs,
+            z: self.z - rhs,
+        }
     }
 }
 
@@ -542,7 +691,7 @@ pub fn pnt3_offset_ray_origin(
     w: &Vector3f,
 ) -> Point3f {
     //     f64 d = Dot(Abs(n), pError);
-    let d: f64 = nrm_dot_vec3(&nrm_abs(n), p_error);
+    let d: f64 = dot3(&nrm_abs(n), p_error);
     // #ifdef PBRT_FLOAT_AS_DOUBLE
     //     // We have tons of precision; for now bump up the offset a bunch just
     //     // to be extra sure that we start on the right side of the surface
@@ -550,7 +699,7 @@ pub fn pnt3_offset_ray_origin(
     //     d *= 1024.;
     // #endif
     let mut offset: Vector3f = Vector3f::from(*n) * d;
-    if vec3_dot_nrm(w, n) < 0.0 as f64 {
+    if dot3(w, n) < 0.0 as f64 {
         offset = -offset;
     }
     let mut po: Point3f = *p + offset;
@@ -566,7 +715,11 @@ pub fn pnt3_offset_ray_origin(
 }
 
 // Vector2 Methods
-
+impl<T> Vector2<T> {
+    pub fn new(x: T, y: T) -> Self {
+        Vector2::<T> { x, y }
+    }
+}
 impl Vector2<f64> {
     pub fn has_nans(&self) -> bool {
         self.x.is_nan() || self.y.is_nan()
@@ -579,9 +732,9 @@ impl Vector2<f64> {
     }
 }
 
-impl Index<u8> for Vector2<f64> {
-    type Output = f64;
-    fn index(&self, index: u8) -> &f64 {
+impl<T> Index<u8> for Vector2<T> {
+    type Output = T;
+    fn index(&self, index: u8) -> &T {
         match index {
             0 => &self.x,
             1 => &self.y,
@@ -590,8 +743,8 @@ impl Index<u8> for Vector2<f64> {
     }
 }
 
-impl IndexMut<u8> for Vector2<f64> {
-    fn index_mut(&mut self, index: u8) -> &mut f64 {
+impl<T> IndexMut<u8> for Vector2<T> {
+    fn index_mut(&mut self, index: u8) -> &mut T {
         match index {
             0 => &mut self.x,
             1 => &mut self.y,
@@ -662,9 +815,22 @@ impl DivAssign<f64> for Vector2<f64> {
     }
 }
 
-impl From<Vector2<f64>> for Point2<f64> {
-    fn from(v: Vector2<f64>) -> Self {
-        Point2::<f64> { x: v.x, y: v.y }
+impl<T> Neg for Vector2<T>
+where
+    T: Copy + Neg<Output = T>,
+{
+    type Output = Vector2<T>;
+    fn neg(self) -> Vector2<T> {
+        Vector2::<T> {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
+}
+
+impl<T> From<Vector2<T>> for Point2<T> {
+    fn from(v: Vector2<T>) -> Self {
+        Point2::<T> { x: v.x, y: v.y }
     }
 }
 
@@ -673,7 +839,11 @@ pub fn vec2_dot(v1: &Vector2<f64>, v2: &Vector2<f64>) -> f64 {
 }
 
 // Vector3 methods
-
+impl<T> Vector3<T> {
+    pub fn new(x: T, y: T, z: T) -> Self {
+        Vector3::<T> { x, y, z }
+    }
+}
 impl Vector3<f64> {
     pub fn has_nans(&self) -> bool {
         self.x.is_nan() || self.y.is_nan() || self.z.is_nan()
@@ -706,12 +876,12 @@ impl Vector3<f64> {
     }
 }
 
-impl Cxyz for Vector3f {
-    fn to_xyz(&self) -> (f64, f64, f64) {
+impl<T: Copy> Cxyz<T> for Vector3<T> {
+    fn to_xyz(&self) -> (T, T, T) {
         return (self.x, self.y, self.z);
     }
-    fn from_xyz(x: f64, y: f64, z: f64) -> Vector3f {
-        return Vector3f { x: x, y: y, z: z };
+    fn from_xyz(x: T, y: T, z: T) -> Self {
+        return Self { x: x, y: y, z: z };
     }
 }
 
@@ -836,10 +1006,10 @@ impl IndexMut<u8> for Vector3<f64> {
     }
 }
 
-impl From<Point3<f64>> for Vector3<f64> {
+impl<T> From<Point3<T>> for Vector3<T> {
     #[inline]
-    fn from(p: Point3<f64>) -> Self {
-        Vector3::<f64> {
+    fn from(p: Point3<T>) -> Self {
+        Vector3::<T> {
             x: p.x,
             y: p.y,
             z: p.z,
@@ -847,9 +1017,9 @@ impl From<Point3<f64>> for Vector3<f64> {
     }
 }
 
-impl From<Normal3<f64>> for Vector3<f64> {
-    fn from(n: Normal3<f64>) -> Self {
-        Vector3::<f64> {
+impl<T> From<Normal3<T>> for Vector3<T> {
+    fn from(n: Normal3<T>) -> Self {
+        Vector3::<T> {
             x: n.x,
             y: n.y,
             z: n.z,
@@ -857,66 +1027,23 @@ impl From<Normal3<f64>> for Vector3<f64> {
     }
 }
 
-/// Product of the Euclidean magnitudes of the two vectors and the
-/// cosine of the angle between them. A return value of zero means
-/// both vectors are orthogonal, a value if one means they are
-/// codirectional.
-#[inline]
-pub fn vec3_dot_vec3(v1: &Vector3<f64>, v2: &Vector3<f64>) -> f64 {
-    v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
-}
-
-/// Product of the Euclidean magnitudes of a vector (and a normal) and
-/// the cosine of the angle between them. A return value of zero means
-/// both are orthogonal, a value if one means they are codirectional.
-pub fn vec3_dot_nrm(v1: &Vector3<f64>, n2: &Normal3<f64>) -> f64 {
-    // DCHECK(!v1.HasNaNs() && !n2.HasNaNs());
-    v1.x * n2.x + v1.y * n2.y + v1.z * n2.z
-}
-
-/// Computes the absolute value of the dot product.
-#[inline]
-pub fn vec3_abs_dot_vec3(v1: &Vector3<f64>, v2: &Vector3<f64>) -> f64 {
-    vec3_dot_vec3(v1, v2).abs()
-}
-
-/// Computes the absolute value of the dot product.
-pub fn vec3_abs_dot_nrm(v1: &Vector3<f64>, n2: &Normal3<f64>) -> f64 {
-    vec3_dot_nrm(v1, n2).abs()
+pub fn convert_pnt3<T, U>(incoming: Point3<T>) -> Point3<U>
+where
+    T: Into<U>,
+{
+    Point3::<U>::new(incoming.x.into(), incoming.y.into(), incoming.z.into())
 }
 
 /// Given two vectors in 3D, the cross product is a vector that is
 /// perpendicular to both of them.
-#[inline]
-pub fn vec3_cross_vec3(v1: &Vector3f, v2: &Vector3f) -> Vector3f {
-    let v1x: f64 = v1.x as f64;
-    let v1y: f64 = v1.y as f64;
-    let v1z: f64 = v1.z as f64;
-    let v2x: f64 = v2.x as f64;
-    let v2y: f64 = v2.y as f64;
-    let v2z: f64 = v2.z as f64;
-    Vector3f {
-        x: ((v1y * v2z) - (v1z * v2y)) as f64,
-        y: ((v1z * v2x) - (v1x * v2z)) as f64,
-        z: ((v1x * v2y) - (v1y * v2x)) as f64,
-    }
-}
-
-/// Given a vectors and a normal in 3D, the cross product is a vector
-/// that is perpendicular to both of them.
-#[inline]
-pub fn vec3_cross_nrm(v1: &Vector3f, v2: &Normal3f) -> Vector3f {
-    let v1x: f64 = v1.x as f64;
-    let v1y: f64 = v1.y as f64;
-    let v1z: f64 = v1.z as f64;
-    let v2x: f64 = v2.x as f64;
-    let v2y: f64 = v2.y as f64;
-    let v2z: f64 = v2.z as f64;
-    Vector3f {
-        x: ((v1y * v2z) - (v1z * v2y)) as f64,
-        y: ((v1z * v2x) - (v1x * v2z)) as f64,
-        z: ((v1x * v2y) - (v1y * v2x)) as f64,
-    }
+pub fn cross(a: &impl Cxyz<f64>, b: &impl Cxyz<f64>) -> Vector3f {
+    let (v1x, v1y, v1z) = a.to_xyz();
+    let (v2x, v2y, v2z) = b.to_xyz();
+    Vector3f::new(
+        (v1y * v2z) - (v1z * v2y),
+        (v1z * v2x) - (v1x * v2z),
+        (v1x * v2y) - (v1y * v2x),
+    )
 }
 
 /// Return the largest coordinate value.
@@ -969,7 +1096,7 @@ pub fn vec3_coordinate_system(v1: &Vector3f, v2: &mut Vector3f, v3: &mut Vector3
             z: -v1.y,
         } / (v1.y * v1.y + v1.z * v1.z).sqrt();
     }
-    *v3 = vec3_cross_vec3(v1, &*v2);
+    *v3 = cross(v1, &*v2);
 }
 
 /// Calculate appropriate direction vector from two angles.
@@ -1024,6 +1151,9 @@ impl Normal3<f64> {
 }
 
 impl<T> Normal3<T> {
+    pub fn new(x: T, y: T, z: T) -> Self {
+        Normal3::<T> { x, y, z }
+    }
     pub fn to_vec3(self) -> Vector3<T> {
         Vector3::<T> {
             x: self.x,
@@ -1033,12 +1163,12 @@ impl<T> Normal3<T> {
     }
 }
 
-impl Cxyz for Normal3f {
-    fn to_xyz(&self) -> (f64, f64, f64) {
+impl<T: Copy> Cxyz<T> for Normal3<T> {
+    fn to_xyz(&self) -> (T, T, T) {
         return (self.x, self.y, self.z);
     }
-    fn from_xyz(x: f64, y: f64, z: f64) -> Normal3f {
-        return (Normal3f { x: x, y: y, z: z }).normalize();
+    fn from_xyz(x: T, y: T, z: T) -> Self {
+        return Self { x: x, y: y, z: z };
     }
 }
 
@@ -1175,49 +1305,6 @@ impl<T> From<Vector3<T>> for Normal3<T> {
     }
 }
 
-/// Given a normal and a vector in 3D, the cross product is a vector
-/// that is perpendicular to both of them.
-#[inline]
-pub fn nrm_cross_vec3(n1: &Normal3f, v2: &Vector3f) -> Vector3f {
-    let n1x: f64 = n1.x as f64;
-    let n1y: f64 = n1.y as f64;
-    let n1z: f64 = n1.z as f64;
-    let v2x: f64 = v2.x as f64;
-    let v2y: f64 = v2.y as f64;
-    let v2z: f64 = v2.z as f64;
-    Vector3f {
-        x: ((n1y * v2z) - (n1z * v2y)) as f64,
-        y: ((n1z * v2x) - (n1x * v2z)) as f64,
-        z: ((n1x * v2y) - (n1y * v2x)) as f64,
-    }
-}
-
-/// Product of the Euclidean magnitudes of a normal (and another
-/// normal) and the cosine of the angle between them. A return value
-/// of zero means both are orthogonal, a value if one means they are
-/// codirectional.
-pub fn nrm_dot_nrm<T>(n1: &Normal3<T>, n2: &Normal3<T>) -> T
-where
-    T: Copy + Add<T, Output = T> + Mul<T, Output = T>,
-{
-    n1.x * n2.x + n1.y * n2.y + n1.z * n2.z
-}
-
-/// Product of the Euclidean magnitudes of a normal (and a vector) and
-/// the cosine of the angle between them. A return value of zero means
-/// both are orthogonal, a value if one means they are codirectional.
-pub fn nrm_dot_vec3<T>(n1: &Normal3<T>, v2: &Vector3<T>) -> T
-where
-    T: Copy + Add<T, Output = T> + Mul<T, Output = T>,
-{
-    n1.x * v2.x + n1.y * v2.y + n1.z * v2.z
-}
-
-/// Computes the absolute value of the dot product.
-pub fn nrm_abs_dot_vec3(n1: &Normal3<f64>, v2: &Vector3<f64>) -> f64 {
-    nrm_dot_vec3(n1, v2).abs()
-}
-
 /// Return normal with the absolute value of each coordinate.
 pub fn nrm_abs(n: &Normal3<f64>) -> Normal3<f64> {
     Normal3::<f64> {
@@ -1228,19 +1315,9 @@ pub fn nrm_abs(n: &Normal3<f64>) -> Normal3<f64> {
 }
 
 /// Flip a surface normal so that it lies in the same hemisphere as a
-/// given vector.
-pub fn nrm_faceforward_vec3(n: &Normal3f, v: &Vector3f) -> Normal3f {
-    if nrm_dot_vec3(n, v) < 0.0 as f64 {
-        -(*n)
-    } else {
-        *n
-    }
-}
-
-/// Flip a surface normal so that it lies in the same hemisphere as a
-/// given normal.
-pub fn nrm_faceforward_nrm(n: &Normal3f, n2: &Normal3f) -> Normal3f {
-    if nrm_dot_nrm(n, n2) < 0.0 as f64 {
+/// given vector/normal.
+pub fn faceforward(n: &Normal3f, v: &impl Cxyz<f64>) -> Normal3f {
+    if dot3(n, v) < 0.0 as f64 {
         -(*n)
     } else {
         *n
@@ -1250,15 +1327,15 @@ pub fn nrm_faceforward_nrm(n: &Normal3f, n2: &Normal3f) -> Normal3f {
 impl<T> Bounds2<T> {
     pub fn new(p1: Point2<T>, p2: Point2<T>) -> Self
     where
-        T: Copy + Ord,
+        T: Copy + PartialOrd,
     {
         let p_min: Point2<T> = Point2::<T> {
-            x: std::cmp::min(p1.x, p2.x),
-            y: std::cmp::min(p1.y, p2.y),
+            x: if p1.x > p2.x { p2.x } else { p1.x },
+            y: if p1.y > p2.y { p2.y } else { p1.y },
         };
         let p_max: Point2<T> = Point2::<T> {
-            x: std::cmp::max(p1.x, p2.x),
-            y: std::cmp::max(p1.y, p2.y),
+            x: if p1.x > p2.x { p1.x } else { p2.x },
+            y: if p1.y > p2.y { p1.y } else { p2.y },
         };
         Bounds2::<T> { p_min, p_max }
     }
@@ -1275,10 +1352,48 @@ impl<T> Bounds2<T> {
         let d: Vector2<T> = self.p_max - self.p_min;
         d.x * d.y
     }
+    /// Determine if a given point is inside the bounding box.
+    pub fn inside(pt: &Point2<T>, b: &Bounds2<T>) -> bool
+    where
+        T: PartialOrd,
+    {
+        pt.x >= b.p_min.x && pt.x <= b.p_max.x && pt.y >= b.p_min.y && pt.y <= b.p_max.y
+    }
+
+    /// Is a 2D point inside a 2D bound?
+    pub fn inside_exclusive(pt: &Point2<T>, b: &Bounds2<T>) -> bool
+    where
+        T: PartialOrd,
+    {
+        pt.x >= b.p_min.x && pt.x < b.p_max.x && pt.y >= b.p_min.y && pt.y < b.p_max.y
+    }
+    pub fn union(b: &Self, p: &Point2<T>) -> Self
+    where
+        Point2<T>: PointMin + PointMax,
+    {
+        let p_min = b.p_min.min(p);
+        let p_max = b.p_max.max(p);
+        Bounds2 { p_min, p_max }
+    }
+    pub fn union_bnd(b: &Self, other: &Self) -> Self
+    where
+        Point2<T>: PointMin + PointMax,
+    {
+        let p_min = b.p_min.min(&other.p_min);
+        let p_max = b.p_max.max(&other.p_max);
+        Bounds2 { p_min, p_max }
+    }
+    pub fn expand(&self, delta: T) -> Self
+    where
+        T: Copy + PartialOrd + PartialEq + Add + Sub,
+        Point2<T>: Add<T, Output = Point2<T>> + Sub<T, Output = Point2<T>>,
+    {
+        Self::new(self.p_min - delta, self.p_max - delta)
+    }
 }
 
 impl Bounds2<f64> {
-    pub fn lerp(&self, t: Point2f) -> Point2f {
+    pub fn lerp(&self, t: &Point2f) -> Point2f {
         Point2f {
             x: lerp(t.x, self.p_min.x, self.p_max.x),
             y: lerp(t.y, self.p_min.y, self.p_max.y),
@@ -1293,6 +1408,19 @@ impl Bounds2<f64> {
             o.y /= self.p_max.y - self.p_min.y;
         }
         o
+    }
+}
+
+pub fn convert_bnd2<T, U>(incoming: Bounds2<T>) -> Bounds2<U>
+where
+    U: From<T> + Copy + std::cmp::PartialOrd,
+{
+    Bounds2::<U>::new(convert_pnt2(incoming.p_min), convert_pnt2(incoming.p_max))
+}
+
+impl From<Bounds2i> for Bounds2f {
+    fn from(b: Bounds2i) -> Self {
+        Self::new(b.p_min.into(), b.p_max.into())
     }
 }
 
@@ -1376,7 +1504,23 @@ impl Default for Bounds3<f64> {
     }
 }
 
-impl<T> Bounds3<T> {
+impl<T: Copy> Bounds3<T> {
+    pub fn new(p1: Point3<T>, p2: Point3<T>) -> Self
+    where
+        T: Copy + PartialOrd,
+    {
+        let p_min: Point3<T> = Point3::<T> {
+            x: if p1.x > p2.x { p2.x } else { p1.x },
+            y: if p1.y > p2.y { p2.y } else { p1.y },
+            z: if p1.z > p2.z { p2.z } else { p1.z },
+        };
+        let p_max: Point3<T> = Point3::<T> {
+            x: if p1.x > p2.x { p1.x } else { p2.x },
+            y: if p1.y > p2.y { p1.y } else { p2.y },
+            z: if p1.z > p2.z { p1.z } else { p2.z },
+        };
+        Bounds3::<T> { p_min, p_max }
+    }
     pub fn corner(&self, corner: u8) -> Point3<T>
     where
         T: Copy,
@@ -1453,35 +1597,144 @@ impl<T> Bounds3<T> {
         let sum: Point3f = p_min + p_max;
         *center = sum / 2.0;
         let center_copy: Point3f = *center as Point3f;
-        let is_inside: bool = pnt3_inside_bnd3(&center_copy, b);
+        let is_inside: bool = Bounds3f::inside(&center_copy, b);
         if is_inside {
             *radius = pnt3_distance(&center_copy, &p_max);
         } else {
             *radius = 0.0;
         }
     }
+    /// Determine if a given point is inside the bounding box.
+    pub fn inside(pt: &Point3<T>, b: &Bounds3<T>) -> bool
+    where
+        T: PartialOrd,
+    {
+        pt.x >= b.p_min.x
+            && pt.x <= b.p_max.x
+            && pt.y >= b.p_min.y
+            && pt.y <= b.p_max.y
+            && pt.z >= b.p_min.z
+            && pt.z <= b.p_max.z
+    }
+    /// Is a 2D point inside a 2D bound?
+    pub fn inside_exclusive(pt: &Point3<T>, b: &Bounds3<T>) -> bool
+    where
+        T: PartialOrd,
+    {
+        pt.x >= b.p_min.x
+            && pt.x < b.p_max.x
+            && pt.y >= b.p_min.y
+            && pt.y < b.p_max.y
+            && pt.z > b.p_min.z
+            && pt.z < b.p_max.z
+    }
+    pub fn union(b: &Self, p: &Point3<T>) -> Self
+    where
+        Point3<T>: PointMin + PointMax,
+    {
+        let p_min = b.p_min.min(p);
+        let p_max = b.p_max.max(p);
+        Bounds3 { p_min, p_max }
+    }
+    pub fn union_bnd(b: &Self, other: &Self) -> Self
+    where
+        Point3<T>: PointMin + PointMax,
+    {
+        let p_min = b.p_min.min(&other.p_min);
+        let p_max = b.p_max.max(&other.p_max);
+        Bounds3 { p_min, p_max }
+    }
+    pub fn expand(&self, delta: T) -> Self
+    where
+        T: Copy + PartialOrd + PartialEq + Add + Sub,
+        Point3<T>: Add<T, Output = Point3<T>> + Sub<T, Output = Point3<T>>,
+    {
+        Self::new(self.p_min - delta, self.p_max - delta)
+    }
 }
 
 impl Bounds3<f64> {
-    pub fn new(p1: Point3<f64>, p2: Point3<f64>) -> Self {
-        let p_min: Point3<f64> = Point3::<f64> {
-            x: p1.x.min(p2.x),
-            y: p1.y.min(p2.y),
-            z: p1.z.min(p2.z),
-        };
-        let p_max: Point3<f64> = Point3::<f64> {
-            x: p1.x.max(p2.x),
-            y: p1.y.max(p2.y),
-            z: p1.z.max(p2.z),
-        };
-        Bounds3::<f64> { p_min, p_max }
-    }
+    // pub fn new(p1: Point3<f64>, p2: Point3<f64>) -> Self {
+    //     let p_min: Point3<f64> = Point3::<f64> {
+    //         x: p1.x.min(p2.x),
+    //         y: p1.y.min(p2.y),
+    //         z: p1.z.min(p2.z),
+    //     };
+    //     let p_max: Point3<f64> = Point3::<f64> {
+    //         x: p1.x.max(p2.x),
+    //         y: p1.y.max(p2.y),
+    //         z: p1.z.max(p2.z),
+    //     };
+    //     Bounds3::<f64> { p_min, p_max }
+    // }
     pub fn lerp(&self, t: &Point3f) -> Point3f {
         Point3f {
             x: lerp(t.x, self.p_min.x as f64, self.p_max.x as f64),
             y: lerp(t.y, self.p_min.y as f64, self.p_max.y as f64),
             z: lerp(t.z, self.p_min.z as f64, self.p_max.z as f64),
         }
+    }
+    pub fn intersect_b(&self, r: &Ray, hitt0: &mut f64, hitt1: &mut f64) -> bool {
+        let mut t0 = 0.0;
+        let mut t1 = MAX_DIST;
+        for i in 0..3 {
+            // update interval for _i_th bounding box slab
+            let inv_ray_dir = 1.0 / r.d[i];
+            let mut t_near = (self.p_min[i] - r.o[i]) * inv_ray_dir;
+            let mut t_far = (self.p_max[i] - r.o[i]) * inv_ray_dir;
+            // update parametric interval from slab intersection $t$ values
+            if t_near > t_far {
+                std::mem::swap(&mut t_near, &mut t_far);
+            }
+            // update _t_far_ to ensure robust ray--bounds intersection
+            t_far *= 1.0 + 2.0 * gamma(3);
+            if t_near > t0 {
+                t0 = t_near;
+            }
+            if t_far < t1 {
+                t1 = t_far;
+            }
+            if t0 > t1 {
+                return false;
+            }
+        }
+        *hitt0 = t0;
+        *hitt1 = t1;
+        true
+    }
+    pub fn intersect_p(&self, ray: &Ray, inv_dir: &Vector3f, dir_is_neg: &[u8; 3]) -> bool {
+        // check for ray intersection against $x$ and $y$ slabs
+        let mut t_min = (self[dir_is_neg[0]].x - ray.o.x) * inv_dir.x;
+        let mut t_max = (self[1_u8 - dir_is_neg[0]].x - ray.o.x) * inv_dir.x;
+        let ty_min = (self[dir_is_neg[1]].y - ray.o.y) * inv_dir.y;
+        let mut ty_max = (self[1_u8 - dir_is_neg[1]].y - ray.o.y) * inv_dir.y;
+        // update _t_max_ and _ty_max_ to ensure robust bounds intersection
+        t_max *= 1.0 + 2.0 * gamma(3);
+        ty_max *= 1.0 + 2.0 * gamma(3);
+        if t_min > ty_max || ty_min > t_max {
+            return false;
+        }
+        if ty_min > t_min {
+            t_min = ty_min;
+        }
+        if ty_max < t_max {
+            t_max = ty_max;
+        }
+        // check for ray intersection against $z$ slab
+        let tz_min = (self[dir_is_neg[2]].z - ray.o.z) * inv_dir.z;
+        let mut tz_max = (self[1_u8 - dir_is_neg[2]].z - ray.o.z) * inv_dir.z;
+        // update _tz_max_ to ensure robust bounds intersection
+        tz_max *= 1.0 + 2.0 * gamma(3);
+        if t_min > tz_max || tz_min > t_max {
+            return false;
+        }
+        if tz_min > t_min {
+            t_min = tz_min;
+        }
+        if tz_max < t_max {
+            t_max = tz_max;
+        }
+        (t_min < ray.t_max) && (t_max > 0.0)
     }
 }
 
@@ -1503,117 +1756,90 @@ impl<T> Index<u8> for Bounds3<T> {
     }
 }
 
-// /// Minimum squared distance from point to box; returns zero if point
-// /// is inside.
-// pub fn pnt3_distance_squared_bnd3(p: Point3f, b: Bounds3f) -> f64 {
-//     let dx: f64 = (b.p_min.x - p.x).max(num::Zero::zero()).max(p.x - b.p_max.x);
-//     let dy: f64 = (b.p_min.y - p.y).max(num::Zero::zero()).max(p.y - b.p_max.y);
-//     let dz: f64 = (b.p_min.z - p.z).max(num::Zero::zero()).max(p.z - b.p_max.z);
-//     dx * dx + dy * dy + dz * dz
-// }
-
-// /// Minimum distance from point to box; returns zero if point is
-// /// inside.
-// pub fn pnt3_distance_bnd3(p: Point3f, b: Bounds3f) -> f64 {
-//     pnt3_distance_squared_bnd3(p, b).sqrt()
-// }
-
-/// Given a bounding box and a point, the **bnd3_union_pnt3()**
-/// function returns a new bounding box that encompasses that point as
-/// well as the original box.
-pub fn bnd3_union_pnt3(b: &Bounds3<f64>, p: &Point3<f64>) -> Bounds3<f64> {
-    let p_min: Point3<f64> = Point3::<f64> {
-        x: b.p_min.x.min(p.x),
-        y: b.p_min.y.min(p.y),
-        z: b.p_min.z.min(p.z),
-    };
-    let p_max: Point3<f64> = Point3::<f64> {
-        x: b.p_max.x.max(p.x),
-        y: b.p_max.y.max(p.y),
-        z: b.p_max.z.max(p.z),
-    };
-    Bounds3 { p_min, p_max }
+pub fn convert_bnd3<T, U>(incoming: Bounds3<T>) -> Bounds3<U>
+where
+    U: From<T> + Copy + std::cmp::PartialOrd,
+{
+    Bounds3::<U>::new(convert_pnt3(incoming.p_min), convert_pnt3(incoming.p_max))
 }
 
-/// Construct a new box that bounds the space encompassed by two other
-/// bounding boxes.
-pub fn bnd3_union_bnd3(b1: &Bounds3<f64>, b2: &Bounds3<f64>) -> Bounds3<f64> {
-    let p_min: Point3<f64> = Point3::<f64> {
-        x: b1.p_min.x.min(b2.p_min.x),
-        y: b1.p_min.y.min(b2.p_min.y),
-        z: b1.p_min.z.min(b2.p_min.z),
-    };
-    let p_max: Point3<f64> = Point3::<f64> {
-        x: b1.p_max.x.max(b2.p_max.x),
-        y: b1.p_max.y.max(b2.p_max.y),
-        z: b1.p_max.z.max(b2.p_max.z),
-    };
-    Bounds3 { p_min, p_max }
-}
-
-/// Determine if a given point is inside the bounding box.
-pub fn pnt3_inside_bnd3(p: &Point3f, b: &Bounds3f) -> bool {
-    p.x >= b.p_min.x
-        && p.x <= b.p_max.x
-        && p.y >= b.p_min.y
-        && p.y <= b.p_max.y
-        && p.z >= b.p_min.z
-        && p.z <= b.p_max.z
-}
-
-/// Is a 3D point inside a 3D bound?
-pub fn pnt3i_inside_exclusive(p: &Point3i, b: &Bounds3i) -> bool {
-    p.x >= b.p_min.x
-        && p.x < b.p_max.x
-        && p.y >= b.p_min.y
-        && p.y < b.p_max.y
-        && p.z >= b.p_min.z
-        && p.z < b.p_max.z
-}
-
-/// Is a 3D point inside a 3D bound?
-pub fn pnt3f_inside_exclusive(p: &Point3f, b: &Bounds3f) -> bool {
-    p.x >= b.p_min.x
-        && p.x < b.p_max.x
-        && p.y >= b.p_min.y
-        && p.y < b.p_max.y
-        && p.z >= b.p_min.z
-        && p.z < b.p_max.z
-}
-
-/// Pads the bounding box by a constant factor in all dimensions.
-pub fn bnd3_expand(b: &Bounds3f, delta: f64) -> Bounds3f {
-    Bounds3f::new(
-        b.p_min
-            - Vector3f {
-                x: delta,
-                y: delta,
-                z: delta,
-            },
-        b.p_max
-            + Vector3f {
-                x: delta,
-                y: delta,
-                z: delta,
-            },
-    )
+impl Default for Ray {
+    fn default() -> Self {
+        Ray {
+            o: Point3f::default(),
+            d: Vector3f::default(),
+            t_max: INFINITY,
+            time: 0.0,
+            medium: None,
+        }
+    }
 }
 
 impl Ray {
-    pub fn new() -> Ray {
+    pub fn new(o: Point3f, d: Vector3f, t_max: f64, time: f64, medium: Medium) -> Ray {
         Ray {
-            origin: Point3f::default(),
-            direction: Vector3f::default(),
-            inter_dist: MAX_DIST,
-            inter_obj: -1,
+            o,
+            d: d.normalize(),
+            t_max,
+            time,
+            medium,
+        }
+    }
+    pub fn new_od(o: Point3f, d: Vector3f) -> Ray {
+        Ray {
+            o,
+            d: d.normalize(),
+            t_max: INFINITY,
+            time: 0.0,
+            medium: None,
         }
     }
     pub fn position(&self, t: f64) -> Point3f {
-        self.origin + self.direction * t
+        self.o + self.d * t
     }
 }
 
-pub fn nearly_equal(a: &impl Cxyz, b: &impl Cxyz) -> bool {
+impl RayDifferential {
+    pub fn new(
+        ray: Ray,
+        has_differentials: bool,
+        rx_origin: Point3f,
+        ry_origin: Point3f,
+        rx_direction: Vector3f,
+        ry_direction: Vector3f,
+    ) -> Self {
+        Self {
+            ray,
+            has_differentials,
+            rx_origin,
+            ry_origin,
+            rx_direction,
+            ry_direction,
+        }
+    }
+
+    pub fn scale_differentials(&mut self, s: f64) {
+        self.rx_origin = self.ray.o + (self.rx_origin - self.ray.o) * s;
+        self.ry_origin = self.ray.o + (self.ry_origin - self.ray.o) * s;
+        self.rx_direction = self.ray.d + (self.rx_direction - self.ray.d) * s;
+        self.ry_direction = self.ray.d + (self.ry_direction - self.ray.d) * s;
+    }
+}
+
+impl From<Ray> for RayDifferential {
+    fn from(r: Ray) -> Self {
+        Self::new(
+            r,
+            false,
+            Point3f::default(),
+            Point3f::default(),
+            Vector3f::default(),
+            Vector3f::default(),
+        )
+    }
+}
+
+pub fn nearly_equal(a: &impl Cxyz<f64>, b: &impl Cxyz<f64>) -> bool {
     let (ax, ay, az) = a.to_xyz();
     let (bx, by, bz) = b.to_xyz();
     float_nearly_equal(ax, bx) && float_nearly_equal(ay, by) && float_nearly_equal(az, bz)
@@ -1622,7 +1848,14 @@ pub fn nearly_equal(a: &impl Cxyz, b: &impl Cxyz) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::SMALL;
+    use crate::rtoycore::SMALL;
+
+    #[test]
+    fn test_pnt3() {
+        let c = Point3f::new(0.0, 0.0, 0.0);
+        let _d = c + 1.0;
+    }
+
     #[test]
     fn test_vec3() {
         let sv = Vector3f {
@@ -1643,34 +1876,34 @@ mod tests {
         assert!(&(sv * 2.7) == &e);
 
         // dot product cross product
-        let dp = vec3_dot_vec3(&sv, &e);
+        let dp = dot3(&sv, &e);
         assert!((dp - 135.0).abs() <= SMALL);
 
-        let cv = Vector3f::from_xyz(9.6, -12.4, 3.7);
-        assert!(&vec3_cross_vec3(&sv, &cv) == &Vector3f::from_xyz(-47.2, -59.1, -75.6))
+        let cv = Vector3f::new(9.6, -12.4, 3.7);
+        assert!(&cross(&sv, &cv) == &Vector3f::new(-47.2, -59.1, -75.6))
     }
 
     #[test]
     fn test_bound3() {
-        let a = Bounds3f {
-            p_min: Point3f::from_xyz(-10.0, -10.0, 5.0),
-            p_max: Point3f::from_xyz(0.0, 20.0, 10.0),
-        };
+        let a = Bounds3f::new(
+            Point3f::new(0.0, -10.0, 5.0),
+            Point3f::new(-10.0, 20.0, 10.0),
+        );
 
-        let d = Point3f::from_xyz(-15.0, 10.0, 30.0);
+        let d = Point3f::new(-15.0, 10.0, 30.0);
 
         // EXPECT_EQ(Bounds3f(Point3f(-15, -10, 5), Point3f(0, 20, 30)), e);
-        let e = bnd3_union_pnt3(&a, &d);
+        let e = Bounds3f::union(&a, &d);
         let r = Bounds3f {
-            p_min: Point3f::from_xyz(-15.0, -10.0, 5.0),
-            p_max: Point3f::from_xyz(0.0, 20.0, 30.0),
+            p_min: Point3f::new(-15.0, -10.0, 5.0),
+            p_max: Point3f::new(0.0, 20.0, 30.0),
         };
         assert!(&r == &e);
 
         let mut bs_c: Point3f = Point3f::default();
         let mut bs_r: f64 = 0.0;
         Bounds3f::bounding_sphere(&a, &mut bs_c, &mut bs_r);
-        assert!(&bs_c == &Point3f::from_xyz(-5.0, 5.0, 7.5));
+        assert!(&bs_c == &Point3f::new(-5.0, 5.0, 7.5));
 
         nearly_equal(&a.p_min, &a.p_max);
     }

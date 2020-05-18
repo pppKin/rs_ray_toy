@@ -1,9 +1,18 @@
-use crate::core::MACHINE_EPSILON;
-use crate::geometry::{Point2f, Vector2f};
-use std::f64::consts::PI;
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::path::Path;
+use crate::{
+    geometry::{Point2f, Vector2f, Vector3f},
+    rtoycore::MACHINE_EPSILON,
+};
+use rand::{prelude::ThreadRng, Rng};
+use std::{
+    f64::consts::PI,
+    fs::File,
+    io::{self, BufRead},
+    ops::{Add, Div, Mul, Sub},
+    path::Path,
+    rc::Rc,
+    str::FromStr,
+    sync::Arc,
+};
 pub const PI_OVER_2: f64 = 1.570_796_326_794_896_619_23;
 pub const PI_OVER_4: f64 = 0.785_398_163_397_448_309_61;
 pub const ONE_MINUS_EPSILON: f64 = 1.0 - MACHINE_EPSILON;
@@ -18,16 +27,16 @@ where
 
 /// Use **unsafe**
 /// [std::mem::transmute_copy][transmute_copy]
-/// to convert *f64* to *u32*.
+/// to convert *f64* to *u64*.
 ///
 /// [transmute_copy]: https://doc.rust-lang.org/std/mem/fn.transmute_copy.html
-pub fn float_to_bits(f: f64) -> u32 {
+pub fn float_to_bits(f: f64) -> u64 {
     // uint64_t ui;
     // memcpy(&ui, &f, sizeof(double));
     // return ui;
-    let rui: u32;
+    let rui: u64;
     unsafe {
-        let ui: u32 = std::mem::transmute_copy(&f);
+        let ui: u64 = std::mem::transmute_copy(&f);
         rui = ui;
     }
     rui
@@ -35,8 +44,18 @@ pub fn float_to_bits(f: f64) -> u32 {
 
 /// Error propagation.
 #[inline]
-pub fn gamma(n: i32) -> f64 {
+pub fn gamma(n: i64) -> f64 {
     (n as f64 * MACHINE_EPSILON) / (1.0 - n as f64 * MACHINE_EPSILON)
+}
+
+/// Is used to write sRGB-compatible 8-bit image files.
+#[inline]
+pub fn gamma_correct(value: f64) -> f64 {
+    if value <= 0.003_130_8 {
+        12.92 * value
+    } else {
+        1.055 as f64 * value.powf((1.0 / 2.4) as f64) - 0.055
+    }
 }
 
 /// Convert from angles expressed in degrees to radians.
@@ -46,10 +65,10 @@ pub fn radians(deg: f64) -> f64 {
 
 /// Use **unsafe**
 /// [std::mem::transmute_copy][transmute_copy]
-/// to convert *u32* to *f64*.
+/// to convert *u64* to *f64*.
 ///
 /// [transmute_copy]: https://doc.rust-lang.org/std/mem/fn.transmute_copy.html
-pub fn bits_to_float(ui: u32) -> f64 {
+pub fn bits_to_float(ui: u64) -> f64 {
     // float f;
     // memcpy(&f, &ui, sizeof(uint32_t));
     // return f;
@@ -68,7 +87,7 @@ pub fn next_float_up(v: f64) -> f64 {
         v
     } else {
         let new_v = if v == -0.0 { 0.0 } else { v };
-        let mut ui: u32 = float_to_bits(new_v);
+        let mut ui: u64 = float_to_bits(new_v);
         if new_v >= 0.0 {
             ui += 1;
         } else {
@@ -85,7 +104,7 @@ pub fn next_float_down(v: f64) -> f64 {
         v
     } else {
         let new_v = if v == 0.0 { -0.0 } else { v };
-        let mut ui: u32 = float_to_bits(new_v);
+        let mut ui: u64 = float_to_bits(new_v);
         if new_v > 0.0 {
             ui -= 1;
         } else {
@@ -180,5 +199,218 @@ pub fn float_nearly_equal(a: f64, b: f64) -> bool {
     } else {
         // use relative error
         return diff / (a_abs + b_abs).min(std::f64::MAX) < MACHINE_EPSILON;
+    }
+}
+
+/// Cosine-weighted hemisphere sampling using Malley's method.
+#[inline]
+pub fn cosine_sample_hemisphere(u: Point2f) -> Vector3f {
+    let d: Point2f = concentric_sample_disk(u);
+    let z: f64 = (0.0 as f64).max(1.0 - d.x * d.x - d.y * d.y).sqrt();
+    Vector3f { x: d.x, y: d.y, z }
+}
+
+pub fn erf_inv(x: f64) -> f64 {
+    let clamped_x: f64 = clamp_t(x, -0.99999, 0.99999);
+    let mut w: f64 = -((1.0 as f64 - clamped_x) * (1.0 as f64 + clamped_x)).ln();
+    let mut p: f64;
+    if w < 5.0 as f64 {
+        w -= 2.5 as f64;
+        p = 2.810_226_36e-08;
+        p = 3.432_739_39e-07 + p * w;
+        p = -3.523_387_7e-06 + p * w;
+        p = -4.391_506_54e-06 + p * w;
+        p = 0.000_218_580_87 + p * w;
+        p = -0.001_253_725_03 + p * w;
+        p = -0.004_177_681_640 + p * w;
+        p = 0.246_640_727 + p * w;
+        p = 1.501_409_41 + p * w;
+    } else {
+        w = w.sqrt() - 3.0 as f64;
+        p = -0.000_200_214_257;
+        p = 0.000_100_950_558 + p * w;
+        p = 0.001_349_343_22 + p * w;
+        p = -0.003_673_428_44 + p * w;
+        p = 0.005_739_507_73 + p * w;
+        p = -0.007_622_461_3 + p * w;
+        p = 0.009_438_870_47 + p * w;
+        p = 1.001_674_06 + p * w;
+        p = 2.832_976_82 + p * w;
+    }
+    p * clamped_x
+}
+
+pub fn erf(x: f64) -> f64 {
+    // constants
+    let a1: f64 = 0.254_829_592;
+    let a2: f64 = -0.284_496_736;
+    let a3: f64 = 1.421_413_741;
+    let a4: f64 = -1.453_152_027;
+    let a5: f64 = 1.061_405_429;
+    let p: f64 = 0.327_591_1;
+    // save the sign of x
+    let sign = if x < 0.0 as f64 { -1.0 } else { 1.0 };
+    let x: f64 = x.abs();
+    // A&S formula 7.1.26
+    let t: f64 = 1.0 as f64 / (1.0 as f64 + p * x);
+    let y: f64 = 1.0 as f64 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
+    sign * y
+}
+
+/// Uniformly sample rays in a full sphere. Choose a direction.
+pub fn uniform_sample_sphere(u: Point2f) -> Vector3f {
+    let z = 1.0 - 2.0 * u[0];
+    let r = (0.0 as f64).max(1.0 - z * z).sqrt();
+    let phi = 2.0 * PI * u[1];
+    Vector3f {
+        x: r * phi.cos(),
+        y: r * phi.sin(),
+        z,
+    }
+}
+
+/// Uniformly sample rays in a hemisphere. Choose a direction.
+pub fn uniform_sample_hemisphere(u: &Point2f) -> Vector3f {
+    let z: f64 = u[0];
+    let r: f64 = (0.0 as f64).max(1.0 as f64 - z * z).sqrt();
+    let phi: f64 = 2.0 as f64 * PI * u[1];
+    Vector3f {
+        x: r * phi.cos(),
+        y: r * phi.sin(),
+        z,
+    }
+}
+
+/// Uniformly sample rays in a hemisphere. Probability density
+/// function (PDF).
+#[inline]
+pub fn uniform_hemisphere_pdf() -> f64 {
+    1.0 / (2.0 * PI)
+}
+
+pub fn round_up_pow2(v: u32) -> u32 {
+    let mut v = v;
+    v -= 1;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    return v + 1;
+}
+
+/// Randomly permute an array of *count* sample values, each of which
+/// has *n_dimensions* dimensions.
+pub fn shuffle<T>(samp: &mut [T], count: u32, n_dimensions: u32, rng: &mut ThreadRng) {
+    for i in 0..count {
+        let other = i + rng.gen_range(0, count - i);
+        for j in 0..n_dimensions {
+            samp.swap(
+                (n_dimensions * i + j) as usize,
+                (n_dimensions * other + j) as usize,
+            );
+        }
+    }
+}
+
+pub fn latin_hypercube(samples: &mut [Point2f], n_samples: u32, rng: &mut ThreadRng) {
+    let n_dim: usize = 2;
+    // generate LHS samples along diagonal
+    let inv_n_samples: f64 = 1.0 as f64 / n_samples as f64;
+    for i in 0..n_samples {
+        for j in 0..n_dim {
+            let sj: f64 = (i as f64 + (rng.gen_range(0.0, ONE_MINUS_EPSILON))) * inv_n_samples;
+            if j == 0 {
+                samples[i as usize].x = sj.min(ONE_MINUS_EPSILON);
+            } else {
+                samples[i as usize].y = sj.min(ONE_MINUS_EPSILON);
+            }
+        }
+    }
+    // permute LHS samples in each dimension
+    for i in 0..n_dim {
+        for j in 0..n_samples {
+            let other: u32 = j as u32 + rng.gen_range(0, (n_samples - j) as u32);
+            if i == 0 {
+                let tmp = samples[j as usize].x;
+                samples[j as usize].x = samples[other as usize].x;
+                samples[other as usize].x = tmp;
+            } else {
+                let tmp = samples[j as usize].y;
+                samples[j as usize].y = samples[other as usize].y;
+                samples[other as usize].y = tmp;
+            }
+            // samples.swap(
+            //     (n_dim * j + i) as usize,
+            //     (n_dim * other + i) as usize,
+            // );
+        }
+    }
+}
+
+/// Computes the remainder of a/b. Provides the behavior that the
+/// modulus of a negative number is always positive.
+pub fn mod_t<T>(a: T, b: T) -> T
+where
+    T: Copy
+        + PartialOrd
+        + Add<T, Output = T>
+        + Sub<T, Output = T>
+        + Mul<T, Output = T>
+        + Div<T, Output = T>
+        + FromStr,
+{
+    let result: T = a - (a / b) * b;
+    if let Ok(zero) = T::from_str("0") {
+        if result < zero {
+            result + b
+        } else {
+            result
+        }
+    } else {
+        result
+    }
+}
+
+/// Helper function which emulates the behavior of std::upper_bound().
+pub fn find_interval<P>(size: i32, pred: P) -> i32
+where
+    P: Fn(i32) -> bool,
+{
+    let mut first: i32 = 0;
+    let mut len: i32 = size;
+    while len > 0 {
+        let half = len >> 1;
+        let middle = first + half;
+        // bisect range based on value of _pred_ at _middle_
+        if pred(middle) {
+            first = middle + 1;
+            len -= half + 1;
+        } else {
+            len = half;
+        }
+    }
+    clamp_t(first - 1, 0, size - 2)
+}
+
+pub fn copy_option_arc<T: ?Sized>(opa: &Option<Arc<T>>) -> Option<Arc<T>> {
+    match opa {
+        Some(a) => {
+            return Some(Arc::clone(a));
+        }
+        None => {
+            return None;
+        }
+    }
+}
+
+pub fn copy_option_rc<T: ?Sized>(opa: &Option<Rc<T>>) -> Option<Rc<T>> {
+    match opa {
+        Some(a) => {
+            return Some(Rc::clone(a));
+        }
+        None => {
+            return None;
+        }
     }
 }

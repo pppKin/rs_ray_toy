@@ -1,18 +1,35 @@
+#![feature(iter_partition_in_place)]
+#![allow(dead_code)]
+#![allow(non_snake_case)]
+#![feature(const_generics)]
+
+mod bvh;
 mod camera;
 mod color;
-mod core;
+mod film;
+mod filters;
 mod geometry;
+mod interaction;
 mod lights;
+mod lowdiscrepancy;
 mod material;
+mod medium;
+mod microfacet;
 mod misc;
 mod primitives;
+mod reflection;
+mod rtoycore;
+mod samplers;
 mod scene;
+mod shape;
+mod spectrum;
+mod texture;
 mod transform;
-
 use std::env;
 use std::str::FromStr;
 
 extern crate image;
+extern crate lazy_static;
 extern crate rand;
 
 fn main() {
@@ -22,5 +39,5 @@ fn main() {
     let num = u8::from_str(&args[2]).unwrap();
     let save_to = &args[3];
 
-    core::deploy_renderer(filename, num, save_to);
+    // rtoycore::deploy_renderer(filename, num, save_to);
 }

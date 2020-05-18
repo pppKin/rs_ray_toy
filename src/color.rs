@@ -1,9 +1,12 @@
 use crate::geometry::Cxyz;
-use crate::misc::clamp_t;
+use crate::misc::{clamp_t, lerp};
 use image::Rgba;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
+
+// four key quantities to dexcribe electromagnetic radiation
+// flux, intensity, irradiance, radiance => spectral power distribution
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Color {
     r: f64,
@@ -27,9 +30,25 @@ impl Color {
             255 as u8,
         ]);
     }
+
+    pub fn lerp(t: f64, a: Color, b: Color) -> Self {
+        Color {
+            r: lerp(t, a.r, b.r),
+            g: lerp(t, a.g, b.g),
+            b: lerp(t, a.b, b.b),
+        }
+    }
+
+    pub fn sqrt(&self) -> Self {
+        Color {
+            r: self.r.sqrt(),
+            g: self.g.sqrt(),
+            b: self.b.sqrt(),
+        }
+    }
 }
 
-impl Cxyz for Color {
+impl Cxyz<f64> for Color {
     fn to_xyz(&self) -> (f64, f64, f64) {
         return (self.r, self.g, self.b);
     }
@@ -111,6 +130,17 @@ impl Div<f64> for Color {
     }
 }
 
+impl Div for Color {
+    type Output = Color;
+    fn div(self, rhs: Color) -> Color {
+        Color {
+            r: self.r / rhs.r,
+            g: self.g / rhs.g,
+            b: self.b / rhs.b,
+        }
+    }
+}
+
 impl DivAssign<f64> for Color {
     fn div_assign(&mut self, rhs: f64) {
         assert_ne!(rhs, 0.0 as f64);
@@ -151,6 +181,17 @@ impl Sub<f64> for Color {
     }
 }
 
+impl Sub for Color {
+    type Output = Color;
+    fn sub(self, rhs: Color) -> Color {
+        Color {
+            r: self.r - rhs.r,
+            g: self.g - rhs.g,
+            b: self.b - rhs.b,
+        }
+    }
+}
+
 impl Index<u8> for Color {
     type Output = f64;
     #[inline]
@@ -173,5 +214,11 @@ impl IndexMut<u8> for Color {
             2 => &mut self.b,
             _ => panic!("Check failed: i >= 0 && i <= 1"),
         }
+    }
+}
+
+impl From<f64> for Color {
+    fn from(s: f64) -> Self {
+        Color { r: s, g: s, b: s }
     }
 }

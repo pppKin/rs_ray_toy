@@ -1,5 +1,4 @@
-use crate::camera::Camera;
-use crate::core;
+use crate::camera::PerspectiveCamera;
 use crate::geometry;
 use crate::geometry::{Point2i, Point3f, Vector3f};
 use crate::lights::Light;
@@ -7,6 +6,7 @@ use crate::material::Material;
 use crate::misc::read_lines;
 use crate::primitives;
 use crate::primitives::Primitive;
+use crate::rtoycore;
 use crate::transform::Transform;
 use image::{ImageBuffer, RgbaImage};
 use std::str::FromStr;
@@ -19,9 +19,9 @@ pub struct Scene {
     pub oversampling: u8,
     pub startline: u32,
     pub endline: u32,
-    pub cam: Arc<Camera>,
+    pub cam: Arc<PerspectiveCamera>,
     pub img: Arc<Mutex<RgbaImage>>,
-    pub object_list: Vec<Arc<Primitive>>,
+    pub object_list: Vec<Arc<dyn Primitive>>,
     pub light_list: Vec<Arc<Light>>,
     pub material_list: Vec<Arc<Material>>,
 }
@@ -34,7 +34,7 @@ fn parse_err(kw: &str, ln: u32, filename: &str) -> String {
 
 fn parse_xyz<T>(data: Vec<&str>) -> Result<T, &str>
 where
-    T: geometry::Cxyz,
+    T: geometry::Cxyz<f64>,
 {
     if data.len() < 3 {
         return Err("Not enough components for a vector");
@@ -73,7 +73,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     let mut camera_up: Vector3f = zero_vec3;
     let mut fov = 90.0;
 
-    let mut obj_list: Vec<Arc<Primitive>> = vec![];
+    let mut obj_list: Vec<Arc<dyn Primitive>> = vec![];
     let mut light_list: Vec<Arc<Light>> = vec![];
     let mut mat_list: Vec<Arc<Material>> = vec![];
 
@@ -143,34 +143,34 @@ pub fn make_scene(scene_filename: &str) -> Scene {
                         fov = f64::from_str(data[0])
                             .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
                     }
-                    "sphere" => {
-                        let mat: u32 = u32::from_str(data[0])
-                            .expect(&(parse_err("sphere material", cur_line_num, scene_filename)));
-                        let rad: f64 = f64::from_str(data[4])
-                            .expect(&(parse_err("sphere radius", cur_line_num, scene_filename)));
-                        let pos = parse_xyz(data[1..4].to_vec())
-                            .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
-                        let sph = primitives::Sphere {
-                            mat: mat,
-                            radius: rad,
-                            position: pos,
-                        };
-                        obj_list.push(Arc::new(Primitive::Sphere(Arc::new(sph))));
-                    }
-                    "plane" => {
-                        let mat: u32 = u32::from_str(data[0])
-                            .expect(&(parse_err("plane material", cur_line_num, scene_filename)));
-                        let dis: f64 = f64::from_str(data[4])
-                            .expect(&(parse_err("plane distancia", cur_line_num, scene_filename)));
-                        let nrm = parse_xyz(data[1..4].to_vec())
-                            .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
-                        let pln = primitives::Plane {
-                            mat: mat,
-                            distancia: dis,
-                            normal: nrm,
-                        };
-                        obj_list.push(Arc::new(Primitive::Plane(Arc::new(pln))));
-                    }
+                    // "sphere" => {
+                    //     let mat: u32 = u32::from_str(data[0])
+                    //         .expect(&(parse_err("sphere material", cur_line_num, scene_filename)));
+                    //     let rad: f64 = f64::from_str(data[4])
+                    //         .expect(&(parse_err("sphere radius", cur_line_num, scene_filename)));
+                    //     let pos = parse_xyz(data[1..4].to_vec())
+                    //         .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
+                    //     let sph = primitives::Sphere {
+                    //         mat: mat,
+                    //         radius: rad,
+                    //         position: pos,
+                    //     };
+                    //     obj_list.push(Arc::new(Primitive::Sphere(Arc::new(sph))));
+                    // }
+                    // "plane" => {
+                    //     let mat: u32 = u32::from_str(data[0])
+                    //         .expect(&(parse_err("plane material", cur_line_num, scene_filename)));
+                    //     let dis: f64 = f64::from_str(data[4])
+                    //         .expect(&(parse_err("plane distancia", cur_line_num, scene_filename)));
+                    //     let nrm = parse_xyz(data[1..4].to_vec())
+                    //         .expect(&(parse_err(keyword, cur_line_num, scene_filename)));
+                    //     let pln = primitives::Plane {
+                    //         mat: mat,
+                    //         distancia: dis,
+                    //         normal: nrm,
+                    //     };
+                    //     obj_list.push(Arc::new(Primitive::Plane(Arc::new(pln))));
+                    // }
                     "light" => {
                         let l = Light {
                             position: parse_xyz(data[1..4].to_vec()).expect(
@@ -183,27 +183,27 @@ pub fn make_scene(scene_filename: &str) -> Scene {
                         };
                         light_list.push(Arc::new(l));
                     }
-                    "material" => mat_list.push(Arc::new(Material {
-                        color: parse_xyz(data[0..3].to_vec())
-                            .expect(&(parse_err("material color", cur_line_num, scene_filename))),
-                        diffuse_col: f64::from_str(data[3]).expect(
-                            &(parse_err("material disfuse color", cur_line_num, scene_filename)),
-                        ),
-                        specular_col: f64::from_str(data[4]).expect(
-                            &(parse_err("material specular_col", cur_line_num, scene_filename)),
-                        ),
-                        specular_d: f64::from_str(data[5]).expect(
-                            &(parse_err("material specular_d", cur_line_num, scene_filename)),
-                        ),
-                        reflection_col: f64::from_str(data[6]).expect(
-                            &(parse_err("material reflection_col", cur_line_num, scene_filename)),
-                        ),
-                        transmit_col: f64::from_str(data[3]).expect(
-                            &(parse_err("material transmit_col", cur_line_num, scene_filename)),
-                        ),
-                        ior: f64::from_str(data[3])
-                            .expect(&(parse_err("material ior", cur_line_num, scene_filename))),
-                    })),
+                    // "material" => mat_list.push(Arc::new(Material {
+                    //     color: parse_xyz(data[0..3].to_vec())
+                    //         .expect(&(parse_err("material color", cur_line_num, scene_filename))),
+                    //     diffuse_col: f64::from_str(data[3]).expect(
+                    //         &(parse_err("material disfuse color", cur_line_num, scene_filename)),
+                    //     ),
+                    //     specular_col: f64::from_str(data[4]).expect(
+                    //         &(parse_err("material specular_col", cur_line_num, scene_filename)),
+                    //     ),
+                    //     specular_d: f64::from_str(data[5]).expect(
+                    //         &(parse_err("material specular_d", cur_line_num, scene_filename)),
+                    //     ),
+                    //     reflection_col: f64::from_str(data[6]).expect(
+                    //         &(parse_err("material reflection_col", cur_line_num, scene_filename)),
+                    //     ),
+                    //     transmit_col: f64::from_str(data[3]).expect(
+                    //         &(parse_err("material transmit_col", cur_line_num, scene_filename)),
+                    //     ),
+                    //     ior: f64::from_str(data[3])
+                    //         .expect(&(parse_err("material ior", cur_line_num, scene_filename))),
+                    // })),
                     _ => println!(
                         "Unrecognized keyword {} at line {} {}",
                         keyword, cur_line_num, scene_filename
@@ -218,8 +218,8 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     }
 
     let tmp_cam_look = camera_look - Point3f::default();
-    if camera_up.length() <= core::SMALL {
-        let tmp = geometry::vec3_cross_vec3(
+    if camera_up.length() <= rtoycore::SMALL {
+        let tmp = geometry::cross(
             &tmp_cam_look,
             &Vector3f {
                 x: 0.0,
@@ -227,7 +227,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
                 z: 1.0,
             },
         );
-        camera_up = geometry::vec3_cross_vec3(&tmp, &tmp_cam_look);
+        camera_up = geometry::cross(&tmp, &tmp_cam_look);
     }
     let img_buf = ImageBuffer::new(img_w as u32, img_h as u32);
     let img = Arc::new(Mutex::new(img_buf));
@@ -240,11 +240,11 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     };
 
     let resolution = Point2i {
-        x: img_w as i32,
-        y: img_h as i32,
+        x: img_w as i64,
+        y: img_h as i64,
     };
 
-    let cam = Camera::create(it, resolution, fov, 0.0, 0.0, lens_radius, focal_distance);
+    let cam = PerspectiveCamera::create(it, resolution, fov, 0.0, 0.0, lens_radius, focal_distance);
 
     return Scene {
         img_width: img_w,

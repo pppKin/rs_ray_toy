@@ -1,7 +1,8 @@
-use crate::geometry::{
-    bnd3_union_pnt3, vec3_cross_vec3, vec3_dot_vec3, Bounds3f, Normal3f, Point3f, Ray, Vector3f,
+use crate::{
+    geometry::{cross, faceforward, Bounds3f, Normal3f, Point3f, Ray, Vector3f},
+    interaction::SurfaceInteraction,
+    misc::{copy_option_arc, copy_option_rc, radians},
 };
-use crate::misc::{gamma, radians};
 use std::ops::Mul;
 #[derive(Debug, Copy, Clone)]
 pub struct Matrix4x4 {
@@ -356,7 +357,7 @@ impl Transform {
         camera_to_world.m[3][3] = 1.0;
         // initialize first three columns of viewing matrix
         let dir: Vector3f = (*look - *pos).normalize();
-        if vec3_cross_vec3(&up.normalize(), &dir).length() == 0.0 {
+        if cross(&up.normalize(), &dir).length() == 0.0 {
             println!(
                 "\"up\" vector ({}, {}, {}) and viewing direction ({}, {}, {}) passed to \
                  LookAt are pointing in the same direction.  Using the identity \
@@ -365,8 +366,8 @@ impl Transform {
             );
             Transform::default()
         } else {
-            let left: Vector3f = vec3_cross_vec3(&up.normalize(), &dir).normalize();
-            let new_up: Vector3f = vec3_cross_vec3(&dir, &left);
+            let left: Vector3f = cross(&up.normalize(), &dir).normalize();
+            let new_up: Vector3f = cross(&dir, &left);
             camera_to_world.m[0][0] = left.x;
             camera_to_world.m[1][0] = left.y;
             camera_to_world.m[2][0] = left.z;
@@ -470,24 +471,16 @@ impl Transform {
         }
     }
     pub fn transform_ray(&self, r: &Ray) -> Ray {
-        let mut o_error: Vector3f = Vector3f::default();
-        let mut o: Point3f = self.transform_point_with_error(&r.origin, &mut o_error);
-        let d: Vector3f = self.transform_vector(&r.direction);
-        // println!("transform ray :: {:?}", d);
-        // offset ray origin to edge of error bounds and compute _tMax_
-        let length_squared: f64 = d.length_squared();
-        let mut t_max: f64 = r.inter_dist;
-        if length_squared > 0.0 as f64 {
-            let dt: f64 = vec3_dot_vec3(&d.abs(), &o_error) / length_squared;
-            o += d * dt;
-            t_max -= dt;
-        }
-        Ray {
-            origin: o,
-            direction: d.normalize(),
-            inter_dist: t_max,
-            inter_obj: -1,
-        }
+        let o: Point3f = self.transform_point(&r.o);
+        let d: Vector3f = self.transform_vector(&r.d);
+
+        Ray::new(
+            o,
+            d.normalize(),
+            r.t_max,
+            r.time,
+            copy_option_arc(&r.medium),
+        )
     }
     pub fn transform_bounds(&self, b: &Bounds3f) -> Bounds3f {
         let m: Transform = *self;
@@ -497,7 +490,7 @@ impl Transform {
             z: b.p_min.z,
         });
         let mut ret: Bounds3f = Bounds3f { p_min: p, p_max: p };
-        ret = bnd3_union_pnt3(
+        ret = Bounds3f::union(
             &ret,
             &m.transform_point(&Point3f {
                 x: b.p_max.x,
@@ -505,7 +498,7 @@ impl Transform {
                 z: b.p_min.z,
             }),
         );
-        ret = bnd3_union_pnt3(
+        ret = Bounds3f::union(
             &ret,
             &m.transform_point(&Point3f {
                 x: b.p_min.x,
@@ -513,7 +506,7 @@ impl Transform {
                 z: b.p_min.z,
             }),
         );
-        ret = bnd3_union_pnt3(
+        ret = Bounds3f::union(
             &ret,
             &m.transform_point(&Point3f {
                 x: b.p_min.x,
@@ -521,7 +514,7 @@ impl Transform {
                 z: b.p_max.z,
             }),
         );
-        ret = bnd3_union_pnt3(
+        ret = Bounds3f::union(
             &ret,
             &m.transform_point(&Point3f {
                 x: b.p_min.x,
@@ -529,7 +522,7 @@ impl Transform {
                 z: b.p_max.z,
             }),
         );
-        ret = bnd3_union_pnt3(
+        ret = Bounds3f::union(
             &ret,
             &m.transform_point(&Point3f {
                 x: b.p_max.x,
@@ -537,7 +530,7 @@ impl Transform {
                 z: b.p_min.z,
             }),
         );
-        ret = bnd3_union_pnt3(
+        ret = Bounds3f::union(
             &ret,
             &m.transform_point(&Point3f {
                 x: b.p_max.x,
@@ -545,7 +538,7 @@ impl Transform {
                 z: b.p_max.z,
             }),
         );
-        ret = bnd3_union_pnt3(
+        ret = Bounds3f::union(
             &ret,
             &m.transform_point(&Point3f {
                 x: b.p_max.x,
@@ -555,191 +548,37 @@ impl Transform {
         );
         ret
     }
-    pub fn transform_point_with_error(&self, p: &Point3f, p_error: &mut Vector3f) -> Point3f {
-        let x: f64 = p.x;
-        let y: f64 = p.y;
-        let z: f64 = p.z;
-        // compute transformed coordinates from point _pt_
-        let xp: f64 = self.m.m[0][0] * x + self.m.m[0][1] * y + self.m.m[0][2] * z + self.m.m[0][3];
-        let yp: f64 = self.m.m[1][0] * x + self.m.m[1][1] * y + self.m.m[1][2] * z + self.m.m[1][3];
-        let zp: f64 = self.m.m[2][0] * x + self.m.m[2][1] * y + self.m.m[2][2] * z + self.m.m[2][3];
-        let wp: f64 = self.m.m[3][0] * x + self.m.m[3][1] * y + self.m.m[3][2] * z + self.m.m[3][3];
-        // compute absolute error for transformed point
-        let x_abs_sum: f64 = (self.m.m[0][0] * x).abs()
-            + (self.m.m[0][1] * y).abs()
-            + (self.m.m[0][2] * z).abs()
-            + self.m.m[0][3].abs();
-        let y_abs_sum: f64 = (self.m.m[1][0] * x).abs()
-            + (self.m.m[1][1] * y).abs()
-            + (self.m.m[1][2] * z).abs()
-            + self.m.m[1][3].abs();
-        let z_abs_sum: f64 = (self.m.m[2][0] * x).abs()
-            + (self.m.m[2][1] * y).abs()
-            + (self.m.m[2][2] * z).abs()
-            + self.m.m[2][3].abs();
-        *p_error = Vector3f {
-            x: x_abs_sum,
-            y: y_abs_sum,
-            z: z_abs_sum,
-        } * gamma(3i32);
-        assert!(wp != 0.0, "wp = {:?} != 0.0", wp);
-        if wp == 1. {
-            Point3f {
-                x: xp,
-                y: yp,
-                z: zp,
-            }
-        } else {
-            let inv: f64 = 1.0 as f64 / wp;
-            Point3f {
-                x: inv * xp,
-                y: inv * yp,
-                z: inv * zp,
-            }
-        }
+    pub fn transform_surface_interaction(&self, si: &mut SurfaceInteraction) {
+        let mut ret: SurfaceInteraction = SurfaceInteraction::default();
+        // transform _p_ and _pError_ in _SurfaceInteraction_
+        ret.ist.p = self.transform_point(&si.ist.p);
+        // transform remaining members of _SurfaceInteraction_
+        ret.ist.n = self.transform_normal(&si.ist.n).normalize();
+        ret.ist.wo = self.transform_vector(&si.ist.wo).normalize();
+        ret.ist.time = si.ist.time;
+        ret.uv = si.uv;
+        ret.shape = copy_option_rc(&si.shape);
+        ret.dpdu = self.transform_vector(&si.dpdu);
+        ret.dpdv = self.transform_vector(&si.dpdv);
+        ret.dndu = self.transform_normal(&si.dndu);
+        ret.dndv = self.transform_normal(&si.dndv);
+        ret.shading.n = self.transform_normal(&si.shading.n).normalize();
+        ret.shading.dpdu = self.transform_vector(&si.shading.dpdu);
+        ret.shading.dpdv = self.transform_vector(&si.shading.dpdv);
+        ret.shading.dndu = self.transform_normal(&si.shading.dndu);
+        ret.shading.dndv = self.transform_normal(&si.shading.dndv);
+        ret.dudx = si.dudx;
+        ret.dvdx = si.dvdx;
+        ret.dudy = si.dudy;
+        ret.dvdy = si.dvdy;
+        ret.dpdx = si.dpdx;
+        ret.dpdy = si.dpdy;
+        ret.bsdf = copy_option_rc(&si.bsdf);
+        // ret.bssrdf = si.bssrdf.clone();
+        ret.primitive = copy_option_rc(&si.primitive);
+        ret.shading.n = faceforward(&ret.shading.n, &ret.ist.n);
+        *si = ret;
     }
-    pub fn transform_point_with_abs_error(
-        &self,
-        pt: &Point3f,
-        pt_error: &Vector3f,
-        abs_error: &mut Vector3f,
-    ) -> Point3f {
-        let x: f64 = pt.x;
-        let y: f64 = pt.y;
-        let z: f64 = pt.z;
-        // compute transformed coordinates from point _pt_
-        let xp: f64 = self.m.m[0][0] * x + self.m.m[0][1] * y + self.m.m[0][2] * z + self.m.m[0][3];
-        let yp: f64 = self.m.m[1][0] * x + self.m.m[1][1] * y + self.m.m[1][2] * z + self.m.m[1][3];
-        let zp: f64 = self.m.m[2][0] * x + self.m.m[2][1] * y + self.m.m[2][2] * z + self.m.m[2][3];
-        let wp: f64 = self.m.m[3][0] * x + self.m.m[3][1] * y + self.m.m[3][2] * z + self.m.m[3][3];
-        abs_error.x = (gamma(3i32) + 1.0 as f64)
-            * (self.m.m[0][0].abs() * pt_error.x
-                + self.m.m[0][1].abs() * pt_error.y
-                + self.m.m[0][2].abs() * pt_error.z)
-            + gamma(3i32)
-                * ((self.m.m[0][0] * x).abs()
-                    + (self.m.m[0][1] * y).abs()
-                    + (self.m.m[0][2] * z).abs()
-                    + self.m.m[0][3].abs());
-        abs_error.y = (gamma(3i32) + 1.0 as f64)
-            * (self.m.m[1][0].abs() * pt_error.x
-                + self.m.m[1][1].abs() * pt_error.y
-                + self.m.m[1][2].abs() * pt_error.z)
-            + gamma(3i32)
-                * ((self.m.m[1][0] * x).abs()
-                    + (self.m.m[1][1] * y).abs()
-                    + (self.m.m[1][2] * z).abs()
-                    + self.m.m[1][3].abs());
-        abs_error.z = (gamma(3i32) + 1.0 as f64)
-            * (self.m.m[2][0].abs() * pt_error.x
-                + self.m.m[2][1].abs() * pt_error.y
-                + self.m.m[2][2].abs() * pt_error.z)
-            + gamma(3i32)
-                * ((self.m.m[2][0] * x).abs()
-                    + (self.m.m[2][1] * y).abs()
-                    + (self.m.m[2][2] * z).abs()
-                    + self.m.m[2][3].abs());
-        assert!(wp != 0.0, "wp = {:?} != 0.0", wp);
-        if wp == 1. {
-            Point3f {
-                x: xp,
-                y: yp,
-                z: zp,
-            }
-        } else {
-            let inv: f64 = 1.0 as f64 / wp;
-            Point3f {
-                x: inv * xp,
-                y: inv * yp,
-                z: inv * zp,
-            }
-        }
-    }
-    pub fn transform_vector_with_error(&self, v: &Vector3f, abs_error: &mut Vector3f) -> Vector3f {
-        let x: f64 = v.x;
-        let y: f64 = v.y;
-        let z: f64 = v.z;
-        let gamma: f64 = gamma(3i32);
-        abs_error.x = gamma
-            * ((self.m.m[0][0] * v.x).abs()
-                + (self.m.m[0][1] * v.y).abs()
-                + (self.m.m[0][2] * v.z).abs());
-        abs_error.y = gamma
-            * ((self.m.m[1][0] * v.x).abs()
-                + (self.m.m[1][1] * v.y).abs()
-                + (self.m.m[1][2] * v.z).abs());
-        abs_error.z = gamma
-            * ((self.m.m[2][0] * v.x).abs()
-                + (self.m.m[2][1] * v.y).abs()
-                + (self.m.m[2][2] * v.z).abs());
-        Vector3f {
-            x: self.m.m[0][0] * x + self.m.m[0][1] * y + self.m.m[0][2] * z,
-            y: self.m.m[1][0] * x + self.m.m[1][1] * y + self.m.m[1][2] * z,
-            z: self.m.m[2][0] * x + self.m.m[2][1] * y + self.m.m[2][2] * z,
-        }
-    }
-    // pub fn transform_ray_with_error(
-    //     &self,
-    //     r: &Ray,
-    //     o_error: &mut Vector3f,
-    //     d_error: &mut Vector3f,
-    // ) -> Ray {
-    //     let mut o: Point3f = self.transform_point_with_error(&r.o, o_error);
-    //     let d: Vector3f = self.transform_vector_with_error(&r.d, d_error);
-    //     let length_squared: f64 = d.length_squared();
-    //     if length_squared > 0.0 {
-    //         let dt: f64 = vec3_dot_vec3(&d.abs(), &*o_error) / length_squared;
-    //         o += d * dt;
-    //     }
-    //     Ray {
-    //         o,
-    //         d,
-    //         t_max: r.t_max,
-    //         time: r.time,
-    //         differential: None,
-    //         medium: r.medium.clone(),
-    //     }
-    // }
-    // pub fn transform_surface_interaction(&self, si: &mut Rc<SurfaceInteraction>) {
-    //     let mut ret: SurfaceInteraction = SurfaceInteraction::default();
-    //     // transform _p_ and _pError_ in _SurfaceInteraction_
-    //     ret.p = self.transform_point_with_abs_error(&si.p, &si.p_error, &mut ret.p_error);
-    //     // transform remaining members of _SurfaceInteraction_
-    //     ret.n = self.transform_normal(&si.n).normalize();
-    //     ret.wo = self.transform_vector(&si.wo).normalize();
-    //     ret.time = si.time;
-    //     ret.uv = si.uv;
-    //     ret.shape = None; // TODO? si.shape;
-    //     ret.dpdu = self.transform_vector(&si.dpdu);
-    //     ret.dpdv = self.transform_vector(&si.dpdv);
-    //     ret.dndu = self.transform_normal(&si.dndu);
-    //     ret.dndv = self.transform_normal(&si.dndv);
-    //     ret.shading.n = self.transform_normal(&si.shading.n).normalize();
-    //     ret.shading.dpdu = self.transform_vector(&si.shading.dpdu);
-    //     ret.shading.dpdv = self.transform_vector(&si.shading.dpdv);
-    //     ret.shading.dndu = self.transform_normal(&si.shading.dndu);
-    //     ret.shading.dndv = self.transform_normal(&si.shading.dndv);
-    //     ret.dudx = Cell::new(si.dudx.get());
-    //     ret.dvdx = Cell::new(si.dvdx.get());
-    //     ret.dudy = Cell::new(si.dudy.get());
-    //     ret.dvdy = Cell::new(si.dvdy.get());
-    //     ret.dpdx = Cell::new(si.dpdx.get());
-    //     ret.dpdy = Cell::new(si.dpdy.get());
-    //     // if let Some(bsdf) = &si.bsdf {
-    //     //     if let Some(mut bsdf2) = ret.bsdf {
-    //     //         for bxdf_idx in 0..8 {
-    //     //             bsdf2.bxdfs[bxdf_idx] = match bsdf.bxdfs[bxdf_idx] {
-    //     //                 _ => bsdf.bxdfs[bxdf_idx],
-    //     //             };
-    //     //         }
-    //     //     }
-    //     // }
-    //     // ret.bssrdf = si.bssrdf.clone();
-    //     ret.primitive = None; // TODO? si.primitive;
-    //     ret.shading.n = nrm_faceforward_nrm(&ret.shading.n, &ret.n);
-    //     // TODO: ret.faceIndex = si.faceIndex;
-    //     *si = Rc::new(ret);
-    // }
 }
 
 impl PartialEq for Transform {

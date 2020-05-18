@@ -1,3 +1,5 @@
+#![feature(iter_partition_in_place)]
+
 use rs_ray_toy::scene;
 use std::sync::Arc;
 
