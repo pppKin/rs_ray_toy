@@ -1,6 +1,7 @@
 use crate::{
-    geometry::dot3,
-    geometry::{cross, faceforward, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f},
+    geometry::{
+        cross, dot3, faceforward, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f,
+    },
     material::TransportMode,
     medium::{MediumInterface, PhaseFunction},
     misc::copy_option_rc,
@@ -91,7 +92,7 @@ pub struct SurfaceInteraction {
     pub shape: Option<Rc<dyn Shape>>,
     pub shading: Shading,
     pub primitive: Option<Rc<GeometricPrimitive>>,
-    pub bsdf: Option<Rc<Bsdf>>,
+    pub bsdf: Option<Bsdf>,
     // pub bssrdf: Option<BSSRDF>,
     pub dpdx: Vector3f,
     pub dpdy: Vector3f,
@@ -289,7 +290,7 @@ impl SurfaceInteraction {
             shape: copy_option_rc(&self.shape),
             shading: self.shading,
             primitive: copy_option_rc(&self.primitive),
-            bsdf: copy_option_rc(&self.bsdf),
+            bsdf: None,
             dpdx: self.dpdx,
             dpdy: self.dpdy,
             dudx: self.dudx,

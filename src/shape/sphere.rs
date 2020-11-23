@@ -1,14 +1,17 @@
 use super::*;
-use crate::geometry::{
-    cross, dot3, pnt3_distance, pnt3_distance_squared, Bounds3f, Cxyz, IntersectP, Normal3f,
-    Point2f, Point3f, Ray, Vector3f,
+use crate::{
+    geometry::{
+        cross, dot3, pnt3_distance, pnt3_distance_squared, Bounds3f, Cxyz, IntersectP, Normal3f,
+        Point2f, Point3f, Ray, Vector3f,
+    },
+    interaction::{BaseInteraction, SurfaceInteraction},
+    misc::{clamp_t, quadratic, uniform_sample_sphere},
+    rtoycore::MAX_DIST,
+    transform::Transform,
 };
-use crate::interaction::{BaseInteraction, SurfaceInteraction};
-use crate::misc::{clamp_t, quadratic, uniform_sample_sphere};
-use crate::rtoycore::MAX_DIST;
-use crate::transform::Transform;
 
 use std::f64::consts::PI;
+
 #[derive(Clone)]
 pub struct Sphere {
     obj_to_world: Transform,
@@ -112,7 +115,7 @@ impl Shape for Sphere {
         r: &Ray,
         thit: &mut f64,
         ist: &mut SurfaceInteraction,
-        test_alpha_texture: bool,
+        _test_alpha_texture: bool,
     ) -> bool {
         let mut phi;
         let mut p_hit;

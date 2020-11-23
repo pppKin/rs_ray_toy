@@ -1,11 +1,8 @@
-use std::{f64::INFINITY, rc::Rc, sync::Arc};
+use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
-    interaction::SurfaceInteraction,
-    reflection::{Bsdf, ScaledBxdf},
-    rtoycore::SPECTRUM_N,
-    spectrum::Spectrum,
-    texture::Texture,
+    interaction::SurfaceInteraction, reflection::Bsdf, reflection::ScaledBxdf,
+    rtoycore::SPECTRUM_N, spectrum::Spectrum, texture::Texture,
 };
 
 use super::{Material, TransportMode};
@@ -45,16 +42,20 @@ impl Material for MixMaterial {
             .compute_scattering_functions(&mut si2, mode, allow_multiple_lobes);
 
         let mut result_bsdfs = Bsdf::new(si, 1.0);
-        if let Some(bsdf) = &si.bsdf {
-            for b in bsdf.bxdfs.as_slice() {
-                result_bsdfs.add(Rc::new(ScaledBxdf::new(Rc::clone(b), s1)));
+        if let Some(mut bsdf) = si.bsdf.take() {
+            while bsdf.bxdfs.len() > 0 {
+                if let Some(b) = bsdf.bxdfs.pop() {
+                    result_bsdfs.add(Box::new(ScaledBxdf::new(b, s1)));
+                }
             }
         }
-        if let Some(bsdf) = &si2.bsdf {
-            for b in bsdf.bxdfs.as_slice() {
-                result_bsdfs.add(Rc::new(ScaledBxdf::new(Rc::clone(b), s2)));
+        if let Some(mut bsdf) = si2.bsdf.take() {
+            while bsdf.bxdfs.len() > 0 {
+                if let Some(b) = bsdf.bxdfs.pop() {
+                    result_bsdfs.add(Box::new(ScaledBxdf::new(b, s2)));
+                }
             }
         }
-        si.bsdf = Some(Rc::new(result_bsdfs));
+        si.bsdf = Some(result_bsdfs);
     }
 }

@@ -1,14 +1,16 @@
 use super::*;
-use crate::geometry::{
-    cross, dot3, faceforward, vec3_coordinate_system, Bounds3f, IntersectP, Normal3f, Point2f,
-    Point3f, Ray, Vector3f,
+use crate::{
+    geometry::{
+        cross, dot3, faceforward, vec3_coordinate_system, Bounds3f, IntersectP, Normal3f, Point2f,
+        Point3f, Ray, Vector3f,
+    },
+    interaction::{BaseInteraction, SurfaceInteraction},
+    misc::{clamp_t, uniform_sample_sphere},
+    transform::Transform,
 };
-use crate::interaction::{BaseInteraction, SurfaceInteraction};
-use crate::misc::{clamp_t, uniform_sample_sphere};
-use crate::transform::Transform;
 
-use std::f64::consts::PI;
-use std::sync::Arc;
+use std::{f64::consts::PI, sync::Arc};
+
 pub struct TriangleMesh {
     pub n_triangles: u32, // The total number of triangles in the mesh.
     pub n_vertices: u32,  // The total number of vertices in the mesh.
@@ -186,7 +188,7 @@ impl Shape for Triangle {
         r: &Ray,
         thit: &mut f64,
         ist: &mut SurfaceInteraction,
-        test_alpha_texture: bool,
+        _test_alpha_texture: bool,
     ) -> bool {
         // Möller–Trumbore intersection algorithm
         // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm

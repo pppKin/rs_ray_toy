@@ -4,6 +4,7 @@ use crate::{
     misc::{copy_option_arc, copy_option_rc, radians},
 };
 use std::ops::Mul;
+
 #[derive(Debug, Copy, Clone)]
 pub struct Matrix4x4 {
     pub m: [[f64; 4]; 4],
@@ -573,7 +574,7 @@ impl Transform {
         ret.dvdy = si.dvdy;
         ret.dpdx = si.dpdx;
         ret.dpdy = si.dpdy;
-        ret.bsdf = copy_option_rc(&si.bsdf);
+        ret.bsdf = si.bsdf.take();
         // ret.bssrdf = si.bssrdf.clone();
         ret.primitive = copy_option_rc(&si.primitive);
         ret.shading.n = faceforward(&ret.shading.n, &ret.ist.n);

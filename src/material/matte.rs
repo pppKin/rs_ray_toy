@@ -1,4 +1,4 @@
-use std::{f64::INFINITY, rc::Rc, sync::Arc};
+use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
     interaction::SurfaceInteraction,
@@ -51,11 +51,11 @@ impl Material for MatteMaterial {
         let mut bsdf = Bsdf::new(si, 1.0);
         if !r.is_black() {
             if sig == 0.0 {
-                bsdf.add(Rc::new(LambertianReflection::new(r)));
+                bsdf.add(Box::new(LambertianReflection::new(r)));
             } else {
-                bsdf.add(Rc::new(OrenNayar::new(r, sig)));
+                bsdf.add(Box::new(OrenNayar::new(r, sig)));
             }
         }
-        si.bsdf = Some(Rc::new(bsdf));
+        si.bsdf = Some(bsdf);
     }
 }

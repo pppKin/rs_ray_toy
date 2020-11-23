@@ -1,14 +1,18 @@
-use crate::geometry::{Bounds3f, IntersectP, Point3f, Ray, Vector3f};
-use crate::interaction::SurfaceInteraction;
-use crate::primitives::Primitive;
+use crate::{
+    geometry::{Bounds3f, IntersectP, Point3f, Ray, Vector3f},
+    interaction::SurfaceInteraction,
+    primitives::Primitive,
+};
 
-use std::rc::Rc;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::thread;
+use std::{
+    rc::Rc,
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
+    thread,
+};
 // // BVHAccel Utility Functions
 fn left_shift3(x: u32) -> u32 {
     let mut x = x; //make a local mut copy
@@ -438,7 +442,7 @@ impl BVHAccel {
             {
                 // Add entry to _treeletsToBuild_ for this treelet
                 let n_primitives = end - start;
-                let max_bvh_nodes = 2 * n_primitives;
+                let _max_bvh_nodes = 2 * n_primitives;
                 let mut nodes: BVHBuildNode = BVHBuildNode::default();
                 nodes.n_primitives = n_primitives as u32;
                 treelets_to_build.push(LBVHTreelet::new(start as u32, n_primitives as u32, nodes));
@@ -740,11 +744,11 @@ impl BVHAccel {
 mod tests {
     use super::*;
     use crate::geometry::pnt3_lerp;
-    use crate::lights::*;
-    use crate::material::*;
-    use crate::primitives::*;
-    use crate::shape::triangle::*;
-    use crate::transform::*;
+    // use crate::lights::*;
+    // use crate::material::*;
+    // use crate::primitives::*;
+    // use crate::shape::triangle::*;
+    // use crate::transform::*;
     use rand::prelude::*;
     #[test]
     fn test_morton_sort() {

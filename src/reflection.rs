@@ -10,7 +10,7 @@ use crate::{
     rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
 };
-use std::{f64::consts::PI, rc::Rc};
+use std::f64::consts::PI;
 #[inline]
 pub fn schlick_weight(cos_theta: f64) -> f64 {
     let m = clamp_t(1.0 - cos_theta, 0.0, 1.0);
@@ -138,7 +138,7 @@ pub fn refract(wi: &Vector3f, n: &Normal3f, eta: f64, wt: &mut Vector3f) -> bool
 /// Check that two vectors lie on the same side of of the surface.
 pub fn same_hemisphere(w: &impl Cxyz<f64>, wp: &impl Cxyz<f64>) -> bool {
     let (_, _, wz) = w.to_xyz();
-    let (_, _, wpz) = w.to_xyz();
+    let (_, _, wpz) = wp.to_xyz();
     wz * wpz > 0.0
 }
 
@@ -211,7 +211,7 @@ pub struct Bsdf {
     ng: Normal3f,
     ss: Vector3f,
     ts: Vector3f,
-    pub bxdfs: Vec<Rc<dyn BxDF>>,
+    pub bxdfs: Vec<Box<dyn BxDF>>,
 }
 
 impl Bsdf {
@@ -227,7 +227,7 @@ impl Bsdf {
             bxdfs: vec![],
         }
     }
-    pub fn add(&mut self, b: Rc<dyn BxDF>) {
+    pub fn add(&mut self, b: Box<dyn BxDF>) {
         assert!(self.bxdfs.len() < MAX_BXDFS);
         self.bxdfs.push(b);
     }
@@ -271,7 +271,6 @@ impl Bsdf {
     /// hemispherical_hemispherical reflectance
     fn rho_hh(
         &self,
-        wo: &Vector3f,
         n_samples: usize,
         samples1: &[Point2f],
         samples2: &[Point2f],
@@ -280,7 +279,7 @@ impl Bsdf {
         let mut ret = Spectrum::zero();
         for b in &self.bxdfs {
             if b.match_flags(flags) {
-                ret += b.rho_hh(wo, n_samples, samples1, samples2);
+                ret += b.rho_hh(n_samples, samples1, samples2);
             }
         }
         ret
@@ -454,7 +453,7 @@ pub trait BxDF: std::fmt::Debug {
         wi: &mut Vector3f,
         sample: &Point2f,
         pdf: &mut f64,
-        sampled_type: &mut BxDFType,
+        _sampled_type: &mut BxDFType,
     ) -> Spectrum<SPECTRUM_N> {
         // Cosine-sample the hemisphere, flipping the direction if necessary
         *wi = cosine_sample_hemisphere(*sample);
@@ -482,7 +481,6 @@ pub trait BxDF: std::fmt::Debug {
     /// hemispherical_hemispherical reflectance
     fn rho_hh(
         &self,
-        wo: &Vector3f,
         n_samples: usize,
         samples1: &[Point2f],
         samples2: &[Point2f],
@@ -538,12 +536,12 @@ pub trait BxDF: std::fmt::Debug {
 
 #[derive(Debug)]
 pub struct ScaledBxdf {
-    bxdf: Rc<dyn BxDF>,
+    bxdf: Box<dyn BxDF>,
     scale: Spectrum<SPECTRUM_N>,
 }
 
 impl ScaledBxdf {
-    pub fn new(bxdf: Rc<dyn BxDF>, scale: Spectrum<SPECTRUM_N>) -> Self {
+    pub fn new(bxdf: Box<dyn BxDF>, scale: Spectrum<SPECTRUM_N>) -> Self {
         Self { bxdf, scale }
     }
 }
@@ -570,12 +568,11 @@ impl BxDF for ScaledBxdf {
 
     fn rho_hh(
         &self,
-        wo: &Vector3f,
         n_samples: usize,
         samples1: &[Point2f],
         samples2: &[Point2f],
     ) -> Spectrum<SPECTRUM_N> {
-        self.scale * self.bxdf.rho_hh(wo, n_samples, samples1, samples2)
+        self.scale * self.bxdf.rho_hh(n_samples, samples1, samples2)
     }
 
     fn pdf(&self, wo: &Vector3f, wi: &Vector3f) -> f64 {
@@ -710,7 +707,7 @@ impl SpecularTransmission {
 }
 
 impl BxDF for SpecularTransmission {
-    fn f(&self, wo: &Vector3f, wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
+    fn f(&self, _wo: &Vector3f, _wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
         Spectrum::zero()
     }
     fn sample_f(
@@ -845,18 +842,22 @@ impl LambertianReflection {
 }
 
 impl BxDF for LambertianReflection {
-    fn f(&self, wo: &Vector3f, wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
+    fn f(&self, _wo: &Vector3f, _wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
         self.r / PI
     }
-    fn rho_hd(&self, wo: &Vector3f, n_samples: usize, samples: &[Point2f]) -> Spectrum<SPECTRUM_N> {
+    fn rho_hd(
+        &self,
+        _wo: &Vector3f,
+        _n_samples: usize,
+        _samples: &[Point2f],
+    ) -> Spectrum<SPECTRUM_N> {
         return self.r;
     }
     fn rho_hh(
         &self,
-        wo: &Vector3f,
-        n_samples: usize,
-        samples1: &[Point2f],
-        samples2: &[Point2f],
+        _n_samples: usize,
+        _samples1: &[Point2f],
+        _samples2: &[Point2f],
     ) -> Spectrum<SPECTRUM_N> {
         return self.r;
     }
@@ -877,7 +878,7 @@ impl LambertianTransmission {
 }
 
 impl BxDF for LambertianTransmission {
-    fn f(&self, wo: &Vector3f, wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
+    fn f(&self, _wo: &Vector3f, _wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
         self.t / PI
     }
     fn sample_f(
@@ -886,7 +887,7 @@ impl BxDF for LambertianTransmission {
         wi: &mut Vector3f,
         sample: &Point2f,
         pdf: &mut f64,
-        sampled_type: &mut BxDFType,
+        _sampled_type: &mut BxDFType,
     ) -> Spectrum<SPECTRUM_N> {
         *wi = cosine_sample_hemisphere(*sample);
         if wo.z > 0.0 {
@@ -895,15 +896,19 @@ impl BxDF for LambertianTransmission {
         *pdf = self.pdf(wo, wi);
         self.f(wo, wi)
     }
-    fn rho_hd(&self, wo: &Vector3f, n_samples: usize, samples: &[Point2f]) -> Spectrum<SPECTRUM_N> {
+    fn rho_hd(
+        &self,
+        _wo: &Vector3f,
+        _n_samples: usize,
+        _samples: &[Point2f],
+    ) -> Spectrum<SPECTRUM_N> {
         return self.t;
     }
     fn rho_hh(
         &self,
-        wo: &Vector3f,
-        n_samples: usize,
-        samples1: &[Point2f],
-        samples2: &[Point2f],
+        _n_samples: usize,
+        _samples1: &[Point2f],
+        _samples2: &[Point2f],
     ) -> Spectrum<SPECTRUM_N> {
         return self.t;
     }
@@ -916,6 +921,35 @@ impl BxDF for LambertianTransmission {
     }
     fn bxdf_type(&self) -> BxDFType {
         BXDF_DIFFUSE | BXDF_TRANSMISSION
+    }
+
+    fn match_flags(&self, flags: BxDFType) -> bool {
+        (self.bxdf_type() & flags) == self.bxdf_type()
+    }
+
+    fn is_refl(&self) -> bool {
+        let t = self.bxdf_type();
+        t & BXDF_REFLECTION > 0
+    }
+
+    fn is_trans(&self) -> bool {
+        let t = self.bxdf_type();
+        t & BXDF_TRANSMISSION > 0
+    }
+
+    fn is_diff(&self) -> bool {
+        let t = self.bxdf_type();
+        t & BXDF_DIFFUSE > 0
+    }
+
+    fn is_glos(&self) -> bool {
+        let t = self.bxdf_type();
+        t & BXDF_GLOSSY > 0
+    }
+
+    fn is_spec(&self) -> bool {
+        let t = self.bxdf_type();
+        t & BXDF_SPECULAR > 0
     }
 }
 
@@ -1015,7 +1049,7 @@ impl BxDF for MicrofacetReflection {
         wi: &mut Vector3f,
         sample: &Point2f,
         pdf: &mut f64,
-        sampled_type: &mut BxDFType,
+        _sampled_type: &mut BxDFType,
     ) -> Spectrum<SPECTRUM_N> {
         // Sample microfacet orientation $\wh$ and reflected direction $\wi$
         if wo.z == 0.0 {
@@ -1127,7 +1161,7 @@ impl BxDF for MicrofacetTransmission {
         wi: &mut Vector3f,
         sample: &Point2f,
         pdf: &mut f64,
-        sampled_type: &mut BxDFType,
+        _sampled_type: &mut BxDFType,
     ) -> Spectrum<SPECTRUM_N> {
         if wo.z == 0.0 {
             return Spectrum::zero();
@@ -1221,7 +1255,7 @@ impl BxDF for FresnelBlend {
         wi: &mut Vector3f,
         u_orig: &Point2f,
         pdf: &mut f64,
-        sampled_type: &mut BxDFType,
+        _sampled_type: &mut BxDFType,
     ) -> Spectrum<SPECTRUM_N> {
         let mut u = *u_orig;
 

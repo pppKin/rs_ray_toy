@@ -128,18 +128,18 @@ pub trait ICamera {
         rd.has_differentials = true;
         wt
     }
-    fn we(ray: &Ray, p_raster2: &Point2f) -> Spectrum<SPECTRUM_N> {
+    fn we(_ray: &Ray, _p_raster2: &Point2f) -> Spectrum<SPECTRUM_N> {
         unimplemented!()
     }
-    fn pdf_we(ray: &Ray, pdf_pos: &mut f64, pdf_dir: &mut f64) {
+    fn pdf_we(_ray: &Ray, _pdf_pos: &mut f64, _pdf_dir: &mut f64) {
         unimplemented!()
     }
     fn sample__wi(
-        ref_int: &Interaction,
-        u: &Point2f,
-        wi: &Vector3f,
-        pdf: f64,
-        p_raster: Point2f,
+        _ref_int: &Interaction,
+        _u: &Point2f,
+        _wi: &Vector3f,
+        _pdf: f64,
+        _p_raster: Point2f,
     ) -> Spectrum<SPECTRUM_N> {
         unimplemented!()
     }
@@ -360,10 +360,10 @@ where
     fn draw_lens_system(&self) {
         unimplemented!("cause I'm a lazy pig");
     }
-    fn draw_ray_path_from_film(&self, r: &Ray, arrow: bool, to_optical_intercept: bool) {
+    fn draw_ray_path_from_film(&self, _r: &Ray, _arrow: bool, _to_optical_intercept: bool) {
         unimplemented!("cause I'm a lazy pig");
     }
-    fn draw_ray_path_from_scene(&self, r: &Ray, arrow: bool, to_optical_intercept: bool) {
+    fn draw_ray_path_from_scene(&self, _r: &Ray, _arrow: bool, _to_optical_intercept: bool) {
         unimplemented!("cause I'm a lazy pig");
     }
     // THE THICK LENS APPROXIMATION
@@ -533,7 +533,7 @@ where
             .expand(2.0 * proj_rear_bounds.diagonal().length() / (n_samples as f64).sqrt());
         pupil_bounds
     }
-    fn render_exit_pupil(&self, sx: f64, sy: f64, filename: &str) {
+    fn render_exit_pupil(&self, _sx: f64, _sy: f64, _filename: &str) {
         unimplemented!("cause I'm a lazy pig");
     }
     fn sample_exit_pupil(&self, p_film: &Point2f, lens_sample: &Point2f) -> (Point3f, f64) {

@@ -9,9 +9,7 @@ pub trait RoundCount {
 }
 
 pub trait StartPixel {
-    fn start_pixel(&mut self, p: Point2i) {
-        unimplemented!()
-    }
+    fn start_pixel(&mut self, p: Point2i);
 }
 
 pub trait Sampler: RoundCount + StartPixel {

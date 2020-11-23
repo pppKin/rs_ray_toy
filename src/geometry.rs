@@ -4,11 +4,9 @@ use crate::{
     rtoycore::MAX_DIST,
 };
 use std::{
-    f64::consts::PI,
-    f64::INFINITY,
+    f64::{consts::PI, INFINITY},
     fmt::Debug,
     ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
-    sync::Arc,
 };
 
 pub type Point2f = Point2<f64>;

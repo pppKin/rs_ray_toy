@@ -22,7 +22,7 @@ pub trait Shape: IntersectP {
     // Sample a point on the surface of the shape and return the PDF with
     // respect to area on the surface.
     fn sample(&self, u: &Point2f, pdf: &mut f64) -> BaseInteraction;
-    fn pdf(&self, ist: &BaseInteraction) -> f64 {
+    fn pdf(&self, _ist: &BaseInteraction) -> f64 {
         1.0 / self.area()
     }
 
