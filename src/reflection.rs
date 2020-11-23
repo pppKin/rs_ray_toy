@@ -689,13 +689,8 @@ pub struct SpecularTransmission {
 }
 
 impl SpecularTransmission {
-    pub fn new(
-        t: Spectrum<SPECTRUM_N>,
-        eta_a: f64,
-        eta_b: f64,
-        fresnel: FresnelDielectric,
-        mode: TransportMode,
-    ) -> Self {
+    pub fn new(t: Spectrum<SPECTRUM_N>, eta_a: f64, eta_b: f64, mode: TransportMode) -> Self {
+        let fresnel = FresnelDielectric::new(eta_a, eta_b);
         Self {
             t,
             eta_a,
@@ -1097,9 +1092,9 @@ impl MicrofacetTransmission {
         distribution: Box<dyn MicrofacetDistribution>,
         eta_a: f64,
         eta_b: f64,
-        fresnel: FresnelDielectric,
         mode: TransportMode,
     ) -> Self {
+        let fresnel = FresnelDielectric::new(eta_a, eta_b);
         Self {
             t,
             distribution,

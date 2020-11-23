@@ -62,6 +62,9 @@ pub trait Material: std::fmt::Debug {
 }
 
 pub mod disney;
+pub mod glass;
 pub mod matte;
+pub mod mirror;
 pub mod mixmat;
 pub mod plastic;
+pub mod translucent;

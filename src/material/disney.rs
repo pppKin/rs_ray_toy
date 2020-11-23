@@ -6,9 +6,8 @@ use crate::{
     misc::lerp,
     reflection::{
         abs_cos_theta, fr_dielectric, fr_schlick, fr_schlick_spectrum, reflect, same_hemisphere,
-        schlick_r0_from_eta, schlick_weight, Bsdf, BxDF, BxDFType, Fresnel, FresnelDielectric,
-        LambertianTransmission, MicrofacetReflection, MicrofacetTransmission, BXDF_DIFFUSE,
-        BXDF_GLOSSY, BXDF_REFLECTION,
+        schlick_r0_from_eta, schlick_weight, Bsdf, BxDF, BxDFType, Fresnel, LambertianTransmission,
+        MicrofacetReflection, MicrofacetTransmission, BXDF_DIFFUSE, BXDF_GLOSSY, BXDF_REFLECTION,
     },
     rtoycore::SPECTRUM_N,
     spectrum::{ISpectrum, Spectrum},
@@ -505,7 +504,6 @@ impl Material for DisneyMaterial {
                     Box::new(scaled_distrib),
                     1.0,
                     e,
-                    FresnelDielectric::new(1.0, e),
                     mode,
                 )));
             } else {
@@ -514,7 +512,6 @@ impl Material for DisneyMaterial {
                     Box::new(distrib),
                     1.0,
                     e,
-                    FresnelDielectric::new(1.0, e),
                     mode,
                 )));
             }
