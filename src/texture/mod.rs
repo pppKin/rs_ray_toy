@@ -45,23 +45,23 @@ pub trait Texture<T>: std::fmt::Debug {
 }
 
 #[derive(Debug)]
-pub struct DefaultTexture<T> {
+pub struct ConstantTexture<T: Copy> {
     v: T,
 }
 
-impl<T> DefaultTexture<T> {
+impl<T: Copy> ConstantTexture<T> {
     pub fn new(v: T) -> Self {
         Self { v }
     }
 }
 
-impl Texture<f64> for DefaultTexture<f64> {
+impl Texture<f64> for ConstantTexture<f64> {
     fn evaluate(&self, _si: &SurfaceInteraction) -> f64 {
         self.v
     }
 }
 
-impl Texture<Spectrum<SPECTRUM_N>> for DefaultTexture<Spectrum<SPECTRUM_N>> {
+impl Texture<Spectrum<SPECTRUM_N>> for ConstantTexture<Spectrum<SPECTRUM_N>> {
     fn evaluate(&self, _si: &SurfaceInteraction) -> Spectrum<SPECTRUM_N> {
         self.v
     }
@@ -203,7 +203,7 @@ pub fn lanczos(x: f64, tau: f64) -> f64 {
     s * lanczos
 }
 
-pub trait TextureMapping2D {
+pub trait TextureMapping2D: std::fmt::Debug {
     fn map(&self, si: &SurfaceInteraction, dstdx: &mut Vector2f, dstdy: &mut Vector2f) -> Point2f;
 }
 
@@ -367,3 +367,7 @@ impl TextureMapping3D for IdentityMapping3D {
         self.world_to_texture.transform_point(&si.ist.p)
     }
 }
+
+pub mod mix;
+pub mod scale;
+pub mod uv;
