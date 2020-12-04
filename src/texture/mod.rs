@@ -345,7 +345,7 @@ impl TextureMapping2D for PlanarMapping2D {
     }
 }
 
-pub trait TextureMapping3D {
+pub trait TextureMapping3D: std::fmt::Debug {
     fn map(&self, si: &SurfaceInteraction, dpdx: &mut Vector3f, dpdy: &mut Vector3f) -> Point3f;
 }
 
@@ -368,6 +368,9 @@ impl TextureMapping3D for IdentityMapping3D {
     }
 }
 
+pub mod bilerp;
+pub mod checkerboard;
+pub mod imagemap;
 pub mod mix;
 pub mod scale;
 pub mod uv;

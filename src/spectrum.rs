@@ -2099,7 +2099,7 @@ pub fn interpolate_spectrum_samples(lambda: &[f64], vals: &[f64], n: usize, l: f
     if l >= lambda[n - 1] {
         return vals[n - 1];
     }
-    let offset = find_interval(n as i32, |index| lambda[index as usize] <= l) as usize;
+    let offset = find_interval(n, |index| lambda[index] <= l) as usize;
     assert!(l >= lambda[offset] && l <= lambda[offset + 1]);
     let t = (l - lambda[offset]) / (lambda[offset + 1] - lambda[offset]);
     return lerp(t, vals[offset], vals[offset + 1]);

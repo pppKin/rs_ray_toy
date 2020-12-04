@@ -14,7 +14,9 @@ mod lights;
 mod lowdiscrepancy;
 mod material;
 mod medium;
+mod memory;
 mod microfacet;
+mod mipmap;
 mod misc;
 mod primitives;
 mod reflection;
@@ -25,8 +27,8 @@ mod shape;
 mod spectrum;
 mod texture;
 mod transform;
-use std::env;
-use std::str::FromStr;
+
+use std::{env, str::FromStr};
 
 extern crate image;
 extern crate lazy_static;

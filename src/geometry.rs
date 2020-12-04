@@ -718,6 +718,26 @@ impl<T> Vector2<T> {
         Vector2::<T> { x, y }
     }
 }
+
+impl<T> Vector2<T>
+where
+    T: PartialOrd + Copy + From<i32> + Neg<Output = T>,
+{
+    pub fn max_comp(&self) -> T {
+        // todo!();
+        if self.x > self.y {
+            return self.x;
+        } else {
+            return self.y;
+        }
+    }
+    pub fn abs(&self) -> Self {
+        let x = if self.x < T::from(0) { -self.x } else { self.x };
+        let y = if self.y < T::from(0) { -self.y } else { self.y };
+        Self::new(x, y)
+    }
+}
+
 impl Vector2<f64> {
     pub fn has_nans(&self) -> bool {
         self.x.is_nan() || self.y.is_nan()

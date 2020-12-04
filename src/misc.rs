@@ -7,12 +7,15 @@ use std::{
     f64::consts::PI,
     fs::File,
     io::{self, BufRead},
-    ops::{Add, Div, Mul, Sub},
+    ops::{
+        Add, AddAssign, BitAnd, BitOr, BitOrAssign, BitXor, BitXorAssign, Div, DivAssign, Mul,
+        MulAssign, Not, Shl, ShlAssign, Shr, ShrAssign, Sub, SubAssign,
+    },
     path::Path,
     rc::Rc,
-    str::FromStr,
     sync::Arc,
 };
+
 pub const PI_OVER_2: f64 = 1.570_796_326_794_896_619_23;
 pub const PI_OVER_4: f64 = 0.785_398_163_397_448_309_61;
 pub const ONE_MINUS_EPSILON: f64 = 1.0 - MACHINE_EPSILON;
@@ -131,9 +134,117 @@ where
     r
 }
 
+/// CommonNum and CommonLogicalNum allows us to write some convenient generic helper function
+// using inline here allows rustc to replace all these function calls with just plain number.
+// rustc is smart!
+pub trait CommonNum:
+    Sized
+    + Copy
+    + Default
+    + Add<Self, Output = Self>
+    + AddAssign
+    + Sub<Self, Output = Self>
+    + SubAssign
+    + Mul<Self, Output = Self>
+    + MulAssign
+    + Div<Self, Output = Self>
+    + DivAssign
+    + PartialEq
+    + PartialOrd
+{
+    fn num_one() -> Self;
+    #[inline]
+    fn two() -> Self {
+        Self::num_one() + Self::num_one()
+    }
+    #[inline]
+    fn four() -> Self {
+        Self::two() * Self::two()
+    }
+    #[inline]
+    fn eight() -> Self {
+        Self::four() * Self::two()
+    }
+    #[inline]
+    fn sixteen() -> Self {
+        Self::eight() * Self::two()
+    }
+    #[inline]
+    fn thirtytwo() -> Self {
+        Self::sixteen() * Self::two()
+    }
+}
+
+impl CommonNum for i32 {
+    #[inline]
+    fn num_one() -> Self {
+        1
+    }
+}
+
+impl CommonNum for i64 {
+    #[inline]
+    fn num_one() -> Self {
+        1
+    }
+}
+
+impl CommonNum for f64 {
+    #[inline]
+    fn num_one() -> Self {
+        1.0
+    }
+}
+
+impl CommonNum for usize {
+    #[inline]
+    fn num_one() -> Self {
+        1
+    }
+}
+
+impl CommonNum for u32 {
+    #[inline]
+    fn num_one() -> Self {
+        1
+    }
+}
+
+impl CommonNum for u64 {
+    #[inline]
+    fn num_one() -> Self {
+        1
+    }
+}
+
+/// CommonNum and CommonLogicalNum allows us to write some convenient generic helper function
+pub trait CommonLogicalNum:
+    CommonNum
+    + Shr<Self, Output = Self>
+    + Shl<Self, Output = Self>
+    + BitAnd<Self, Output = Self>
+    + BitOr<Self, Output = Self>
+    + BitOrAssign
+    + BitXor<Self, Output = Self>
+    + BitXorAssign
+    + Not<Output = Self>
+    + ShrAssign
+    + ShlAssign
+{
+}
+
+impl CommonLogicalNum for usize {}
+impl CommonLogicalNum for u32 {}
+impl CommonLogicalNum for u64 {}
+impl CommonLogicalNum for i32 {}
+impl CommonLogicalNum for i64 {}
+
 /// Interpolate linearly between two provided values.
-pub fn lerp(t: f64, a: f64, b: f64) -> f64 {
-    let one: f64 = 1.0;
+pub fn lerp<T>(t: T, a: T, b: T) -> T
+where
+    T: CommonNum,
+{
+    let one = T::num_one();
     a * (one - t) + b * t
 }
 
@@ -288,15 +399,18 @@ pub fn uniform_hemisphere_pdf() -> f64 {
     1.0 / (2.0 * PI)
 }
 
-pub fn round_up_pow2(v: u32) -> u32 {
+pub fn round_up_pow2<T>(v: T) -> T
+where
+    T: CommonLogicalNum,
+{
     let mut v = v;
-    v -= 1;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    return v + 1;
+    v = v - T::num_one();
+    v |= v >> T::num_one();
+    v |= v >> T::two();
+    v |= v >> T::four();
+    v |= v >> T::eight();
+    v |= v >> T::sixteen();
+    v + T::num_one()
 }
 
 /// Randomly permute an array of *count* sample values, each of which
@@ -358,39 +472,37 @@ where
         + Sub<T, Output = T>
         + Mul<T, Output = T>
         + Div<T, Output = T>
-        + FromStr,
+        + Default,
 {
     let result: T = a - (a / b) * b;
-    if let Ok(zero) = T::from_str("0") {
-        if result < zero {
-            result + b
-        } else {
-            result
-        }
+    let zero = T::default();
+    if result < zero {
+        result + b
     } else {
         result
     }
 }
 
 /// Helper function which emulates the behavior of std::upper_bound().
-pub fn find_interval<P>(size: i32, pred: P) -> i32
+pub fn find_interval<T, P>(size: T, pred: P) -> T
 where
-    P: Fn(i32) -> bool,
+    T: CommonLogicalNum,
+    P: Fn(T) -> bool,
 {
-    let mut first: i32 = 0;
-    let mut len: i32 = size;
-    while len > 0 {
-        let half = len >> 1;
+    let mut first = T::default();
+    let mut len = size;
+    while len > T::default() {
+        let half = len >> T::num_one();
         let middle = first + half;
         // bisect range based on value of _pred_ at _middle_
         if pred(middle) {
-            first = middle + 1;
-            len -= half + 1;
+            first = middle + T::num_one();
+            len -= half + T::num_one();
         } else {
             len = half;
         }
     }
-    clamp_t(first - 1, 0, size - 2)
+    clamp_t(first - T::num_one(), T::default(), size - T::two())
 }
 
 pub fn copy_option_arc<T: ?Sized>(opa: &Option<Arc<T>>) -> Option<Arc<T>> {
@@ -413,4 +525,11 @@ pub fn copy_option_rc<T: ?Sized>(opa: &Option<Rc<T>>) -> Option<Rc<T>> {
             return None;
         }
     }
+}
+
+pub fn is_power_of_2<T>(v: T) -> bool
+where
+    T: CommonLogicalNum,
+{
+    v != T::default() && (v & (v - T::num_one())) == T::default()
 }
