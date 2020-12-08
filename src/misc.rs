@@ -141,6 +141,7 @@ pub trait CommonNum:
     Sized
     + Copy
     + Default
+    + From<u8>
     + Add<Self, Output = Self>
     + AddAssign
     + Sub<Self, Output = Self>
@@ -152,7 +153,10 @@ pub trait CommonNum:
     + PartialEq
     + PartialOrd
 {
-    fn num_one() -> Self;
+    #[inline]
+    fn num_one() -> Self {
+        Self::from(1_u8)
+    }
     #[inline]
     fn two() -> Self {
         Self::num_one() + Self::num_one()
@@ -176,45 +180,45 @@ pub trait CommonNum:
 }
 
 impl CommonNum for i32 {
-    #[inline]
-    fn num_one() -> Self {
-        1
-    }
+    // #[inline]
+    // fn num_one() -> Self {
+    //     1
+    // }
 }
 
 impl CommonNum for i64 {
-    #[inline]
-    fn num_one() -> Self {
-        1
-    }
+    // #[inline]
+    // fn num_one() -> Self {
+    //     1
+    // }
 }
 
 impl CommonNum for f64 {
-    #[inline]
-    fn num_one() -> Self {
-        1.0
-    }
+    // #[inline]
+    // fn num_one() -> Self {
+    //     1.0
+    // }
 }
 
 impl CommonNum for usize {
-    #[inline]
-    fn num_one() -> Self {
-        1
-    }
+    // #[inline]
+    // fn num_one() -> Self {
+    //     1
+    // }
 }
 
 impl CommonNum for u32 {
-    #[inline]
-    fn num_one() -> Self {
-        1
-    }
+    // #[inline]
+    // fn num_one() -> Self {
+    //     1
+    // }
 }
 
 impl CommonNum for u64 {
-    #[inline]
-    fn num_one() -> Self {
-        1
-    }
+    // #[inline]
+    // fn num_one() -> Self {
+    //     1
+    // }
 }
 
 /// CommonNum and CommonLogicalNum allows us to write some convenient generic helper function
@@ -240,12 +244,11 @@ impl CommonLogicalNum for i32 {}
 impl CommonLogicalNum for i64 {}
 
 /// Interpolate linearly between two provided values.
-pub fn lerp<T>(t: T, a: T, b: T) -> T
+pub fn lerp<T>(t: f64, a: T, b: T) -> T
 where
-    T: CommonNum,
+    T: Mul<f64, Output = T> + Add<Output = T>,
 {
-    let one = T::num_one();
-    a * (one - t) + b * t
+    a * (1_f64 - t) + b * t
 }
 
 /// Find solution(s) of the quadratic equation at<sup>2</sup> + bt + c = 0.

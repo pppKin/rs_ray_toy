@@ -1,9 +1,9 @@
-use std::ops::{Add, AddAssign, Mul};
+use std::ops::{Add, AddAssign, Div, Mul};
 
 use crate::{
     geometry::{Point2, Point2f, Vector2f},
     memory::BlockedArray,
-    misc::{clamp_t, is_power_of_2, mod_t, round_up_pow2},
+    misc::{clamp_t, is_power_of_2, lerp, mod_t, round_up_pow2},
     texture::lanczos,
 };
 use lazy_static::*;
@@ -67,195 +67,6 @@ impl ResampleWeight {
     }
 }
 
-// MIPMap Declarations
-// template <typename T>
-// class MIPMap {
-//   public:
-//     // MIPMap Public Methods
-//     MIPMap(const Point2i &resolution, const T *data, bool doTri = false,
-//            Float maxAniso = 8.f, ImageWrap wrapMode = ImageWrap::Repeat);
-//     int Width() const { return resolution[0]; }
-//     int Height() const { return resolution[1]; }
-//     int Levels() const { return pyramid.size(); }
-//     const T &Texel(int level, int s, int t) const;
-//     T Lookup(const Point2f &st, Float width = 0.f) const;
-//     T Lookup(const Point2f &st, Vector2f dstdx, Vector2f dstdy) const;
-
-//   private:
-//     // MIPMap Private Methods
-//     std::unique_ptr<ResampleWeight[]> resampleWeights(int oldRes, int newRes) {
-//         CHECK_GE(newRes, oldRes);
-//         std::unique_ptr<ResampleWeight[]> wt(new ResampleWeight[newRes]);
-//         Float filterwidth = 2.f;
-//         for (int i = 0; i < newRes; ++i) {
-//             // Compute image resampling weights for _i_th texel
-//             Float center = (i + .5f) * oldRes / newRes;
-//             wt[i].firstTexel = std::floor((center - filterwidth) + 0.5f);
-//             for (int j = 0; j < 4; ++j) {
-//                 Float pos = wt[i].firstTexel + j + .5f;
-//                 wt[i].weight[j] = Lanczos((pos - center) / filterwidth);
-//             }
-
-//             // Normalize filter weights for texel resampling
-//             Float invSumWts = 1 / (wt[i].weight[0] + wt[i].weight[1] +
-//                                    wt[i].weight[2] + wt[i].weight[3]);
-//             for (int j = 0; j < 4; ++j) wt[i].weight[j] *= invSumWts;
-//         }
-//         return wt;
-//     }
-//     Float clamp(Float v) { return Clamp(v, 0.f, Infinity); }
-//     RGBSpectrum clamp(const RGBSpectrum &v) { return v.Clamp(0.f, Infinity); }
-//     SampledSpectrum clamp(const SampledSpectrum &v) {
-//         return v.Clamp(0.f, Infinity);
-//     }
-//     T triangle(int level, const Point2f &st) const;
-//     T EWA(int level, Point2f st, Vector2f dst0, Vector2f dst1) const;
-
-//     // MIPMap Private Data
-//     const bool doTrilinear;
-//     const Float maxAnisotropy;
-//     const ImageWrap wrapMode;
-//     Point2i resolution;
-//     std::vector<std::unique_ptr<BlockedArray<T>>> pyramid;
-//     static PBRT_CONSTEXPR int WeightLUTSize = 128;
-//     static Float weightLut[WeightLUTSize];
-// };
-
-// template <typename T>
-// const T &MIPMap<T>::Texel(int level, int s, int t) const {
-//     CHECK_LT(level, pyramid.size());
-//     const BlockedArray<T> &l = *pyramid[level];
-//     // Compute texel $(s,t)$ accounting for boundary conditions
-//     switch (wrapMode) {
-//     case ImageWrap::Repeat:
-//         s = Mod(s, l.uSize());
-//         t = Mod(t, l.vSize());
-//         break;
-//     case ImageWrap::Clamp:
-//         s = Clamp(s, 0, l.uSize() - 1);
-//         t = Clamp(t, 0, l.vSize() - 1);
-//         break;
-//     case ImageWrap::Black: {
-//         static const T black = 0.f;
-//         if (s < 0 || s >= (int)l.uSize() || t < 0 || t >= (int)l.vSize())
-//             return black;
-//         break;
-//     }
-//     }
-//     return l(s, t);
-// }
-
-// template <typename T>
-// T MIPMap<T>::Lookup(const Point2f &st, Float width) const {
-//     ++nTrilerpLookups;
-//     ProfilePhase p(Prof::TexFiltTrilerp);
-//     // Compute MIPMap level for trilinear filtering
-//     Float level = Levels() - 1 + Log2(std::max(width, (Float)1e-8));
-
-//     // Perform trilinear interpolation at appropriate MIPMap level
-//     if (level < 0)
-//         return triangle(0, st);
-//     else if (level >= Levels() - 1)
-//         return Texel(Levels() - 1, 0, 0);
-//     else {
-//         int iLevel = std::floor(level);
-//         Float delta = level - iLevel;
-//         return Lerp(delta, triangle(iLevel, st), triangle(iLevel + 1, st));
-//     }
-// }
-
-// template <typename T>
-// T MIPMap<T>::triangle(int level, const Point2f &st) const {
-//     level = Clamp(level, 0, Levels() - 1);
-//     Float s = st[0] * pyramid[level]->uSize() - 0.5f;
-//     Float t = st[1] * pyramid[level]->vSize() - 0.5f;
-//     int s0 = std::floor(s), t0 = std::floor(t);
-//     Float ds = s - s0, dt = t - t0;
-//     return (1 - ds) * (1 - dt) * Texel(level, s0, t0) +
-//            (1 - ds) * dt * Texel(level, s0, t0 + 1) +
-//            ds * (1 - dt) * Texel(level, s0 + 1, t0) +
-//            ds * dt * Texel(level, s0 + 1, t0 + 1);
-// }
-
-// template <typename T>
-// T MIPMap<T>::Lookup(const Point2f &st, Vector2f dst0, Vector2f dst1) const {
-//     if (doTrilinear) {
-//         Float width = std::max(std::max(std::abs(dst0[0]), std::abs(dst0[1])),
-//                                std::max(std::abs(dst1[0]), std::abs(dst1[1])));
-//         return Lookup(st, width);
-//     }
-//     ++nEWALookups;
-//     ProfilePhase p(Prof::TexFiltEWA);
-//     // Compute ellipse minor and major axes
-//     if (dst0.LengthSquared() < dst1.LengthSquared()) std::swap(dst0, dst1);
-//     Float majorLength = dst0.Length();
-//     Float minorLength = dst1.Length();
-
-//     // Clamp ellipse eccentricity if too large
-//     if (minorLength * maxAnisotropy < majorLength && minorLength > 0) {
-//         Float scale = majorLength / (minorLength * maxAnisotropy);
-//         dst1 *= scale;
-//         minorLength *= scale;
-//     }
-//     if (minorLength == 0) return triangle(0, st);
-
-//     // Choose level of detail for EWA lookup and perform EWA filtering
-//     Float lod = std::max((Float)0, Levels() - (Float)1 + Log2(minorLength));
-//     int ilod = std::floor(lod);
-//     return Lerp(lod - ilod, EWA(ilod, st, dst0, dst1),
-//                 EWA(ilod + 1, st, dst0, dst1));
-// }
-
-// template <typename T>
-// T MIPMap<T>::EWA(int level, Point2f st, Vector2f dst0, Vector2f dst1) const {
-//     if (level >= Levels()) return Texel(Levels() - 1, 0, 0);
-//     // Convert EWA coordinates to appropriate scale for level
-//     st[0] = st[0] * pyramid[level]->uSize() - 0.5f;
-//     st[1] = st[1] * pyramid[level]->vSize() - 0.5f;
-//     dst0[0] *= pyramid[level]->uSize();
-//     dst0[1] *= pyramid[level]->vSize();
-//     dst1[0] *= pyramid[level]->uSize();
-//     dst1[1] *= pyramid[level]->vSize();
-
-//     // Compute ellipse coefficients to bound EWA filter region
-//     Float A = dst0[1] * dst0[1] + dst1[1] * dst1[1] + 1;
-//     Float B = -2 * (dst0[0] * dst0[1] + dst1[0] * dst1[1]);
-//     Float C = dst0[0] * dst0[0] + dst1[0] * dst1[0] + 1;
-//     Float invF = 1 / (A * C - B * B * 0.25f);
-//     A *= invF;
-//     B *= invF;
-//     C *= invF;
-
-//     // Compute the ellipse's $(s,t)$ bounding box in texture space
-//     Float det = -B * B + 4 * A * C;
-//     Float invDet = 1 / det;
-//     Float uSqrt = std::sqrt(det * C), vSqrt = std::sqrt(A * det);
-//     int s0 = std::ceil(st[0] - 2 * invDet * uSqrt);
-//     int s1 = std::floor(st[0] + 2 * invDet * uSqrt);
-//     int t0 = std::ceil(st[1] - 2 * invDet * vSqrt);
-//     int t1 = std::floor(st[1] + 2 * invDet * vSqrt);
-
-//     // Scan over ellipse bound and compute quadratic equation
-//     T sum(0.f);
-//     Float sumWts = 0;
-//     for (int it = t0; it <= t1; ++it) {
-//         Float tt = it - st[1];
-//         for (int is = s0; is <= s1; ++is) {
-//             Float ss = is - st[0];
-//             // Compute squared radius and filter texel if inside ellipse
-//             Float r2 = A * ss * ss + B * ss * tt + C * tt * tt;
-//             if (r2 < 1) {
-//                 int index =
-//                     std::min((int)(r2 * WeightLUTSize), WeightLUTSize - 1);
-//                 Float weight = weightLut[index];
-//                 sum += Texel(level, is, it) * weight;
-//                 sumWts += weight;
-//             }
-//         }
-//     }
-//     return sum / sumWts;
-// }
-
 #[derive(Debug)]
 pub struct MIPMap<T: Clone + From<f64> + Copy> {
     do_trilinear: bool,
@@ -292,7 +103,9 @@ where
         + AddAssign
         + Mul<f64, Output = T>
         + PartialOrd
-        + From<f64>,
+        + From<f64>
+        + From<u8>
+        + Div<f64, Output = T>,
 {
     pub fn width(&self) -> usize {
         self.resolution[0]
@@ -303,21 +116,157 @@ where
     pub fn levels(&self) -> usize {
         self.pyramid.len()
     }
-    pub fn texel(&self, level: usize, s: f64, t: f64) -> T {
-        todo!();
+    pub fn texel(&self, level: usize, s: usize, t: usize) -> T {
+        //     CHECK_LT(level, pyramid.size());
+        assert!(level < self.pyramid.len());
+        //     const BlockedArray<T> &l = *pyramid[level];
+        let l = &self.pyramid[level];
+        let mut tmp_s = 0;
+        let mut tmp_t = 0;
+        // Compute texel $(s,t)$ accounting for boundary conditions
+        match self.wrap_mode {
+            ImageWrap::Repeat => {
+                tmp_s = mod_t(s, l.u_size());
+                tmp_t = mod_t(t, l.v_size());
+            }
+            ImageWrap::Black => {
+                if s >= l.u_size() || t >= l.v_size() {
+                    return T::from(0.0);
+                }
+            }
+            ImageWrap::Clamp => {
+                tmp_s = clamp_t(s, 0, l.u_size());
+                tmp_t = clamp_t(t, 0, l.v_size());
+            }
+        }
+        l[(tmp_s, tmp_t)]
     }
     pub fn lookup_w(&self, st: &Point2f, width: f64) -> T {
-        todo!();
+        // Compute MIPMap level for trilinear filtering
+        let level = self.levels() as f64 - 1.0 + width.max(1e-8).log2();
+        // Perform trilinear interpolation at appropriate MIPMap level
+        if level < 0.0 {
+            return self.triangle(0, st);
+        } else if level >= (self.levels() - 1) as f64 {
+            return self.texel(self.levels() - 1, 0, 0);
+        } else {
+            let i_level = level.floor() as usize;
+            let delta = level.fract();
+            return lerp(
+                delta,
+                self.triangle(i_level, st),
+                self.triangle(i_level + 1, st),
+            );
+        }
     }
     pub fn lookup_d(&self, st: &Point2f, dstdx: &Vector2f, dstdy: &Vector2f) -> T {
-        todo!();
+        if self.do_trilinear {
+            let width = dstdx.abs().max_comp().max(dstdy.abs().max_comp());
+            return self.lookup_w(st, width);
+        }
+
+        // Compute ellipse minor and major axes
+        let dst0;
+        let mut dst1;
+        if dstdx.length_squared() < dstdy.length_squared() {
+            dst0 = *dstdy;
+            dst1 = *dstdx;
+        } else {
+            dst0 = *dstdx;
+            dst1 = *dstdy;
+        }
+
+        let major_length = dst0.length();
+        let mut minor_length = dst1.length();
+        // Clamp ellipse eccentricity if too large
+        if minor_length * self.max_anisotropy < major_length && minor_length > 0.0 {
+            let scale = major_length / (minor_length * self.max_anisotropy);
+            dst1 *= scale;
+            minor_length *= scale;
+        }
+        if minor_length == 0.0 {
+            return self.triangle(0, st);
+        }
+
+        // Choose level of detail for EWA lookup and perform EWA filtering
+        let lod = ((self.levels() - 1) as f64 + minor_length.log2()).max(0.0);
+        let i_lod = lod.floor() as usize;
+        lerp(
+            lod.fract(),
+            self.ewa(i_lod, st, &dst0, &dst1),
+            self.ewa(i_lod + 1, st, &dst0, &dst1),
+        )
     }
-    // clamp
     fn triangle(&self, level: usize, st: &Point2f) -> T {
-        todo!();
+        let level = clamp_t(level, 0, self.levels() - 1);
+        let s = st[0] * self.pyramid[level].u_size() as f64 - 0.5;
+        let t = st[1] * self.pyramid[level].v_size() as f64 - 0.5;
+        let s0 = s.floor() as usize;
+        let t0 = t.floor() as usize;
+        let ds = s.fract();
+        let dt = t.fract();
+        self.texel(level, s0, t0) * (1.0 - ds) * (1.0 - dt)
+            + self.texel(level, s0, t0 + 1) * (1.0 - ds) * dt
+            + self.texel(level, s0 + 1, t0) * ds * (1.0 - dt)
+            + self.texel(level, s0 + 1, t0 + 1) * ds * dt
     }
-    fn ewa(&self, level: usize, st: &Point2f, dst0: &Vector2f, dst1: &Vector2f) -> T {
-        todo!();
+    fn ewa(&self, level: usize, st: &Point2f, dstdx: &Vector2f, dstdy: &Vector2f) -> T {
+        if level > self.levels() {
+            return self.texel(self.levels() - 1, 0, 0);
+        }
+        // Convert EWA coordinates to appropriate scale for level
+        let st = Point2f::new(
+            st[0] * self.pyramid[level].u_size() as f64 - 0.5,
+            st[1] * self.pyramid[level].v_size() as f64 - 0.5,
+        );
+        let dst0 = Vector2f::new(
+            dstdx[0] * self.pyramid[level].u_size() as f64,
+            dstdx[1] * self.pyramid[level].v_size() as f64,
+        );
+        let dst1 = Vector2f::new(
+            dstdy[0] * self.pyramid[level].u_size() as f64,
+            dstdy[1] * self.pyramid[level].v_size() as f64,
+        );
+
+        // Compute ellipse coefficients to bound EWA filter region
+        let mut a = dst0[1] * dst0[1] + dst1[1] * dst1[1] + 1.0;
+        let mut b = -2.0 * (dst0[0] * dst0[1] + dst1[0] * dst1[1]);
+        let mut c = dst0[0] * dst0[0] + dst1[0] * dst1[0] + 1.0;
+        let inv_f = 1.0 / (a * c - b * b * 0.25);
+        a *= inv_f;
+        b *= inv_f;
+        c *= inv_f;
+
+        // Compute the ellipse's $(s,t)$ bounding box in texture space
+        let det = -b * b + 4.0 * a * c;
+        let inv_det = 1.0 / det;
+        let u_sqrt = (det * c).sqrt();
+        let v_sqrt = (det * a).sqrt();
+
+        let s0 = (st[0] - 2.0 * inv_det * u_sqrt).ceil() as usize;
+        let s1 = (st[0] + 2.0 * inv_det * u_sqrt).floor() as usize;
+        let t0 = (st[1] - 2.0 * inv_det * v_sqrt).ceil() as usize;
+        let t1 = (st[1] + 2.0 * inv_det * v_sqrt).floor() as usize;
+
+        // Scan over ellipse bound and compute quadratic equation
+        let mut sum = T::from(0.0);
+        let mut sum_wts = 0.0;
+        for it in t0..=t1 {
+            let tt = it as f64 - st[0];
+            for is in s0..=s1 {
+                let ss = is as f64 - st[0];
+                // Compute squared radius and filter texel if inside ellipse
+                let r2 = a * ss * ss + b * ss * tt + c * tt * tt;
+                if r2 < 1.0 {
+                    let index =
+                        (r2 * WEIGHT_LUT_SIZE as f64).min((WEIGHT_LUT_SIZE - 1) as f64) as usize;
+                    let weight = WEIGHT_LUT[index];
+                    sum += self.texel(level, is, it) * weight;
+                    sum_wts += weight;
+                }
+            }
+        }
+        sum / sum_wts
     }
     fn create(
         res: Point2<usize>,
@@ -418,10 +367,10 @@ where
             // TODO: ParallelFor
             for t in 0..t_res {
                 for s in 0..s_res {
-                    tmp[(s, t)] = (mipmap.texel(i - 1, 2.0 * s as f64, 2.0 * t as f64)
-                        + mipmap.texel(i - 1, 2.0 * s as f64 + 1.0, 2.0 * t as f64)
-                        + mipmap.texel(i - 1, 2.0 * s as f64, 2.0 * t as f64 + 1.0)
-                        + mipmap.texel(i - 1, 2.0 * s as f64 + 1.0, 2.0 * t as f64 + 1.0))
+                    tmp[(s, t)] = (mipmap.texel(i - 1, 2 * s, 2 * t)
+                        + mipmap.texel(i - 1, 2 * s + 1, 2 * t)
+                        + mipmap.texel(i - 1, 2 * s, 2 * t + 1)
+                        + mipmap.texel(i - 1, 2 * s + 1, 2 * t + 1))
                         * 0.25;
                 }
             }

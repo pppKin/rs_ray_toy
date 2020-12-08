@@ -22,7 +22,7 @@ pub fn fr_schlick(r0: f64, cos_theta: f64) -> f64 {
 }
 
 pub fn fr_schlick_spectrum(r0: Spectrum<SPECTRUM_N>, cos_theta: f64) -> Spectrum<SPECTRUM_N> {
-    Spectrum::lerp(schlick_weight(cos_theta), r0, Spectrum::one())
+    lerp(schlick_weight(cos_theta), r0, Spectrum::one())
 }
 
 // For a dielectric, R(0) = (eta - 1)^2 / (eta + 1)^2, assuming we're

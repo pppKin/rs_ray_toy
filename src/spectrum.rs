@@ -2210,10 +2210,6 @@ impl<const N: usize> Spectrum<N> {
         m
     }
 
-    pub fn lerp(t: f64, s1: Self, s2: Self) -> Self {
-        (s1 * (1_f64 - t)) + (s2 * t)
-    }
-
     pub fn has_nan(&self) -> bool {
         for i in 0..N {
             if self.c[i].is_nan() {

@@ -317,7 +317,7 @@ impl DisneyFresnel {
 
 impl Fresnel for DisneyFresnel {
     fn evaluate(&self, cos_i: f64) -> Spectrum<SPECTRUM_N> {
-        Spectrum::lerp(
+        lerp(
             self.metallic,
             Spectrum::from(fr_dielectric(cos_i, 1.0, self.eta)),
             fr_schlick_spectrum(self.r0, cos_i),
@@ -419,7 +419,7 @@ impl Material for DisneyMaterial {
         let mut c_sheen = Spectrum::default();
         if sheen_weight > 0.0 {
             let s_tint = self.sheen_tint.evaluate(si);
-            c_sheen = Spectrum::lerp(s_tint, Spectrum::one(), c_tint);
+            c_sheen = lerp(s_tint, Spectrum::one(), c_tint);
         }
 
         if diffuse_weight > 0.0 {
@@ -466,9 +466,9 @@ impl Material for DisneyMaterial {
 
         // Specular is Trowbridge-Reitz with a modified Fresnel function.
         let spec_tint = self.specular_tint.evaluate(si);
-        let c_spec_0 = Spectrum::lerp(
+        let c_spec_0 = lerp(
             metallic_weight,
-            Spectrum::lerp(spec_tint, Spectrum::one(), c_tint) * schlick_r0_from_eta(e),
+            lerp(spec_tint, Spectrum::one(), c_tint) * schlick_r0_from_eta(e),
             c,
         );
 
