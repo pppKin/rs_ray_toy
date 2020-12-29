@@ -118,7 +118,6 @@ pub fn next_float_down(v: f64) -> f64 {
 }
 
 /// Clamp the given value *val* to lie between the values *low* and *high*.
-#[inline]
 pub fn clamp_t<T>(val: T, low: T, high: T) -> T
 where
     T: PartialOrd,

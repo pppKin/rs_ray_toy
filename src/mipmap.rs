@@ -1,9 +1,11 @@
-use std::ops::{Add, AddAssign, Div, Mul};
+use std::f64::INFINITY;
 
 use crate::{
     geometry::{Point2, Point2f, Vector2f},
     memory::BlockedArray,
     misc::{clamp_t, is_power_of_2, lerp, mod_t, round_up_pow2},
+    rtoycore::SPECTRUM_N,
+    spectrum::Spectrum,
     texture::lanczos,
 };
 use lazy_static::*;
@@ -68,21 +70,21 @@ impl ResampleWeight {
 }
 
 #[derive(Debug)]
-pub struct MIPMap<T: Clone + From<f64> + Copy> {
+pub struct MIPMap {
     do_trilinear: bool,
     max_anisotropy: f64,
     wrap_mode: ImageWrap,
     resolution: Point2<usize>,
-    pyramid: Vec<BlockedArray<T>>,
+    pyramid: Vec<BlockedArray<Spectrum<SPECTRUM_N>>>,
 }
 
-impl<T: Clone + From<f64> + Copy> MIPMap<T> {
+impl MIPMap {
     pub fn new(
         do_trilinear: bool,
         max_anisotropy: f64,
         wrap_mode: ImageWrap,
         resolution: Point2<usize>,
-        pyramid: Vec<BlockedArray<T>>,
+        pyramid: Vec<BlockedArray<Spectrum<SPECTRUM_N>>>,
     ) -> Self {
         Self {
             do_trilinear,
@@ -92,21 +94,7 @@ impl<T: Clone + From<f64> + Copy> MIPMap<T> {
             pyramid,
         }
     }
-}
 
-impl<T> MIPMap<T>
-where
-    T: Copy
-        + Clone
-        + Default
-        + Add<T, Output = T>
-        + AddAssign
-        + Mul<f64, Output = T>
-        + PartialOrd
-        + From<f64>
-        + From<u8>
-        + Div<f64, Output = T>,
-{
     pub fn width(&self) -> usize {
         self.resolution[0]
     }
@@ -116,10 +104,10 @@ where
     pub fn levels(&self) -> usize {
         self.pyramid.len()
     }
-    pub fn texel(&self, level: usize, s: usize, t: usize) -> T {
+    pub fn texel(&self, level: usize, s: usize, t: usize) -> Spectrum<SPECTRUM_N> {
         //     CHECK_LT(level, pyramid.size());
         assert!(level < self.pyramid.len());
-        //     const BlockedArray<T> &l = *pyramid[level];
+        //     const BlockedArray<Spectrum<SPECTRUM_N>> &l = *pyramid[level];
         let l = &self.pyramid[level];
         let mut tmp_s = 0;
         let mut tmp_t = 0;
@@ -131,7 +119,7 @@ where
             }
             ImageWrap::Black => {
                 if s >= l.u_size() || t >= l.v_size() {
-                    return T::from(0.0);
+                    return Spectrum::from(0.0);
                 }
             }
             ImageWrap::Clamp => {
@@ -141,7 +129,7 @@ where
         }
         l[(tmp_s, tmp_t)]
     }
-    pub fn lookup_w(&self, st: &Point2f, width: f64) -> T {
+    pub fn lookup_w(&self, st: &Point2f, width: f64) -> Spectrum<SPECTRUM_N> {
         // Compute MIPMap level for trilinear filtering
         let level = self.levels() as f64 - 1.0 + width.max(1e-8).log2();
         // Perform trilinear interpolation at appropriate MIPMap level
@@ -159,7 +147,12 @@ where
             );
         }
     }
-    pub fn lookup_d(&self, st: &Point2f, dstdx: &Vector2f, dstdy: &Vector2f) -> T {
+    pub fn lookup_d(
+        &self,
+        st: &Point2f,
+        dstdx: &Vector2f,
+        dstdy: &Vector2f,
+    ) -> Spectrum<SPECTRUM_N> {
         if self.do_trilinear {
             let width = dstdx.abs().max_comp().max(dstdy.abs().max_comp());
             return self.lookup_w(st, width);
@@ -197,7 +190,7 @@ where
             self.ewa(i_lod + 1, st, &dst0, &dst1),
         )
     }
-    fn triangle(&self, level: usize, st: &Point2f) -> T {
+    fn triangle(&self, level: usize, st: &Point2f) -> Spectrum<SPECTRUM_N> {
         let level = clamp_t(level, 0, self.levels() - 1);
         let s = st[0] * self.pyramid[level].u_size() as f64 - 0.5;
         let t = st[1] * self.pyramid[level].v_size() as f64 - 0.5;
@@ -210,7 +203,13 @@ where
             + self.texel(level, s0 + 1, t0) * ds * (1.0 - dt)
             + self.texel(level, s0 + 1, t0 + 1) * ds * dt
     }
-    fn ewa(&self, level: usize, st: &Point2f, dstdx: &Vector2f, dstdy: &Vector2f) -> T {
+    fn ewa(
+        &self,
+        level: usize,
+        st: &Point2f,
+        dstdx: &Vector2f,
+        dstdy: &Vector2f,
+    ) -> Spectrum<SPECTRUM_N> {
         if level > self.levels() {
             return self.texel(self.levels() - 1, 0, 0);
         }
@@ -249,7 +248,7 @@ where
         let t1 = (st[1] + 2.0 * inv_det * v_sqrt).floor() as usize;
 
         // Scan over ellipse bound and compute quadratic equation
-        let mut sum = T::from(0.0);
+        let mut sum = Spectrum::from(0.0);
         let mut sum_wts = 0.0;
         for it in t0..=t1 {
             let tt = it as f64 - st[0];
@@ -270,7 +269,7 @@ where
     }
     fn create(
         res: Point2<usize>,
-        img: &[T],
+        img: &[Spectrum<SPECTRUM_N>],
         do_trilinear: bool,
         max_anisotropy: f64,
         wrap_mode: ImageWrap,
@@ -282,14 +281,14 @@ where
             let res_pow2 = Point2::<usize>::new(round_up_pow2(res[0]), round_up_pow2(res[1]));
             // Resample image in $s$ direction
             let sweights = resample_weights(res[0], res_pow2[0]);
-            resampled_image.resize(res_pow2[0] * res_pow2[1], T::default());
+            resampled_image.resize(res_pow2[0] * res_pow2[1], Spectrum::default());
             // Apply _sWeights_ to zoom in $s$ direction
             // TODO: ParallelFor -> rayon
             for t in 0..res[0] {
                 for s in 0..res_pow2[0] {
                     // Compute texel $(s,t)$ in $s$-zoomed image
                     let tmp_idx = t * res_pow2[0] + s;
-                    resampled_image[tmp_idx] = T::default();
+                    resampled_image[tmp_idx] = Spectrum::default();
 
                     for j in 0..4 {
                         let mut orig_s = sweights[s].first_texel + j;
@@ -312,10 +311,10 @@ where
 
             // Resample image in $t$ direction
             let tweights = resample_weights(res[1], res_pow2[1]);
-            // let mut resample_bufs = vec![vec![T::default(); res_pow2[1]];4];
+            // let mut resample_bufs = vec![vec![Spectrum::default(); res_pow2[1]];4];
             // TODO: ParallelFor -> rayon
             for s in 0..res_pow2[0] {
-                let mut work_data = vec![T::default(); res_pow2[1]];
+                let mut work_data = vec![Spectrum::default(); res_pow2[1]];
                 for t in 0..res_pow2[1] {
                     for j in 0..4 {
                         let mut offset = tweights[t].first_texel + j;
@@ -335,8 +334,8 @@ where
                     }
                 }
                 for t in 0..res_pow2[1] {
-                    resampled_image[t * res_pow2[0] + s] =
-                        clamp_t(work_data[t], T::from(0.0), T::from(std::f64::INFINITY));
+                    resampled_image[t * res_pow2[0] + s] = work_data[t].clamp(0.0, INFINITY);
+                    // clamp_t(work_data[t], Spectrum::from(0.0), Spectrum::from(std::f64::INFINITY));
                 }
             }
             resolution = res_pow2;
@@ -346,7 +345,7 @@ where
 
         // Initialize levels of MIPMap from image
         let n_levels = 1 + (resolution[0].max(resolution[1]) as f64).log2() as usize;
-        let mut pyramid: Vec<BlockedArray<T>> = vec![];
+        let mut pyramid: Vec<BlockedArray<Spectrum<SPECTRUM_N>>> = vec![];
         // Initialize most detailed level of MIPMap
         pyramid.push(BlockedArray::new(
             if resampled_image.len() > 0 {
