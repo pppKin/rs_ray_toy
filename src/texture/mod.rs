@@ -135,7 +135,7 @@ pub fn noise_weight(t: f64) -> f64 {
     6.0 * t4 * t - 15.0 * t4 + 10.0 * t3
 }
 
-pub fn fbm(p: &Point3f, dpdx: &Vector3f, dpdy: &Vector3f, omega: f64, max_octaves: i32) -> f64 {
+pub fn fbm(p: &Point3f, dpdx: &Vector3f, dpdy: &Vector3f, omega: f64, max_octaves: u64) -> f64 {
     // compute number of octaves for antialiased FBm
     let len2: f64 = dpdx.length_squared().max(dpdy.length_squared());
     let n: f64 = clamp_t(-1.0 - 0.5 * len2.log2(), 0.0, max_octaves as f64);
@@ -159,7 +159,7 @@ pub fn turbulence(
     dpdx: &Vector3f,
     dpdy: &Vector3f,
     omega: f64,
-    max_octaves: i32,
+    max_octaves: u64,
 ) -> f64 {
     // compute number of octaves for antialiased FBm
     let len2: f64 = dpdx.length_squared().max(dpdy.length_squared());
@@ -374,3 +374,5 @@ pub mod imagemap;
 pub mod mix;
 pub mod scale;
 pub mod uv;
+pub mod windy;
+pub mod wrinkled;
