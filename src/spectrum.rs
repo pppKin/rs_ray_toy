@@ -2384,6 +2384,17 @@ impl<const N: usize> From<f64> for Spectrum<N> {
     }
 }
 
+impl<const N: usize> PartialEq for Spectrum<N> {
+    fn eq(&self, other: &Self) -> bool {
+        for i in 0..N {
+            if self[i] != other[i] {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct SampledSpectrumStatic {
     pub x: SampledSpectrum,

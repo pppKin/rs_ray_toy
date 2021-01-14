@@ -1,5 +1,5 @@
 use crate::{
-    medium::Medium,
+    medium::MediumOpArc,
     misc::{clamp_t, float_nearly_equal, gamma, lerp, next_float_down, next_float_up},
     rtoycore::MAX_DIST,
 };
@@ -75,7 +75,7 @@ pub struct Ray {
     pub d: Vector3f,
     pub t_max: f64, // MAX_DIST
     pub time: f64,
-    pub medium: Medium,
+    pub medium: MediumOpArc,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -408,6 +408,12 @@ impl Point3<f64> {
     }
     pub fn zero() -> Self {
         Self::new(0.0, 0.0, 0.0)
+    }
+}
+
+impl Point3<i64> {
+    pub fn from_pnt3f(p: &Point3f) -> Self {
+        Self::new(p.x as i64, p.y as i64, p.z as i64)
     }
 }
 
@@ -1794,7 +1800,7 @@ impl Default for Ray {
 }
 
 impl Ray {
-    pub fn new(o: Point3f, d: Vector3f, t_max: f64, time: f64, medium: Medium) -> Ray {
+    pub fn new(o: Point3f, d: Vector3f, t_max: f64, time: f64, medium: MediumOpArc) -> Ray {
         Ray {
             o,
             d: d.normalize(),

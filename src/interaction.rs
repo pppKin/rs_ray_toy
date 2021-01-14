@@ -15,7 +15,7 @@ use crate::{
 
 use std::rc::Rc;
 
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct BaseInteraction {
     pub p: Point3f,
     pub time: f64,
@@ -301,7 +301,14 @@ impl SurfaceInteraction {
     }
 }
 
+#[derive(Debug)]
 pub struct MediumInteraction {
     pub ist: BaseInteraction,
     pub phase: Box<dyn PhaseFunction>,
+}
+
+impl MediumInteraction {
+    pub fn new(ist: BaseInteraction, phase: Box<dyn PhaseFunction>) -> Self {
+        Self { ist, phase }
+    }
 }

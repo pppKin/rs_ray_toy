@@ -8,7 +8,7 @@ use crate::{
     },
     interaction::Interaction,
     lowdiscrepancy::radical_inverse,
-    medium::Medium,
+    medium::MediumOpArc,
     misc::{concentric_sample_disk, copy_option_arc, lerp, quadratic},
     reflection::refract,
     rtoycore::SPECTRUM_N,
@@ -25,7 +25,7 @@ where
     pub shutter_close: f64,
 
     pub film: Arc<Film<T>>,
-    pub medium: Medium,
+    pub medium: MediumOpArc,
 }
 
 impl<T: IFilter> CameraData<T> {
@@ -34,7 +34,7 @@ impl<T: IFilter> CameraData<T> {
         shutter_open: f64,
         shutter_close: f64,
         film: Arc<Film<T>>,
-        medium: Medium,
+        medium: MediumOpArc,
     ) -> Self {
         Self {
             camera_to_world,
