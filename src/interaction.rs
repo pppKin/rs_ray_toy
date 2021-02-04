@@ -1,4 +1,5 @@
 use crate::{
+    bssrdf::BSSRDF,
     geometry::{
         cross, dot3, faceforward, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f,
     },
@@ -56,16 +57,6 @@ impl BaseInteraction {
     pub fn spawn_ray_to(&self, p2: Point3f) -> Ray {
         self.spawn_ray(p2 - self.p)
     }
-    pub fn copy_ist(&self) -> Self {
-        Self::new(
-            self.p,
-            self.time,
-            self.p_error,
-            self.wo,
-            self.n,
-            self.mi.clone(),
-        )
-    }
 }
 
 pub enum Interaction {
@@ -82,7 +73,7 @@ pub struct Shading {
     pub dndv: Normal3f,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SurfaceInteraction {
     pub ist: BaseInteraction,
     pub uv: Point2f,
@@ -94,7 +85,7 @@ pub struct SurfaceInteraction {
     pub shading: Shading,
     pub primitive: Option<Rc<GeometricPrimitive>>,
     pub bsdf: Option<Bsdf>,
-    // pub bssrdf: Option<BSSRDF>,
+    pub bssrdf: Option<Rc<dyn BSSRDF>>,
     pub dpdx: Vector3f,
     pub dpdy: Vector3f,
     pub dudx: f64,
@@ -162,6 +153,7 @@ impl SurfaceInteraction {
             shading,
             primitive: None,
             bsdf: None,
+            bssrdf: None,
             dpdx: Vector3f::default(),
             dpdy: Vector3f::default(),
             dudx: 0.0,
@@ -279,26 +271,6 @@ impl SurfaceInteraction {
             }
         }
         Spectrum::zero()
-    }
-    pub fn copy_sist(&self) -> Self {
-        Self {
-            ist: self.ist.copy_ist(),
-            uv: self.uv,
-            dpdu: self.dpdu,
-            dpdv: self.dpdv,
-            dndu: self.dndu,
-            dndv: self.dndv,
-            shape: copy_option_rc(&self.shape),
-            shading: self.shading,
-            primitive: copy_option_rc(&self.primitive),
-            bsdf: None,
-            dpdx: self.dpdx,
-            dpdy: self.dpdy,
-            dudx: self.dudx,
-            dvdx: self.dvdx,
-            dudy: self.dudy,
-            dvdy: self.dvdy,
-        }
     }
 }
 

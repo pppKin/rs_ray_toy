@@ -1,4 +1,4 @@
-use std::{f64::INFINITY, sync::Arc};
+use std::{f64::INFINITY, rc::Rc, sync::Arc};
 
 use crate::{
     microfacet::{roughness_to_alpha, TrowbridgeReitzDistribution},
@@ -74,7 +74,7 @@ impl Material for GlassMaterial {
         let is_specular = urough == 0.0 && vrough == 0.0;
 
         if is_specular && allow_multiple_lobes {
-            bsdf.add(Box::new(FresnelSpecular::new(r, t, 1.0, eta, mode)));
+            bsdf.add(Rc::new(FresnelSpecular::new(r, t, 1.0, eta, mode)));
         } else {
             if self.remap_roughness {
                 urough = roughness_to_alpha(urough);
@@ -83,10 +83,10 @@ impl Material for GlassMaterial {
             if !r.is_black() {
                 let fresnel = FresnelDielectric::new(1.0, eta);
                 if is_specular {
-                    bsdf.add(Box::new(SpecularReflection::new(r, Box::new(fresnel))));
+                    bsdf.add(Rc::new(SpecularReflection::new(r, Box::new(fresnel))));
                 } else {
                     let distrib = TrowbridgeReitzDistribution::new(urough, vrough, true);
-                    bsdf.add(Box::new(MicrofacetReflection::new(
+                    bsdf.add(Rc::new(MicrofacetReflection::new(
                         r,
                         Box::new(distrib),
                         Box::new(fresnel),
@@ -95,10 +95,10 @@ impl Material for GlassMaterial {
             }
             if !t.is_black() {
                 if is_specular {
-                    bsdf.add(Box::new(SpecularTransmission::new(t, 1.0, eta, mode)));
+                    bsdf.add(Rc::new(SpecularTransmission::new(t, 1.0, eta, mode)));
                 } else {
                     let distrib = TrowbridgeReitzDistribution::new(urough, vrough, true);
-                    bsdf.add(Box::new(MicrofacetTransmission::new(
+                    bsdf.add(Rc::new(MicrofacetTransmission::new(
                         t,
                         Box::new(distrib),
                         1.0,

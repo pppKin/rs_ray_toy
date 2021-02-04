@@ -1,6 +1,6 @@
 use crate::geometry;
 use crate::geometry::{Point2i, Point3f, Vector3f};
-use crate::lights::Light;
+use crate::lights::DeprecatedLight;
 use crate::material::Material;
 use crate::misc::read_lines;
 use crate::primitives;
@@ -22,8 +22,8 @@ pub struct Scene {
     pub cam: Arc<PerspectiveCamera>,
     pub img: Arc<Mutex<RgbaImage>>,
     pub object_list: Vec<Arc<dyn Primitive>>,
-    pub light_list: Vec<Arc<Light>>,
-    pub material_list: Vec<Arc<Material>>,
+    pub light_list: Vec<Arc<DeprecatedLight>>,
+    pub material_list: Vec<Arc<dyn Material>>,
 }
 
 impl Scene {
@@ -78,7 +78,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     let mut fov = 90.0;
 
     let mut obj_list: Vec<Arc<dyn Primitive>> = vec![];
-    let mut light_list: Vec<Arc<Light>> = vec![];
+    let mut light_list: Vec<Arc<DeprecatedLight>> = vec![];
     let mut mat_list: Vec<Arc<Material>> = vec![];
 
     if let Ok(lines) = read_lines(scene_filename) {
@@ -176,7 +176,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
                     //     obj_list.push(Arc::new(Primitive::Plane(Arc::new(pln))));
                     // }
                     "light" => {
-                        let l = Light {
+                        let l = DeprecatedLight {
                             position: parse_xyz(data[1..4].to_vec()).expect(
                                 &(parse_err("light position", cur_line_num, scene_filename)),
                             ),

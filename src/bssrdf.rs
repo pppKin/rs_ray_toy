@@ -18,7 +18,7 @@ use crate::{
     spectrum::Spectrum,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BSSRDFData {
     po: SurfaceInteraction,
     eta: f64,
@@ -27,9 +27,6 @@ pub struct BSSRDFData {
 impl BSSRDFData {
     pub fn new(po: SurfaceInteraction, eta: f64) -> Self {
         Self { po, eta }
-    }
-    fn copy_bd(&self) -> Self {
-        Self::new(self.po.copy_sist(), self.eta)
     }
 }
 
@@ -47,7 +44,7 @@ pub trait BSSRDF: Debug {
     // fn bssrdfdata(&self) -> &BSSRDFData;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SeparableBSSRDFData {
     // SeparableBSSRDF Private Data
     ns: Normal3f,
@@ -73,19 +70,10 @@ impl SeparableBSSRDFData {
             mode,
         }
     }
-    fn copy_sbd(&self) -> Self {
-        Self::new(
-            self.ns,
-            self.ss,
-            self.ts,
-            Arc::clone(&self.material),
-            self.mode,
-        )
-    }
 }
 
 /// SeparableBSSRDF is a close enough approcimation to give a bssrdf, thus providing a good BSSRDF implementation
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SeparableBSSRDF {
     bd: BSSRDFData,
     sbd: SeparableBSSRDFData,
@@ -103,9 +91,6 @@ impl SeparableBSSRDF {
             &self.bd,
             &self.sbd,
         )
-    }
-    fn copy_sbf(&self) -> Self {
-        Self::new(self.bd.copy_bd(), self.sbd.copy_sbd(), Rc::clone(&self.s))
     }
     fn sw(&self, w: &Vector3f) -> Spectrum<SPECTRUM_N> {
         let c = 1.0 - 2.0 * fresnel_moment1(1.0 / self.bd.eta);
@@ -177,7 +162,7 @@ impl SeparableBSSRDF {
             if r.d.length() == 0.0 || !scene.intersect(&mut r, &mut tmp_si) {
                 break;
             }
-            base = tmp_si.ist.copy_ist();
+            base = tmp_si.ist.clone();
             if let Some(tmp_pri) = &tmp_si.primitive {
                 let tmp_pri = Rc::clone(tmp_pri);
                 if Arc::ptr_eq(&tmp_pri.get_material(), &self.sbd.material) {
@@ -192,7 +177,7 @@ impl SeparableBSSRDF {
             return Spectrum::zero();
         }
         let selected = clamp_t((u1 * n_found as f64) as usize, 0, n_found - 1);
-        *pi = (&chain[selected]).copy_sist();
+        *pi = (&chain[selected]).clone();
 
         // Compute sample PDF and return the spatial BSSRDF term $\Sp$
         *pdf = self.pdf_sp(pi) / (n_found as f64);
@@ -260,7 +245,7 @@ impl BSSRDF for SeparableBSSRDF {
         if !sp.is_black() {
             // Initialize material model at sampled surface interaction
             let mut bsdf = Bsdf::new(si, 1.0);
-            bsdf.add(Box::new(self.copy_sbf()));
+            bsdf.add(Rc::new(self.clone()));
             si.bsdf = Some(bsdf);
             si.ist.wo = Vector3f::from(si.shading.n);
         }

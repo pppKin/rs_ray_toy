@@ -1,6 +1,6 @@
 use crate::{
     geometry::{cross, faceforward, Bounds3f, Normal3f, Point3f, Ray, Vector3f},
-    interaction::SurfaceInteraction,
+    interaction::{BaseInteraction, SurfaceInteraction},
     misc::{copy_option_arc, copy_option_rc, radians},
 };
 use std::ops::Mul;
@@ -580,6 +580,9 @@ impl Transform {
         ret.shading.n = faceforward(&ret.shading.n, &ret.ist.n);
         *si = ret;
     }
+    fn t<T: Transformable>(&self, obj: T) -> T {
+        obj.t_by(self)
+    }
 }
 
 impl PartialEq for Transform {
@@ -596,4 +599,217 @@ impl Mul for Transform {
             m_inv: mtx_mul(&rhs.m_inv, &self.m_inv),
         }
     }
+}
+
+pub trait Transformable {
+    fn t_by(&self, transform: &Transform) -> Self;
+}
+
+impl Transformable for Point3f {
+    fn t_by(&self, transform: &Transform) -> Self {
+        let x: f64 = self.x;
+        let y: f64 = self.y;
+        let z: f64 = self.z;
+        let xp: f64 = transform.m.m[0][0] * x
+            + transform.m.m[0][1] * y
+            + transform.m.m[0][2] * z
+            + transform.m.m[0][3];
+        let yp: f64 = transform.m.m[1][0] * x
+            + transform.m.m[1][1] * y
+            + transform.m.m[1][2] * z
+            + transform.m.m[1][3];
+        let zp: f64 = transform.m.m[2][0] * x
+            + transform.m.m[2][1] * y
+            + transform.m.m[2][2] * z
+            + transform.m.m[2][3];
+        let wp: f64 = transform.m.m[3][0] * x
+            + transform.m.m[3][1] * y
+            + transform.m.m[3][2] * z
+            + transform.m.m[3][3];
+        assert!(wp != 0.0, "wp = {:?} != 0.0", wp);
+        if wp == 1.0 as f64 {
+            Point3f {
+                x: xp,
+                y: yp,
+                z: zp,
+            }
+        } else {
+            let inv: f64 = 1.0 as f64 / wp;
+            Point3f {
+                x: inv * xp,
+                y: inv * yp,
+                z: inv * zp,
+            }
+        }
+    }
+}
+impl Transformable for Vector3f {
+    fn t_by(&self, transform: &Transform) -> Self {
+        let x: f64 = self.x;
+        let y: f64 = self.y;
+        let z: f64 = self.z;
+        Vector3f {
+            x: transform.m.m[0][0] * x + transform.m.m[0][1] * y + transform.m.m[0][2] * z,
+            y: transform.m.m[1][0] * x + transform.m.m[1][1] * y + transform.m.m[1][2] * z,
+            z: transform.m.m[2][0] * x + transform.m.m[2][1] * y + transform.m.m[2][2] * z,
+        }
+    }
+}
+impl Transformable for Normal3f {
+    fn t_by(&self, transform: &Transform) -> Self {
+        let x: f64 = self.x;
+        let y: f64 = self.y;
+        let z: f64 = self.z;
+        Normal3f {
+            x: transform.m_inv.m[0][0] * x
+                + transform.m_inv.m[1][0] * y
+                + transform.m_inv.m[2][0] * z,
+            y: transform.m_inv.m[0][1] * x
+                + transform.m_inv.m[1][1] * y
+                + transform.m_inv.m[2][1] * z,
+            z: transform.m_inv.m[0][2] * x
+                + transform.m_inv.m[1][2] * y
+                + transform.m_inv.m[2][2] * z,
+        }
+    }
+}
+impl Transformable for Ray {
+    fn t_by(&self, transform: &Transform) -> Self {
+        let o = self.o.t_by(transform);
+        let d = self.d.t_by(transform);
+
+        Ray::new(
+            o,
+            d.normalize(),
+            self.t_max,
+            self.time,
+            copy_option_arc(&self.medium),
+        )
+    }
+}
+impl Transformable for Bounds3f {
+    fn t_by(&self, transform: &Transform) -> Self {
+        let p: Point3f = (Point3f {
+            x: self.p_min.x,
+            y: self.p_min.y,
+            z: self.p_min.z,
+        })
+        .t_by(transform);
+        let mut ret: Bounds3f = Bounds3f { p_min: p, p_max: p };
+        ret = Bounds3f::union(
+            &ret,
+            &(Point3f {
+                x: self.p_max.x,
+                y: self.p_min.y,
+                z: self.p_min.z,
+            })
+            .t_by(transform),
+        );
+        ret = Bounds3f::union(
+            &ret,
+            &(Point3f {
+                x: self.p_min.x,
+                y: self.p_max.y,
+                z: self.p_min.z,
+            })
+            .t_by(transform),
+        );
+        ret = Bounds3f::union(
+            &ret,
+            &(Point3f {
+                x: self.p_min.x,
+                y: self.p_min.y,
+                z: self.p_max.z,
+            })
+            .t_by(transform),
+        );
+        ret = Bounds3f::union(
+            &ret,
+            &(Point3f {
+                x: self.p_min.x,
+                y: self.p_max.y,
+                z: self.p_max.z,
+            })
+            .t_by(transform),
+        );
+        ret = Bounds3f::union(
+            &ret,
+            &(Point3f {
+                x: self.p_max.x,
+                y: self.p_max.y,
+                z: self.p_min.z,
+            })
+            .t_by(transform),
+        );
+        ret = Bounds3f::union(
+            &ret,
+            &(Point3f {
+                x: self.p_max.x,
+                y: self.p_min.y,
+                z: self.p_max.z,
+            })
+            .t_by(transform),
+        );
+        ret = Bounds3f::union(
+            &ret,
+            &(Point3f {
+                x: self.p_max.x,
+                y: self.p_max.y,
+                z: self.p_max.z,
+            })
+            .t_by(transform),
+        );
+        ret
+    }
+}
+
+impl Transformable for BaseInteraction {
+    fn t_by(&self, transform: &Transform) -> Self {
+        BaseInteraction::new(
+            self.p.t_by(transform),
+            self.time,
+            Vector3f::default(),
+            self.wo.t_by(transform),
+            self.n.t_by(transform),
+            self.mi.clone(),
+        )
+    }
+}
+
+impl Transformable for SurfaceInteraction {
+    fn t_by(&self, transform: &Transform) -> Self {
+        let ist = self.ist.t_by(transform);
+        let mut r_si = SurfaceInteraction::default();
+        r_si.ist = ist;
+        r_si.uv = self.uv;
+        r_si.shape = copy_option_rc(&self.shape);
+        r_si.dpdu = self.dpdu.t_by(transform);
+        r_si.dpdv = self.dpdv.t_by(transform);
+        r_si.dndu = self.dndu.t_by(transform);
+        r_si.dndv = self.dndv.t_by(transform);
+        r_si.shading.n = self.shading.n.t_by(transform).normalize();
+        r_si.shading.dpdu = self.shading.dpdu.t_by(transform);
+        r_si.shading.dpdv = self.shading.dpdv.t_by(transform);
+        r_si.shading.dndu = self.shading.dndu.t_by(transform);
+        r_si.shading.dndv = self.shading.dndv.t_by(transform);
+        r_si.dudx = self.dudx;
+        r_si.dvdx = self.dvdx;
+        r_si.dudy = self.dudy;
+        r_si.dvdy = self.dvdy;
+        r_si.dpdx = self.dpdx;
+        r_si.dpdy = self.dpdy;
+        r_si.bsdf = self.bsdf.clone();
+        r_si.bssrdf = self.bssrdf.clone();
+        r_si.primitive = copy_option_rc(&self.primitive);
+        r_si.shading.n = faceforward(&r_si.shading.n, &r_si.ist.n);
+        r_si
+    }
+}
+
+pub trait ToWorld {
+    fn to_world(&self) -> &Transform;
+}
+
+pub trait ToLocal {
+    fn to_local(&self) -> &Transform;
 }

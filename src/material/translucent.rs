@@ -1,4 +1,4 @@
-use std::{f64::INFINITY, sync::Arc};
+use std::{f64::INFINITY, rc::Rc, sync::Arc};
 
 use crate::{
     microfacet::{roughness_to_alpha, TrowbridgeReitzDistribution},
@@ -48,10 +48,10 @@ impl Material for TranslucentMaterial {
         let kd = self.kd.evaluate(si).clamp(0.0, INFINITY);
         if !kd.is_black() {
             if !r.is_black() {
-                bsdf.add(Box::new(LambertianReflection::new(r * kd)));
+                bsdf.add(Rc::new(LambertianReflection::new(r * kd)));
             }
             if !t.is_black() {
-                bsdf.add(Box::new(LambertianTransmission::new(t * kd)));
+                bsdf.add(Rc::new(LambertianTransmission::new(t * kd)));
             }
         }
 
@@ -64,7 +64,7 @@ impl Material for TranslucentMaterial {
             if !r.is_black() {
                 let distrib = TrowbridgeReitzDistribution::new(rough, rough, true);
                 let fresnel = FresnelDielectric::new(1.0, eta);
-                bsdf.add(Box::new(MicrofacetReflection::new(
+                bsdf.add(Rc::new(MicrofacetReflection::new(
                     r * ks,
                     Box::new(distrib),
                     Box::new(fresnel),
@@ -72,7 +72,7 @@ impl Material for TranslucentMaterial {
             }
             if !t.is_black() {
                 let distrib = TrowbridgeReitzDistribution::new(rough, rough, true);
-                bsdf.add(Box::new(MicrofacetTransmission::new(
+                bsdf.add(Rc::new(MicrofacetTransmission::new(
                     t * ks,
                     Box::new(distrib),
                     1.0,

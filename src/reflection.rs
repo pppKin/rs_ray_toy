@@ -10,7 +10,7 @@ use crate::{
     rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
 };
-use std::f64::consts::PI;
+use std::{f64::consts::PI, rc::Rc};
 #[inline]
 pub fn schlick_weight(cos_theta: f64) -> f64 {
     let m = clamp_t(1.0 - cos_theta, 0.0, 1.0);
@@ -203,7 +203,7 @@ fn pow5(v: f64) -> f64 {
 
 const MAX_BXDFS: usize = 8;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bsdf {
     pub eta: f64,
 
@@ -211,7 +211,7 @@ pub struct Bsdf {
     ng: Normal3f,
     ss: Vector3f,
     ts: Vector3f,
-    pub bxdfs: Vec<Box<dyn BxDF>>,
+    pub bxdfs: Vec<Rc<dyn BxDF>>,
 }
 
 impl Bsdf {
@@ -227,7 +227,7 @@ impl Bsdf {
             bxdfs: vec![],
         }
     }
-    pub fn add(&mut self, b: Box<dyn BxDF>) {
+    pub fn add(&mut self, b: Rc<dyn BxDF>) {
         assert!(self.bxdfs.len() < MAX_BXDFS);
         self.bxdfs.push(b);
     }
@@ -536,12 +536,12 @@ pub trait BxDF: std::fmt::Debug {
 
 #[derive(Debug)]
 pub struct ScaledBxdf {
-    bxdf: Box<dyn BxDF>,
+    bxdf: Rc<dyn BxDF>,
     scale: Spectrum<SPECTRUM_N>,
 }
 
 impl ScaledBxdf {
-    pub fn new(bxdf: Box<dyn BxDF>, scale: Spectrum<SPECTRUM_N>) -> Self {
+    pub fn new(bxdf: Rc<dyn BxDF>, scale: Spectrum<SPECTRUM_N>) -> Self {
         Self { bxdf, scale }
     }
 }

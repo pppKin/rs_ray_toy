@@ -20,7 +20,7 @@ pub trait Material: std::fmt::Debug {
     );
     fn bump(&self, d: Arc<dyn Texture<f64>>, si: &mut SurfaceInteraction) {
         // p′(u,v)=p(u,v)+d(u,v)n(u,v),
-        let mut si_eval = si.copy_sist();
+        let mut si_eval = si.clone();
         // Shift _siEval_ _du_ in the $u$ direction
         let mut du = si.dudx.abs() * 0.5 + si.dudy.abs();
         // The most common reason for du to be zero is for ray that start from
