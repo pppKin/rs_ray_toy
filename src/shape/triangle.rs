@@ -11,6 +11,7 @@ use crate::{
 
 use std::{f64::consts::PI, sync::Arc};
 
+#[derive(Debug)]
 pub struct TriangleMesh {
     pub n_triangles: u32, // The total number of triangles in the mesh.
     pub n_vertices: u32,  // The total number of vertices in the mesh.
@@ -45,6 +46,7 @@ impl TriangleMesh {
     }
 }
 
+#[derive(Debug)]
 pub struct Triangle {
     obj_to_world: Transform,
     world_to_obj: Transform,

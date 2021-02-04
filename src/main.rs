@@ -1,8 +1,8 @@
 #![feature(iter_partition_in_place)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
-#![feature(const_generics)]
 
+mod bssrdf;
 mod bvh;
 mod camera;
 mod color;
@@ -10,6 +10,7 @@ mod film;
 mod filters;
 mod geometry;
 mod interaction;
+mod interpolation;
 mod lights;
 mod lowdiscrepancy;
 mod material;

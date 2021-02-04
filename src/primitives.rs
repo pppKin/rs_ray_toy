@@ -15,6 +15,7 @@ pub trait Primitive: IntersectP {
     fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool;
 }
 
+#[derive(Debug)]
 pub struct GeometricPrimitive {
     shape: Arc<dyn Shape>,
     material: Arc<dyn Material>,

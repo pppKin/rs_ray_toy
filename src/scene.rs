@@ -1,4 +1,3 @@
-use crate::camera::PerspectiveCamera;
 use crate::geometry;
 use crate::geometry::{Point2i, Point3f, Vector3f};
 use crate::lights::Light;
@@ -8,6 +7,7 @@ use crate::primitives;
 use crate::primitives::Primitive;
 use crate::rtoycore;
 use crate::transform::Transform;
+use crate::{camera::PerspectiveCamera, geometry::Ray, interaction::SurfaceInteraction};
 use image::{ImageBuffer, RgbaImage};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -26,7 +26,11 @@ pub struct Scene {
     pub material_list: Vec<Arc<Material>>,
 }
 
-impl Scene {}
+impl Scene {
+    pub fn intersect(&self, ray: &mut Ray, si: &mut SurfaceInteraction) -> bool {
+        todo!();
+    }
+}
 
 fn parse_err(kw: &str, ln: u32, filename: &str) -> String {
     format!("Error reading {} at Line {}, {}", kw, ln, filename)

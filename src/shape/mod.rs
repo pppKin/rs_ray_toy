@@ -1,10 +1,12 @@
+use std::fmt::Debug;
+
 use crate::{
     geometry::{abs_dot3, Bounds3f, IntersectP, Point2f, Point3f, Ray, Vector3f},
     interaction::{BaseInteraction, SurfaceInteraction},
     transform::Transform,
 };
 
-pub trait Shape: IntersectP {
+pub trait Shape: IntersectP + Debug {
     fn obj2world(&self) -> &Transform;
     fn world2obj(&self) -> &Transform;
     fn object_bound(&self) -> Bounds3f;

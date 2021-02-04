@@ -12,7 +12,7 @@ use crate::{
 
 use std::f64::consts::PI;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Sphere {
     obj_to_world: Transform,
     world_to_obj: Transform,

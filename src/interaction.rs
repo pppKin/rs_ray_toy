@@ -82,6 +82,7 @@ pub struct Shading {
     pub dndv: Normal3f,
 }
 
+#[derive(Debug)]
 pub struct SurfaceInteraction {
     pub ist: BaseInteraction,
     pub uv: Point2f,

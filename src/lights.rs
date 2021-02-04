@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::geometry::{Point3f, Vector3f};
 use crate::interaction::BaseInteraction;
 use crate::spectrum::*;
@@ -25,6 +27,6 @@ pub struct LightData {
     world_to_light: Transform,
 }
 
-pub trait AreaLight {
+pub trait AreaLight: Debug {
     fn L(&self, ist: &BaseInteraction, w: &Vector3f) -> Spectrum<SPECTRUM_N>;
 }

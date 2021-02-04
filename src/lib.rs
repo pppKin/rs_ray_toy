@@ -1,12 +1,12 @@
 #![feature(iter_partition_in_place)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
-#![feature(min_const_generics)]
 
 extern crate image;
 extern crate lazy_static;
 extern crate rand;
 
+pub mod bssrdf;
 pub mod bvh;
 pub mod camera;
 pub mod color;
@@ -14,6 +14,7 @@ pub mod film;
 pub mod filters;
 pub mod geometry;
 pub mod interaction;
+pub mod interpolation;
 pub mod lights;
 pub mod lowdiscrepancy;
 pub mod material;
