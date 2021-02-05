@@ -241,7 +241,7 @@ impl Shape for Sphere {
             dndv,
             0.0,
         );
-        self.obj2world().transform_surface_interaction(ist);
+        *ist = self.obj2world().t(ist);
         // Update _tHit_ for quadric intersection
         *thit = t_s_hit;
         return true;

@@ -549,38 +549,7 @@ impl Transform {
         );
         ret
     }
-    pub fn transform_surface_interaction(&self, si: &mut SurfaceInteraction) {
-        let mut ret: SurfaceInteraction = SurfaceInteraction::default();
-        // transform _p_ and _pError_ in _SurfaceInteraction_
-        ret.ist.p = self.transform_point(&si.ist.p);
-        // transform remaining members of _SurfaceInteraction_
-        ret.ist.n = self.transform_normal(&si.ist.n).normalize();
-        ret.ist.wo = self.transform_vector(&si.ist.wo).normalize();
-        ret.ist.time = si.ist.time;
-        ret.uv = si.uv;
-        ret.shape = copy_option_rc(&si.shape);
-        ret.dpdu = self.transform_vector(&si.dpdu);
-        ret.dpdv = self.transform_vector(&si.dpdv);
-        ret.dndu = self.transform_normal(&si.dndu);
-        ret.dndv = self.transform_normal(&si.dndv);
-        ret.shading.n = self.transform_normal(&si.shading.n).normalize();
-        ret.shading.dpdu = self.transform_vector(&si.shading.dpdu);
-        ret.shading.dpdv = self.transform_vector(&si.shading.dpdv);
-        ret.shading.dndu = self.transform_normal(&si.shading.dndu);
-        ret.shading.dndv = self.transform_normal(&si.shading.dndv);
-        ret.dudx = si.dudx;
-        ret.dvdx = si.dvdx;
-        ret.dudy = si.dudy;
-        ret.dvdy = si.dvdy;
-        ret.dpdx = si.dpdx;
-        ret.dpdy = si.dpdy;
-        ret.bsdf = si.bsdf.take();
-        // ret.bssrdf = si.bssrdf.clone();
-        ret.primitive = copy_option_rc(&si.primitive);
-        ret.shading.n = faceforward(&ret.shading.n, &ret.ist.n);
-        *si = ret;
-    }
-    fn t<T: Transformable>(&self, obj: T) -> T {
+    pub fn t<T: Transformable>(&self, obj: &T) -> T {
         obj.t_by(self)
     }
 }
@@ -812,4 +781,16 @@ pub trait ToWorld {
 
 pub trait ToLocal {
     fn to_local(&self) -> &Transform;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_generic_transform() {
+        let test_tr = Transform::default();
+        let p1 = Point3f::default();
+        let _tp = p1.t_by(&test_tr);
+        let _tp1 = test_tr.t(&p1);
+    }
 }

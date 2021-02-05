@@ -1,13 +1,5 @@
 // The abstract Primitive class is the bridge between geometry processing and shaing subsystems of pbrt
-use crate::{
-    geometry::{dot3, Bounds3f, IntersectP, Ray},
-    interaction::SurfaceInteraction,
-    lights::AreaLight,
-    material::{Material, TransportMode},
-    misc::copy_option_arc,
-    shape::Shape,
-    transform::Transform,
-};
+use crate::{geometry::{dot3, Bounds3f, IntersectP, Ray}, interaction::SurfaceInteraction, lights::AreaLight, material::{Material, TransportMode}, misc::copy_option_arc, shape::Shape, transform::{Transform, Transformable}};
 use std::sync::Arc;
 
 pub trait Primitive: IntersectP {
@@ -103,7 +95,7 @@ impl Primitive for TransformedPrimitive {
         assert!(dot3(&si.ist.n, &si.shading.n) >= 0.0);
         // Transform instance's intersection data to world space
         if !self.primitive_to_world.is_identity() {
-            self.primitive_to_world.transform_surface_interaction(si);
+            *si = (&self.primitive_to_world).t(si);
         }
         true
     }
