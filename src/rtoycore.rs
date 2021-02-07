@@ -6,9 +6,9 @@ use crate::{
 };
 pub const N_SPECTRAL_SAMPLES: usize = 60;
 pub const SPECTRUM_SAMPLED_N: usize = N_SPECTRAL_SAMPLES;
-pub const SPECTRUM_R_G_B_N: usize = 3;
+pub const SPECTRUM_RGB_N: usize = 3;
 // Change this to use different Spectrum Representation
-pub const SPECTRUM_N: usize = SPECTRUM_R_G_B_N;
+pub const SPECTRUM_N: usize = SPECTRUM_RGB_N;
 
 // use crate::camera::CameraSample;
 // use crate::color::Color;

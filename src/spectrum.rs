@@ -1,6 +1,6 @@
 use crate::{
     misc::{clamp_t, find_interval, lerp},
-    rtoycore::{N_SPECTRAL_SAMPLES, SPECTRUM_R_G_B_N},
+    rtoycore::{N_SPECTRAL_SAMPLES, SPECTRUM_RGB_N},
 };
 use lazy_static::*;
 use std::ops::{
@@ -2230,7 +2230,7 @@ impl<const N: usize> Spectrum<N> {
 }
 
 pub type SampledSpectrum = Spectrum<N_SPECTRAL_SAMPLES>;
-pub type RGBSpectrum = Spectrum<SPECTRUM_R_G_B_N>;
+pub type RGBSpectrum = Spectrum<SPECTRUM_RGB_N>;
 
 impl<const N: usize> Add<Spectrum<N>> for Spectrum<N> {
     type Output = Spectrum<N>;

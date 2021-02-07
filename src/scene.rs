@@ -1,4 +1,4 @@
-use crate::geometry::{Point2i, Point3f, Vector3f};
+use crate::geometry::{Bounds3f, Point2i, Point3f, Vector3f};
 use crate::lights::DeprecatedLight;
 use crate::material::Material;
 use crate::misc::read_lines;
@@ -38,11 +38,18 @@ impl IntersectP for Scene {
     }
 }
 
-impl Scene {
-    pub fn intersect(&self, ray: &mut Ray, si: &mut SurfaceInteraction) -> bool {
-        assert_ne!(ray.d.length(), 0.0);
-        todo!();
+impl Primitive for Scene {
+    fn world_bound(&self) -> Bounds3f {
+        todo!()
     }
+
+    fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
+        assert_ne!(r.d.length(), 0.0);
+        todo!()
+    }
+}
+
+impl Scene {
     pub fn intersect_tr(
         &self,
         ray: &mut Ray,

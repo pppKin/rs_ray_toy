@@ -1,8 +1,8 @@
 use std::{fmt::Debug, usize};
 
 use crate::{
-    color::Color, geometry::IntersectP, interaction::SurfaceInteraction, rtoycore::SPECTRUM_N,
-    samplers::Sampler,
+    color::Color, geometry::IntersectP, interaction::SurfaceInteraction, primitives::Primitive,
+    rtoycore::SPECTRUM_N, samplers::Sampler,
 };
 use crate::{
     geometry::{Normal3f, Ray},
@@ -44,7 +44,7 @@ pub trait Light: Debug + ToWorld {
     ) -> Spectrum<SPECTRUM_N>;
     fn power(&self) -> Spectrum<SPECTRUM_N>;
     /// by default this does absolutely nothing at all
-    fn preprocess(&self, _scene: &Scene) {}
+    fn preprocess(&mut self, _scene: &Scene) {}
     fn le(&self, r: &RayDifferential) -> Spectrum<SPECTRUM_N> {
         Spectrum::zero()
     }
@@ -118,4 +118,5 @@ pub trait AreaLight: Light {
     fn L(&self, ist: &BaseInteraction, w: &Vector3f) -> Spectrum<SPECTRUM_N>;
 }
 
+pub mod distant;
 pub mod point;
