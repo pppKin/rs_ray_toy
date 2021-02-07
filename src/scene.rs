@@ -1,4 +1,3 @@
-use crate::geometry;
 use crate::geometry::{Point2i, Point3f, Vector3f};
 use crate::lights::DeprecatedLight;
 use crate::material::Material;
@@ -8,7 +7,13 @@ use crate::primitives::Primitive;
 use crate::rtoycore;
 use crate::transform::Transform;
 use crate::{camera::PerspectiveCamera, geometry::Ray, interaction::SurfaceInteraction};
+use crate::{
+    geometry::{self, IntersectP},
+    samplers::Sampler,
+    spectrum::Spectrum,
+};
 use image::{ImageBuffer, RgbaImage};
+use rtoycore::SPECTRUM_N;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -26,8 +31,26 @@ pub struct Scene {
     pub material_list: Vec<Arc<dyn Material>>,
 }
 
+impl IntersectP for Scene {
+    fn intersect_p(&self, r: &Ray) -> bool {
+        assert_ne!(r.d.length(), 0.0);
+        todo!()
+    }
+}
+
 impl Scene {
     pub fn intersect(&self, ray: &mut Ray, si: &mut SurfaceInteraction) -> bool {
+        assert_ne!(ray.d.length(), 0.0);
+        todo!();
+    }
+    pub fn intersect_tr(
+        &self,
+        ray: &mut Ray,
+        sampler: &mut dyn Sampler,
+        si: &mut SurfaceInteraction,
+        tr: &mut Spectrum<SPECTRUM_N>,
+    ) -> bool {
+        assert_ne!(ray.d.length(), 0.0);
         todo!();
     }
 }

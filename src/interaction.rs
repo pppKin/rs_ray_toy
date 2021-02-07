@@ -1,11 +1,12 @@
 use crate::{
     bssrdf::BSSRDF,
     geometry::{
-        cross, dot3, faceforward, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f,
+        cross, dot3, faceforward, pnt3_offset_ray_origin, Normal3f, Point2f, Point3f, Ray,
+        RayDifferential, Vector3f,
     },
     material::TransportMode,
-    medium::{MediumInterface, PhaseFunction},
-    misc::copy_option_rc,
+    medium::{MediumInterface, MediumOpArc, PhaseFunction},
+    misc::{copy_option_rc, SHADOW_EPSILON},
     primitives::GeometricPrimitive,
     reflection::Bsdf,
     rtoycore::SPECTRUM_N,
@@ -50,12 +51,41 @@ impl BaseInteraction {
     pub fn is_medium_interaction(&self) -> bool {
         !self.is_surface_interaction()
     }
-
+    pub fn get_medium(&self, w: &Vector3f) -> MediumOpArc {
+        match &self.mi {
+            Some(mif) => {
+                if dot3(&self.n, w) > 0.0 {
+                    mif.outside.clone()
+                } else {
+                    mif.inside.clone()
+                }
+            }
+            None => None,
+        }
+    }
     pub fn spawn_ray(&self, d: Vector3f) -> Ray {
         Ray::new_od(self.p, d)
     }
     pub fn spawn_ray_to(&self, p2: Point3f) -> Ray {
         self.spawn_ray(p2 - self.p)
+    }
+    pub fn spawn_ray_to_si(&self, ist: &BaseInteraction) -> Ray {
+        // Ray SpawnRayTo(const Interaction &it) const {
+        //     Point3f origin = OffsetRayOrigin(p, pError, n, it.p - p);
+        //     Point3f target = OffsetRayOrigin(it.p, it.pError, it.n, origin - it.p);
+        //     Vector3f d = target - origin;
+        //     return Ray(origin, d, 1 - ShadowEpsilon, time, GetMedium(d));
+        // }
+        let origin = pnt3_offset_ray_origin(&self.p, &self.p_error, &self.n, &(ist.p - self.p));
+        let target = pnt3_offset_ray_origin(&ist.p, &ist.p_error, &ist.n, &(origin - ist.p));
+        let d = target - origin;
+        Ray::new(
+            origin,
+            d,
+            1.0 - SHADOW_EPSILON,
+            self.time,
+            self.get_medium(&d),
+        )
     }
 }
 

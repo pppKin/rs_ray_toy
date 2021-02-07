@@ -1,7 +1,9 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, usize};
 
-use crate::transform::Transform;
-use crate::{color::Color, rtoycore::SPECTRUM_N};
+use crate::{
+    color::Color, geometry::IntersectP, interaction::SurfaceInteraction, rtoycore::SPECTRUM_N,
+    samplers::Sampler,
+};
 use crate::{
     geometry::{Normal3f, Ray},
     interaction::BaseInteraction,
@@ -27,15 +29,11 @@ pub const LIGHT_DELTADIRECTION: u8 = 1 << 1;
 pub const LIGHT_AREA: u8 = 1 << 2;
 pub const LIGHT_INFINITE: u8 = 1 << 3;
 pub type LightFlags = u8;
-pub struct LightData {
-    pub flag: LightFlags,
-    pub n_samples: u64,
-    pub medium_interface: MediumInterface,
-    // light_to_world: Transform,
-    // world_to_light: Transform,
-}
 
 pub trait Light: Debug + ToWorld + ToLocal {
+    fn flags(&self) -> LightFlags;
+    fn n_samples(&self) -> usize;
+    fn medium_interface(&self) -> &MediumInterface;
     fn Sample_Li(
         &self,
         ref_ist: &BaseInteraction,
@@ -72,10 +70,38 @@ impl VisibilityTester {
         Self { p0, p1 }
     }
     pub fn unoccluded(&self, scene: &Scene) -> bool {
-        todo!();
+        !scene.intersect_p(&self.p0.spawn_ray_to_si(&self.p1))
     }
-    pub fn tr(&self, scene: &Scene) -> Spectrum<SPECTRUM_N> {
-        todo!();
+    pub fn tr(&self, scene: &Scene, sampler: &mut dyn Sampler) -> Spectrum<SPECTRUM_N> {
+        let mut ray = self.p0.spawn_ray_to_si(&self.p1);
+        let mut tr = Spectrum::one();
+
+        loop {
+            let mut si = SurfaceInteraction::default();
+            let hit_surface = scene.intersect(&mut ray, &mut si);
+
+            // Handle opaque surface along ray's path
+            if hit_surface && si.primitive.is_some() {
+                return Spectrum::zero();
+            }
+
+            // Update transmittance for current ray segment
+            match &ray.medium {
+                Some(md) => {
+                    // tr.md
+                    let tmp = md.clone();
+                    tr *= tmp.tr(&ray, sampler);
+                }
+                None => {}
+            }
+
+            // Generate next ray segment or return final transmittance
+            if !hit_surface {
+                break;
+            }
+            ray = si.ist.spawn_ray_to_si(&self.p1);
+        }
+        tr
     }
     pub fn get_p0(&self) -> &BaseInteraction {
         &self.p0
@@ -85,6 +111,6 @@ impl VisibilityTester {
     }
 }
 
-pub trait AreaLight: Debug {
+pub trait AreaLight: Light {
     fn L(&self, ist: &BaseInteraction, w: &Vector3f) -> Spectrum<SPECTRUM_N>;
 }

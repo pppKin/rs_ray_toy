@@ -70,8 +70,8 @@ pub type MediumOpArc = Option<Arc<dyn Medium>>;
 
 #[derive(Debug)]
 pub struct MediumInterface {
-    inside: MediumOpArc,
-    outside: MediumOpArc,
+    pub inside: MediumOpArc,
+    pub outside: MediumOpArc,
 }
 
 impl Clone for MediumInterface {

@@ -16,6 +16,7 @@ use std::{
     sync::Arc,
 };
 
+pub const SHADOW_EPSILON: f64 = 0.0001;
 pub const ONE_MINUS_EPSILON: f64 = 1.0 - MACHINE_EPSILON;
 pub const INV_PI: f64 = 0.318_309_886_183_790_671_54;
 pub const INV_2_PI: f64 = 0.159_154_943_091_895_335_77;
