@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-use crate::spectrum::*;
 use crate::transform::Transform;
 use crate::{color::Color, rtoycore::SPECTRUM_N};
 use crate::{
@@ -11,6 +10,10 @@ use crate::{
     geometry::{Point2f, Point3f, RayDifferential, Vector3f},
     medium::MediumInterface,
     scene::Scene,
+};
+use crate::{
+    spectrum::*,
+    transform::{ToLocal, ToWorld},
 };
 #[derive(Debug, Default, Clone)]
 pub struct DeprecatedLight {
@@ -32,7 +35,7 @@ pub struct LightData {
     // world_to_light: Transform,
 }
 
-pub trait Light: Debug {
+pub trait Light: Debug + ToWorld + ToLocal {
     fn Sample_Li(
         &self,
         ref_ist: &BaseInteraction,

@@ -427,128 +427,6 @@ impl Transform {
         };
         scale * persp_trans
     }
-    pub fn transform_point(&self, p: &Point3f) -> Point3f {
-        let x: f64 = p.x;
-        let y: f64 = p.y;
-        let z: f64 = p.z;
-        let xp: f64 = self.m.m[0][0] * x + self.m.m[0][1] * y + self.m.m[0][2] * z + self.m.m[0][3];
-        let yp: f64 = self.m.m[1][0] * x + self.m.m[1][1] * y + self.m.m[1][2] * z + self.m.m[1][3];
-        let zp: f64 = self.m.m[2][0] * x + self.m.m[2][1] * y + self.m.m[2][2] * z + self.m.m[2][3];
-        let wp: f64 = self.m.m[3][0] * x + self.m.m[3][1] * y + self.m.m[3][2] * z + self.m.m[3][3];
-        assert!(wp != 0.0, "wp = {:?} != 0.0", wp);
-        if wp == 1.0 as f64 {
-            Point3f {
-                x: xp,
-                y: yp,
-                z: zp,
-            }
-        } else {
-            let inv: f64 = 1.0 as f64 / wp;
-            Point3f {
-                x: inv * xp,
-                y: inv * yp,
-                z: inv * zp,
-            }
-        }
-    }
-    pub fn transform_vector(&self, v: &Vector3f) -> Vector3f {
-        let x: f64 = v.x;
-        let y: f64 = v.y;
-        let z: f64 = v.z;
-        Vector3f {
-            x: self.m.m[0][0] * x + self.m.m[0][1] * y + self.m.m[0][2] * z,
-            y: self.m.m[1][0] * x + self.m.m[1][1] * y + self.m.m[1][2] * z,
-            z: self.m.m[2][0] * x + self.m.m[2][1] * y + self.m.m[2][2] * z,
-        }
-    }
-    pub fn transform_normal(&self, n: &Normal3f) -> Normal3f {
-        let x: f64 = n.x;
-        let y: f64 = n.y;
-        let z: f64 = n.z;
-        Normal3f {
-            x: self.m_inv.m[0][0] * x + self.m_inv.m[1][0] * y + self.m_inv.m[2][0] * z,
-            y: self.m_inv.m[0][1] * x + self.m_inv.m[1][1] * y + self.m_inv.m[2][1] * z,
-            z: self.m_inv.m[0][2] * x + self.m_inv.m[1][2] * y + self.m_inv.m[2][2] * z,
-        }
-    }
-    pub fn transform_ray(&self, r: &Ray) -> Ray {
-        let o: Point3f = self.transform_point(&r.o);
-        let d: Vector3f = self.transform_vector(&r.d);
-
-        Ray::new(
-            o,
-            d.normalize(),
-            r.t_max,
-            r.time,
-            copy_option_arc(&r.medium),
-        )
-    }
-    pub fn transform_bounds(&self, b: &Bounds3f) -> Bounds3f {
-        let m: Transform = *self;
-        let p: Point3f = self.transform_point(&Point3f {
-            x: b.p_min.x,
-            y: b.p_min.y,
-            z: b.p_min.z,
-        });
-        let mut ret: Bounds3f = Bounds3f { p_min: p, p_max: p };
-        ret = Bounds3f::union(
-            &ret,
-            &m.transform_point(&Point3f {
-                x: b.p_max.x,
-                y: b.p_min.y,
-                z: b.p_min.z,
-            }),
-        );
-        ret = Bounds3f::union(
-            &ret,
-            &m.transform_point(&Point3f {
-                x: b.p_min.x,
-                y: b.p_max.y,
-                z: b.p_min.z,
-            }),
-        );
-        ret = Bounds3f::union(
-            &ret,
-            &m.transform_point(&Point3f {
-                x: b.p_min.x,
-                y: b.p_min.y,
-                z: b.p_max.z,
-            }),
-        );
-        ret = Bounds3f::union(
-            &ret,
-            &m.transform_point(&Point3f {
-                x: b.p_min.x,
-                y: b.p_max.y,
-                z: b.p_max.z,
-            }),
-        );
-        ret = Bounds3f::union(
-            &ret,
-            &m.transform_point(&Point3f {
-                x: b.p_max.x,
-                y: b.p_max.y,
-                z: b.p_min.z,
-            }),
-        );
-        ret = Bounds3f::union(
-            &ret,
-            &m.transform_point(&Point3f {
-                x: b.p_max.x,
-                y: b.p_min.y,
-                z: b.p_max.z,
-            }),
-        );
-        ret = Bounds3f::union(
-            &ret,
-            &m.transform_point(&Point3f {
-                x: b.p_max.x,
-                y: b.p_max.y,
-                z: b.p_max.z,
-            }),
-        );
-        ret
-    }
     pub fn t<T: Transformable>(&self, obj: &T) -> T {
         obj.t_by(self)
     }
@@ -612,6 +490,7 @@ impl Transformable for Point3f {
         }
     }
 }
+
 impl Transformable for Vector3f {
     fn t_by(&self, transform: &Transform) -> Self {
         let x: f64 = self.x;
@@ -624,6 +503,7 @@ impl Transformable for Vector3f {
         }
     }
 }
+
 impl Transformable for Normal3f {
     fn t_by(&self, transform: &Transform) -> Self {
         let x: f64 = self.x;

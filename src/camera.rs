@@ -13,14 +13,14 @@ use crate::{
     reflection::refract,
     rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
-    transform::Transform,
+    transform::{ToWorld, Transform},
 };
 
 pub struct CameraData<T>
 where
     T: IFilter,
 {
-    pub camera_to_world: Transform,
+    camera_to_world: Transform,
     pub shutter_open: f64,
     pub shutter_close: f64,
 
@@ -78,7 +78,7 @@ impl CameraSample {
     }
 }
 
-pub trait ICamera {
+pub trait ICamera: ToWorld {
     fn generate_ray(&mut self, sample: &CameraSample, ray: &mut Ray) -> f64;
     fn generate_ray_differential(
         &mut self,
@@ -206,7 +206,7 @@ where
 
         // Transform _rCamera_ from camera to lens system space
         let camera_to_lens = Transform::scale(1.0, 1.0, -1.0);
-        let mut r_lens = camera_to_lens.transform_ray(r_camera);
+        let mut r_lens = camera_to_lens.t(r_camera);
         for i in (0..(self.element_interfaces.len())).rev() {
             let element = self.element_interfaces[i];
 
@@ -260,7 +260,7 @@ where
 
         // Transform _rLens_ from lens system space back to camera space
         let lens_to_camera = Transform::scale(1.0, 1.0, -1.0);
-        r_out = lens_to_camera.transform_ray(&r_lens);
+        r_out = lens_to_camera.t(&r_lens);
 
         return Some(r_out);
     }
@@ -302,7 +302,7 @@ where
         let mut element_z = -self.lens_front_z();
         // Transform _rCamera_ from camera to lens system space
         let camera_to_lens = Transform::scale(1.0, 1.0, -1.0);
-        let mut r_lens = camera_to_lens.transform_ray(r_camera);
+        let mut r_lens = camera_to_lens.t(r_camera);
 
         for i in (0..(self.element_interfaces.len())).rev() {
             let element = self.element_interfaces[i];
@@ -353,7 +353,7 @@ where
 
         // Transform _rLens_ from lens system space back to camera space
         let lens_to_camera = Transform::scale(1.0, 1.0, -1.0);
-        let r_out = lens_to_camera.transform_ray(&r_lens);
+        let r_out = lens_to_camera.t(&r_lens);
 
         return Some(r_out);
     }
@@ -571,6 +571,12 @@ where
     }
 }
 
+impl<T: IFilter> ToWorld for RealisticCamera<T> {
+    fn to_world(&self) -> &Transform {
+        &self.camera.camera_to_world
+    }
+}
+
 impl<T> ICamera for RealisticCamera<T>
 where
     T: IFilter,
@@ -610,7 +616,7 @@ where
         }
 
         // Finish initialization of _RealisticCamera_ ray
-        *ray = self.camera.camera_to_world.transform_ray(ray);
+        *ray = self.to_world().t(ray);
         ray.d = ray.d.normalize();
         ray.medium = copy_option_arc(&self.camera.medium);
 
@@ -658,32 +664,32 @@ impl PerspectiveCamera {
         let raster_to_camera = Transform::inverse(&camera_to_screen) * raster_to_screen;
         // see perspective.cpp
         // compute differential changes in origin for perspective camera rays
-        let dx_camera: Vector3f = raster_to_camera.transform_point(&Point3f {
+        let dx_camera: Vector3f = raster_to_camera.t(&Point3f {
             x: 1.0,
             y: 0.0,
             z: 0.0,
-        }) - raster_to_camera.transform_point(&Point3f {
+        }) - raster_to_camera.t(&Point3f {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         });
-        let dy_camera: Vector3f = raster_to_camera.transform_point(&Point3f {
+        let dy_camera: Vector3f = raster_to_camera.t(&Point3f {
             x: 0.0,
             y: 1.0,
             z: 0.0,
-        }) - raster_to_camera.transform_point(&Point3f {
+        }) - raster_to_camera.t(&Point3f {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         });
         // compute image plane bounds at $z=1$ for _PerspectiveCamera_
-        let mut p_min: Point3f = raster_to_camera.transform_point(&Point3f {
+        let mut p_min: Point3f = raster_to_camera.t(&Point3f {
             x: 0.0,
             y: 0.0,
             z: 0.0,
         });
         // Point3f p_max = RasterToCamera(Point3f(res.x, res.y, 0));
-        let mut p_max: Point3f = raster_to_camera.transform_point(&Point3f {
+        let mut p_max: Point3f = raster_to_camera.t(&Point3f {
             x: resolution.x as f64,
             y: resolution.y as f64,
             z: 0.0,
@@ -750,7 +756,7 @@ impl PerspectiveCamera {
             y: sample.p_film.y,
             z: 0.0,
         };
-        let p_camera = self.raster_to_camera.transform_point(&p_film);
+        let p_camera = self.raster_to_camera.t(&p_film);
         ray.d = Vector3f::from(p_camera).normalize();
         // 1/z` - 1/z = 1/f where z is object depth in scene; z` is focusing film distance from lens; f is focal distance
         if self.lens_radius > 0.0 {
@@ -769,7 +775,7 @@ impl PerspectiveCamera {
             ray.d = (p_focus - ray.o).normalize();
         }
 
-        *ray = self.camera_to_world.transform_ray(&ray);
+        *ray = self.camera_to_world.t(&ray);
         1.0
     }
 }

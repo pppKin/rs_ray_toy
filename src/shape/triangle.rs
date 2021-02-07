@@ -174,9 +174,9 @@ impl Shape for Triangle {
         &self.world_to_obj
     }
     fn object_bound(&self) -> Bounds3f {
-        let p0 = self.world2obj().transform_point(&self.mesh.p[self.v[0]]);
-        let p1 = self.world2obj().transform_point(&self.mesh.p[self.v[1]]);
-        let p2 = self.world2obj().transform_point(&self.mesh.p[self.v[2]]);
+        let p0 = self.world2obj().t(&self.mesh.p[self.v[0]]);
+        let p1 = self.world2obj().t(&self.mesh.p[self.v[1]]);
+        let p2 = self.world2obj().t(&self.mesh.p[self.v[2]]);
         Bounds3f::union(&Bounds3f::new(p0, p1), &p2)
     }
     fn world_bound(&self) -> Bounds3f {

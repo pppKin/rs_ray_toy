@@ -252,7 +252,7 @@ impl SphericalMapping2D {
         Self { world_to_texture }
     }
     fn sphere(&self, p: &Point3f) -> Point2f {
-        let v = (self.world_to_texture.transform_point(p) - Point3f::zero()).normalize();
+        let v = (self.world_to_texture.t(p) - Point3f::zero()).normalize();
         let theta = spherical_theta(&v);
         let phi = spherical_phi(&v);
         Point2f::new(theta / PI, phi / (PI * 2.0))
@@ -293,7 +293,7 @@ impl CylindricalMapping2D {
         Self { world_to_texture }
     }
     fn cylinder(&self, p: &Point3f) -> Point2f {
-        let v = (self.world_to_texture.transform_point(p) - Point3f::zero()).normalize();
+        let v = (self.world_to_texture.t(p) - Point3f::zero()).normalize();
         Point2f::new((PI + f64::atan2(v.y, v.x)) / (2.0 * PI), v.z)
     }
 }
@@ -362,9 +362,9 @@ impl IdentityMapping3D {
 
 impl TextureMapping3D for IdentityMapping3D {
     fn map(&self, si: &SurfaceInteraction, dpdx: &mut Vector3f, dpdy: &mut Vector3f) -> Point3f {
-        *dpdx = self.world_to_texture.transform_vector(&si.dpdx);
-        *dpdy = self.world_to_texture.transform_vector(&si.dpdy);
-        self.world_to_texture.transform_point(&si.ist.p)
+        *dpdx = self.world_to_texture.t(&si.dpdx);
+        *dpdy = self.world_to_texture.t(&si.dpdy);
+        self.world_to_texture.t(&si.ist.p)
     }
 }
 

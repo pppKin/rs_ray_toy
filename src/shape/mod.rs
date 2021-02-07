@@ -11,7 +11,7 @@ pub trait Shape: IntersectP + Debug {
     fn world2obj(&self) -> &Transform;
     fn object_bound(&self) -> Bounds3f;
     fn world_bound(&self) -> Bounds3f {
-        self.obj2world().transform_bounds(&self.object_bound())
+        self.obj2world().t(&self.object_bound())
     }
     fn intersect(
         &self,

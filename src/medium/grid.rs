@@ -115,7 +115,7 @@ impl GridDensityMedium {
 
 impl Medium for GridDensityMedium {
     fn tr(&self, r_world: &Ray, sampler: &mut dyn Sampler) -> Spectrum<SPECTRUM_N> {
-        let ray = self.world_to_medium.transform_ray(&Ray::new(
+        let ray = self.world_to_medium.t(&Ray::new(
             r_world.o,
             r_world.d.normalize(),
             r_world.t_max * r_world.d.length(),
@@ -159,7 +159,7 @@ impl Medium for GridDensityMedium {
         sampler: &mut dyn Sampler,
         mi: &mut MediumInteraction,
     ) -> Spectrum<SPECTRUM_N> {
-        let ray = self.world_to_medium.transform_ray(&Ray::new(
+        let ray = self.world_to_medium.t(&Ray::new(
             r_world.o,
             r_world.d.normalize(),
             r_world.t_max * r_world.d.length(),

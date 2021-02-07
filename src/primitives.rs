@@ -1,5 +1,13 @@
 // The abstract Primitive class is the bridge between geometry processing and shaing subsystems of pbrt
-use crate::{geometry::{dot3, Bounds3f, IntersectP, Ray}, interaction::SurfaceInteraction, lights::AreaLight, material::{Material, TransportMode}, misc::copy_option_arc, shape::Shape, transform::{Transform, Transformable}};
+use crate::{
+    geometry::{dot3, Bounds3f, IntersectP, Ray},
+    interaction::SurfaceInteraction,
+    lights::AreaLight,
+    material::{Material, TransportMode},
+    misc::copy_option_arc,
+    shape::Shape,
+    transform::{Transform, Transformable},
+};
 use std::sync::Arc;
 
 pub trait Primitive: IntersectP {
@@ -76,18 +84,17 @@ impl GeometricPrimitive {
 impl IntersectP for TransformedPrimitive {
     fn intersect_p(&self, r: &Ray) -> bool {
         let world_to_prim = Transform::inverse(&self.primitive_to_world);
-        return self.primitive.intersect_p(&world_to_prim.transform_ray(r));
+        return self.primitive.intersect_p(&world_to_prim.t(r));
     }
 }
 
 impl Primitive for TransformedPrimitive {
     fn world_bound(&self) -> Bounds3f {
-        self.primitive_to_world
-            .transform_bounds(&self.primitive.world_bound())
+        self.primitive_to_world.t(&self.primitive.world_bound())
     }
     fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
         let world_to_prim = Transform::inverse(&self.primitive_to_world);
-        let mut ray = world_to_prim.transform_ray(r);
+        let mut ray = world_to_prim.t(r);
         if !self.primitive.intersect(&mut ray, si) {
             return false;
         }

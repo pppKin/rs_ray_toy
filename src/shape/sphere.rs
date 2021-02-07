@@ -28,7 +28,7 @@ impl IntersectP for Sphere {
     fn intersect_p(&self, r: &Ray) -> bool {
         let mut phi = 0.0;
         let mut p_hit = Point3f::default();
-        let ray = self.world2obj().transform_ray(r);
+        let ray = self.world2obj().t(r);
         let (ox, oy, oz) = ray.o.to_xyz();
         let (dx, dy, dz) = ray.d.to_xyz();
         let a = dx * dx + dy * dy + dz * dz;
@@ -119,7 +119,7 @@ impl Shape for Sphere {
     ) -> bool {
         let mut phi;
         let mut p_hit;
-        let ray = self.world2obj().transform_ray(r);
+        let ray = self.world2obj().t(r);
         let (ox, oy, oz) = ray.o.to_xyz();
         let (dx, dy, dz) = ray.d.to_xyz();
         let a = dx * dx + dy * dy + dz * dz;
@@ -256,7 +256,7 @@ impl Shape for Sphere {
         let mut it: BaseInteraction = BaseInteraction::default();
         it.n = self
             .obj2world()
-            .transform_normal(&Normal3f {
+            .t(&Normal3f {
                 x: p_obj.x,
                 y: p_obj.y,
                 z: p_obj.z,
@@ -268,13 +268,13 @@ impl Shape for Sphere {
         // reproject _p_obj_ to sphere surface and compute _p_obj_error_
         p_obj *= self.radius / pnt3_distance(&p_obj, &Point3f::default());
 
-        it.p = self.obj2world().transform_point(&p_obj);
+        it.p = self.obj2world().t(&p_obj);
         *pdf = 1.0 / self.area();
         it
     }
 
     fn solid_angle(&self, p: &Point3f, _n_samples: u32) -> f64 {
-        let p_center = self.obj2world().transform_point(&Point3f::default());
+        let p_center = self.obj2world().t(&Point3f::default());
         // Point3f pCenter = (*ObjectToWorld)(Point3f(0, 0, 0));
         if pnt3_distance_squared(&p, &p_center) <= self.radius * self.radius {
             return 4.0 * PI;
