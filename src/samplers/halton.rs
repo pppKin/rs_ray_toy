@@ -1,6 +1,5 @@
 use super::*;
-use crate::lowdiscrepancy::*;
-use crate::misc::mod_t;
+use crate::{lowdiscrepancy::*, misc::mod_t};
 
 pub const K_MAX_RESOLUTION: i64 = 128;
 

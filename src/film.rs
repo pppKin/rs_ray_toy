@@ -1,10 +1,10 @@
-use crate::rtoycore::{write_image, SPECTRUM_N};
 use crate::{
     filters::{Filter, IFilter},
     geometry::{
         bnd2_intersect_bnd2, pnt2_ceil, pnt2_floor, pnt2_max_pnt2, pnt2_min_pnt2, Bounds2f,
         Bounds2i, Point2f, Point2i, Vector2f,
     },
+    rtoycore::{write_image, SPECTRUM_N},
     spectrum::{xyz_to_rgb, ISpectrum, Spectrum},
 };
 use std::sync::{Arc, RwLock};

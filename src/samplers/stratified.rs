@@ -1,6 +1,5 @@
 use super::*;
-use crate::misc::ONE_MINUS_EPSILON;
-use crate::misc::{latin_hypercube, round_up_pow2, shuffle};
+use crate::misc::{latin_hypercube, round_up_pow2, shuffle, ONE_MINUS_EPSILON};
 use rand::prelude::ThreadRng;
 
 #[derive(Debug, Default, Clone, Copy)]

@@ -1,22 +1,18 @@
 use std::{fmt::Debug, usize};
 
 use crate::{
-    color::Color, geometry::IntersectP, interaction::SurfaceInteraction, primitives::Primitive,
-    rtoycore::SPECTRUM_N, samplers::Sampler,
-};
-use crate::{
-    geometry::{Normal3f, Ray},
-    interaction::BaseInteraction,
-};
-use crate::{
-    geometry::{Point2f, Point3f, RayDifferential, Vector3f},
+    color::Color,
+    geometry::{IntersectP, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f},
+    interaction::{BaseInteraction, SurfaceInteraction},
     medium::MediumInterface,
+    primitives::Primitive,
+    rtoycore::SPECTRUM_N,
+    samplers::Sampler,
     scene::Scene,
-};
-use crate::{
     spectrum::*,
-    transform::{ToLocal, ToWorld},
+    transform::ToWorld,
 };
+
 #[derive(Debug, Default, Clone)]
 pub struct DeprecatedLight {
     pub position: Point3f,
