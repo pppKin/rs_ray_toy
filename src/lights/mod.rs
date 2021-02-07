@@ -30,11 +30,11 @@ pub const LIGHT_AREA: u8 = 1 << 2;
 pub const LIGHT_INFINITE: u8 = 1 << 3;
 pub type LightFlags = u8;
 
-pub trait Light: Debug + ToWorld + ToLocal {
+pub trait Light: Debug + ToWorld {
     fn flags(&self) -> LightFlags;
     fn n_samples(&self) -> usize;
     fn medium_interface(&self) -> &MediumInterface;
-    fn Sample_Li(
+    fn sample_li(
         &self,
         ref_ist: &BaseInteraction,
         u: &Point2f,
@@ -43,8 +43,11 @@ pub trait Light: Debug + ToWorld + ToLocal {
         vis: &mut VisibilityTester,
     ) -> Spectrum<SPECTRUM_N>;
     fn power(&self) -> Spectrum<SPECTRUM_N>;
-    fn preprocess(&self, scene: &Scene);
-    fn le(&self, r: &RayDifferential) -> Spectrum<SPECTRUM_N>;
+    /// by default this does absolutely nothing at all
+    fn preprocess(&self, _scene: &Scene) {}
+    fn le(&self, r: &RayDifferential) -> Spectrum<SPECTRUM_N> {
+        Spectrum::zero()
+    }
     fn pdf_li(&self, ref_ist: &BaseInteraction, wi: &Vector3f) -> f64;
     fn sample_le(
         &self,
@@ -114,3 +117,5 @@ impl VisibilityTester {
 pub trait AreaLight: Light {
     fn L(&self, ist: &BaseInteraction, w: &Vector3f) -> Spectrum<SPECTRUM_N>;
 }
+
+pub mod point;
