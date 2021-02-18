@@ -248,7 +248,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
             }
         }
     } else {
-        panic!(format!("failed to open scene file: {}", scene_filename))
+        panic!("failed to open scene file: {}", scene_filename)
     }
 
     let tmp_cam_look = camera_look - Point3f::default();

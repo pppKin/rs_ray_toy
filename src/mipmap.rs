@@ -38,7 +38,7 @@ fn resample_weights(old_res: usize, new_res: usize) -> Vec<ResampleWeight> {
         }
 
         // Normalize filter weights for texel resampling
-        let inv_sum_wts = 1.0 / (weight[0] + weight[1] + weight[2] + weight[4]);
+        let inv_sum_wts = 1.0 / (weight[0] + weight[1] + weight[2] + weight[3]);
         for j in 0..4 {
             weight[j] *= inv_sum_wts;
         }

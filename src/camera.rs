@@ -416,7 +416,7 @@ where
         let z = -focus_distance;
         let c = (pz[1] - z - pz[0]) * (pz[1] - z - 4.0 * f - pz[0]);
 
-        assert!(c>0.0, format!("Coefficient must be positive. It looks focusDistance: {} is too short for a given lenses configuration", focus_distance));
+        assert!(c>0.0, "Coefficient must be positive. It looks focusDistance: {} is too short for a given lenses configuration", focus_distance);
         let delta = 0.5 * (pz[1] - z + pz[0] - c.sqrt());
         self.element_interfaces
             .last()

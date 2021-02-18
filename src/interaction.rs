@@ -297,7 +297,7 @@ impl SurfaceInteraction {
     pub fn le(&self, w: &Vector3f) -> Spectrum<SPECTRUM_N> {
         if let Some(pri) = &self.primitive {
             if let Some(area) = pri.get_arealight() {
-                return area.L(&self.ist, w);
+                return area.l(&self.ist, w);
             }
         }
         Spectrum::zero()

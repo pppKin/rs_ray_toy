@@ -111,8 +111,9 @@ impl VisibilityTester {
 }
 
 pub trait AreaLight: Light {
-    fn L(&self, ist: &BaseInteraction, w: &Vector3f) -> Spectrum<SPECTRUM_N>;
+    fn l(&self, ist: &BaseInteraction, w: &Vector3f) -> Spectrum<SPECTRUM_N>;
 }
 
 pub mod distant;
 pub mod point;
+pub mod diffuse;
