@@ -9,9 +9,9 @@ use crate::{
         schlick_r0_from_eta, schlick_weight, Bsdf, BxDF, BxDFType, Fresnel, LambertianTransmission,
         MicrofacetReflection, MicrofacetTransmission, BXDF_DIFFUSE, BXDF_GLOSSY, BXDF_REFLECTION,
     },
-    rtoycore::SPECTRUM_N,
     spectrum::{ISpectrum, Spectrum},
     texture::Texture,
+    SPECTRUM_N,
 };
 
 use super::Material;

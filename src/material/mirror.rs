@@ -2,9 +2,9 @@ use std::{f64::INFINITY, rc::Rc, sync::Arc};
 
 use crate::{
     reflection::{Bsdf, FresnelNoOp, SpecularReflection},
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
     texture::Texture,
+    SPECTRUM_N,
 };
 
 use super::Material;

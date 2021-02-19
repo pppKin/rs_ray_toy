@@ -6,9 +6,9 @@ use crate::{
         Bsdf, FresnelDielectric, FresnelSpecular, MicrofacetReflection, MicrofacetTransmission,
         SpecularReflection, SpecularTransmission,
     },
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
     texture::Texture,
+    SPECTRUM_N,
 };
 
 use super::Material;

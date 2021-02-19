@@ -6,7 +6,7 @@ use crate::{
     material::{Material, TransportMode},
     misc::copy_option_arc,
     shape::Shape,
-    transform::{Transform, Transformable},
+    transform::Transform,
 };
 use std::sync::Arc;
 

@@ -4,9 +4,9 @@ use crate::{
     geometry::{dot3, spherical_direction_vec3, vec3_coordinate_system, Point2f, Ray, Vector3f},
     interaction::MediumInteraction,
     misc::copy_option_arc,
-    rtoycore::SPECTRUM_N,
     samplers::Sampler,
     spectrum::Spectrum,
+    SPECTRUM_N,
 };
 
 pub fn phase_hg(cos_theta: f64, g: f64) -> f64 {

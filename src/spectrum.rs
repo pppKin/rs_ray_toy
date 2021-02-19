@@ -1,6 +1,6 @@
 use crate::{
     misc::{clamp_t, find_interval, lerp},
-    rtoycore::{N_SPECTRAL_SAMPLES, SPECTRUM_RGB_N},
+    N_SPECTRAL_SAMPLES, SPECTRUM_RGB_N,
 };
 use lazy_static::*;
 use std::ops::{

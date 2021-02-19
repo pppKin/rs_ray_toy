@@ -4,9 +4,9 @@ use crate::{
     interaction::SurfaceInteraction,
     microfacet::{roughness_to_alpha, TrowbridgeReitzDistribution},
     reflection::{Bsdf, FresnelDielectric, LambertianReflection, MicrofacetReflection},
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
     texture::Texture,
+    SPECTRUM_N,
 };
 
 use super::{Material, TransportMode};

@@ -2,10 +2,9 @@ use crate::geometry::{Bounds3f, Point2i, Point3f, Vector3f};
 use crate::lights::DeprecatedLight;
 use crate::material::Material;
 use crate::misc::read_lines;
-use crate::primitives;
 use crate::primitives::Primitive;
-use crate::rtoycore;
 use crate::transform::Transform;
+use crate::SPECTRUM_N;
 use crate::{camera::PerspectiveCamera, geometry::Ray, interaction::SurfaceInteraction};
 use crate::{
     geometry::{self, IntersectP},
@@ -13,7 +12,6 @@ use crate::{
     spectrum::Spectrum,
 };
 use image::{ImageBuffer, RgbaImage};
-use rtoycore::SPECTRUM_N;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -252,7 +250,7 @@ pub fn make_scene(scene_filename: &str) -> Scene {
     }
 
     let tmp_cam_look = camera_look - Point3f::default();
-    if camera_up.length() <= rtoycore::SMALL {
+    if camera_up.length() <= crate::SMALL {
         let tmp = geometry::cross(
             &tmp_cam_look,
             &Vector3f {

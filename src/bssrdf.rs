@@ -14,9 +14,9 @@ use crate::{
     misc::{clamp_t, INV_4_PI},
     primitives::Primitive,
     reflection::{cos_theta, fr_dielectric, Bsdf, BxDF, BXDF_DIFFUSE, BXDF_REFLECTION},
-    rtoycore::SPECTRUM_N,
     scene::Scene,
     spectrum::Spectrum,
+    SPECTRUM_N,
 };
 
 #[derive(Debug, Clone)]
@@ -42,7 +42,6 @@ pub trait BSSRDF: Debug {
         si: &mut SurfaceInteraction,
         pdf: &mut f64,
     ) -> Spectrum<SPECTRUM_N>;
-    // fn bssrdfdata(&self) -> &BSSRDFData;
 }
 
 #[derive(Debug, Clone)]

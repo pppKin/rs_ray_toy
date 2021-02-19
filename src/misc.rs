@@ -1,7 +1,4 @@
-use crate::{
-    geometry::{Point2f, Vector2f, Vector3f},
-    rtoycore::MACHINE_EPSILON,
-};
+use crate::MACHINE_EPSILON;
 use std::{
     f64::consts::PI,
     fs::File,

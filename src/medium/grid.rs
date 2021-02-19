@@ -5,10 +5,10 @@ use crate::{
     interaction::{BaseInteraction, MediumInteraction},
     medium::{HenyeyGreenstein, Medium},
     misc::lerp,
-    rtoycore::SPECTRUM_N,
     samplers::Sampler,
     spectrum::Spectrum,
     transform::Transform,
+    SPECTRUM_N,
 };
 
 #[derive(Debug)]

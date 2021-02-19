@@ -1,8 +1,8 @@
 use crate::{
     geometry::Vector2f,
     interaction::SurfaceInteraction,
-    rtoycore::SPECTRUM_N,
     spectrum::{ISpectrum, Spectrum, SpectrumType},
+    SPECTRUM_N,
 };
 
 use super::{Texture, TextureMapping2D};

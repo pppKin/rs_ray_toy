@@ -1,7 +1,7 @@
 use crate::{
     medium::MediumOpArc,
     misc::{clamp_t, float_nearly_equal, gamma, lerp, next_float_down, next_float_up},
-    rtoycore::MAX_DIST,
+    MAX_DIST,
 };
 use std::{
     f64::{consts::PI, INFINITY},
@@ -1872,7 +1872,7 @@ pub fn nearly_equal(a: &impl Cxyz<f64>, b: &impl Cxyz<f64>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rtoycore::SMALL;
+    use crate::SMALL;
 
     #[test]
     fn test_pnt3() {

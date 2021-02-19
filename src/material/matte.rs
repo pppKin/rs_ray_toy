@@ -4,9 +4,9 @@ use crate::{
     interaction::SurfaceInteraction,
     misc::clamp_t,
     reflection::{Bsdf, LambertianReflection, OrenNayar},
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
     texture::Texture,
+    SPECTRUM_N,
 };
 
 use super::{Material, TransportMode};

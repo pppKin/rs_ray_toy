@@ -9,10 +9,10 @@ use crate::{
     misc::{copy_option_rc, SHADOW_EPSILON},
     primitives::GeometricPrimitive,
     reflection::Bsdf,
-    rtoycore::SPECTRUM_N,
     shape::Shape,
     spectrum::Spectrum,
     transform::solve_linear_system_2x2,
+    SPECTRUM_N,
 };
 
 use std::rc::Rc;

@@ -6,11 +6,11 @@ use crate::{
     interaction::{BaseInteraction, SurfaceInteraction},
     medium::MediumInterface,
     primitives::Primitive,
-    rtoycore::SPECTRUM_N,
     samplers::Sampler,
     scene::Scene,
     spectrum::*,
     transform::ToWorld,
+    SPECTRUM_N,
 };
 
 #[derive(Debug, Default, Clone)]

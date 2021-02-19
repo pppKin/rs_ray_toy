@@ -4,8 +4,8 @@ use crate::{
     geometry::Vector2f,
     interaction::SurfaceInteraction,
     mipmap::{ImageWrap, MIPMap},
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
+    SPECTRUM_N,
 };
 
 use super::{Texture, TextureMapping2D};

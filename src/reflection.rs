@@ -4,9 +4,9 @@ use crate::{
     material::TransportMode,
     microfacet::MicrofacetDistribution,
     misc::{clamp_t, lerp, radians, ONE_MINUS_EPSILON},
-    rtoycore::SPECTRUM_N,
     sampling::{cosine_sample_hemisphere, uniform_hemisphere_pdf, uniform_sample_hemisphere},
     spectrum::Spectrum,
+    SPECTRUM_N,
 };
 use std::{f64::consts::PI, rc::Rc};
 #[inline]

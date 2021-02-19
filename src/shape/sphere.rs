@@ -6,9 +6,9 @@ use crate::{
     },
     interaction::{BaseInteraction, SurfaceInteraction},
     misc::{clamp_t, quadratic},
-    rtoycore::MAX_DIST,
     sampling::uniform_sample_sphere,
     transform::Transform,
+    MAX_DIST,
 };
 
 use std::f64::consts::PI;

@@ -11,10 +11,10 @@ use crate::{
     medium::MediumOpArc,
     misc::{copy_option_arc, lerp, quadratic},
     reflection::refract,
-    rtoycore::SPECTRUM_N,
     sampling::concentric_sample_disk,
     spectrum::Spectrum,
     transform::{ToWorld, Transform},
+    SPECTRUM_N,
 };
 
 pub struct CameraData<T>

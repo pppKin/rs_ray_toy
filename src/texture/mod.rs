@@ -4,9 +4,9 @@ use crate::{
     geometry::{dot3, spherical_phi, spherical_theta, Point2f, Point3f, Vector2f, Vector3f},
     interaction::SurfaceInteraction,
     misc::{clamp_t, lerp},
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
     transform::Transform,
+    SPECTRUM_N,
 };
 
 // Perlin Noise Data

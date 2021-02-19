@@ -3,9 +3,9 @@ use std::{f64::INFINITY, rc::Rc, sync::Arc};
 use crate::{
     interaction::SurfaceInteraction,
     reflection::{Bsdf, ScaledBxdf},
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
     texture::Texture,
+    SPECTRUM_N,
 };
 
 use super::{Material, TransportMode};

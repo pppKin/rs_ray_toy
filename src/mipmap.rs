@@ -4,9 +4,9 @@ use crate::{
     geometry::{Point2, Point2f, Vector2f},
     memory::BlockedArray,
     misc::{clamp_t, is_power_of_2, lerp, mod_t, round_up_pow2},
-    rtoycore::SPECTRUM_N,
     spectrum::Spectrum,
     texture::lanczos,
+    SPECTRUM_N,
 };
 use lazy_static::*;
 

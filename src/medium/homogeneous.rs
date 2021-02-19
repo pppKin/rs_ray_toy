@@ -4,9 +4,9 @@ use crate::{
     geometry::{Normal3, Ray, Vector3f},
     interaction::{BaseInteraction, MediumInteraction},
     medium::{HenyeyGreenstein, Medium},
-    rtoycore::SPECTRUM_N,
     samplers::Sampler,
     spectrum::Spectrum,
+    SPECTRUM_N,
 };
 
 // HomogeneousMedium Declarations
