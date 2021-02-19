@@ -5,7 +5,8 @@ use crate::{
         Point3f, Ray, Vector3f,
     },
     interaction::{BaseInteraction, SurfaceInteraction},
-    misc::{clamp_t, uniform_sample_sphere},
+    misc::clamp_t,
+    sampling::uniform_sample_sphere,
     transform::Transform,
 };
 

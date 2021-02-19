@@ -2,7 +2,6 @@ use crate::{
     geometry::{Point2f, Vector2f, Vector3f},
     rtoycore::MACHINE_EPSILON,
 };
-use rand::{prelude::ThreadRng, Rng};
 use std::{
     f64::consts::PI,
     fs::File,
@@ -277,30 +276,6 @@ pub fn quadratic(a: f64, b: f64, c: f64, t0: &mut f64, t1: &mut f64) -> bool {
     }
 }
 
-/// Uniformly distribute samples over a unit disk.
-pub fn concentric_sample_disk(u: Point2f) -> Point2f {
-    // map uniform random numbers to $[-1,1]^2$
-    let u_offset: Point2f = u * 2.0 as f64 - Vector2f { x: 1.0, y: 1.0 };
-    // handle degeneracy at the origin
-    if u_offset.x == 0.0 as f64 && u_offset.y == 0.0 as f64 {
-        return Point2f::default();
-    }
-    // apply concentric mapping to point
-    let theta: f64;
-    let r: f64;
-    if u_offset.x.abs() > u_offset.y.abs() {
-        r = u_offset.x;
-        theta = PI_OVER_4 * (u_offset.y / u_offset.x);
-    } else {
-        r = u_offset.y;
-        theta = PI_OVER_2 - PI_OVER_4 * (u_offset.x / u_offset.y);
-    }
-    Point2f {
-        x: theta.cos(),
-        y: theta.sin(),
-    } * r
-}
-
 pub fn float_nearly_equal(a: f64, b: f64) -> bool {
     let a_abs = a.abs();
     let b_abs = b.abs();
@@ -317,19 +292,6 @@ pub fn float_nearly_equal(a: f64, b: f64) -> bool {
         // use relative error
         return diff / (a_abs + b_abs).min(std::f64::MAX) < MACHINE_EPSILON;
     }
-}
-
-/// Cosine-weighted hemisphere sampling using Malley's method.
-#[inline]
-pub fn cosine_sample_hemisphere(u: Point2f) -> Vector3f {
-    let d: Point2f = concentric_sample_disk(u);
-    let z: f64 = (0.0 as f64).max(1.0 - d.x * d.x - d.y * d.y).sqrt();
-    Vector3f { x: d.x, y: d.y, z }
-}
-
-/// Returns a weight of cos_theta / PI.
-pub fn cosine_hemisphere_pdf(cos_theta: f64) -> f64 {
-    cos_theta * INV_PI
 }
 
 pub fn erf_inv(x: f64) -> f64 {
@@ -379,37 +341,6 @@ pub fn erf(x: f64) -> f64 {
     sign * y
 }
 
-/// Uniformly sample rays in a full sphere. Choose a direction.
-pub fn uniform_sample_sphere(u: Point2f) -> Vector3f {
-    let z = 1.0 - 2.0 * u[0];
-    let r = (0.0 as f64).max(1.0 - z * z).sqrt();
-    let phi = 2.0 * PI * u[1];
-    Vector3f {
-        x: r * phi.cos(),
-        y: r * phi.sin(),
-        z,
-    }
-}
-
-/// Uniformly sample rays in a hemisphere. Choose a direction.
-pub fn uniform_sample_hemisphere(u: &Point2f) -> Vector3f {
-    let z: f64 = u[0];
-    let r: f64 = (0.0 as f64).max(1.0 as f64 - z * z).sqrt();
-    let phi: f64 = 2.0 as f64 * PI * u[1];
-    Vector3f {
-        x: r * phi.cos(),
-        y: r * phi.sin(),
-        z,
-    }
-}
-
-/// Uniformly sample rays in a hemisphere. Probability density
-/// function (PDF).
-#[inline]
-pub fn uniform_hemisphere_pdf() -> f64 {
-    1.0 / (2.0 * PI)
-}
-
 pub fn round_up_pow2<T>(v: T) -> T
 where
     T: CommonLogicalNum,
@@ -422,55 +353,6 @@ where
     v |= v >> T::eight();
     v |= v >> T::sixteen();
     v + T::num_one()
-}
-
-/// Randomly permute an array of *count* sample values, each of which
-/// has *n_dimensions* dimensions.
-pub fn shuffle<T>(samp: &mut [T], count: u32, n_dimensions: u32, rng: &mut ThreadRng) {
-    for i in 0..count {
-        let other = i + rng.gen_range(0, count - i);
-        for j in 0..n_dimensions {
-            samp.swap(
-                (n_dimensions * i + j) as usize,
-                (n_dimensions * other + j) as usize,
-            );
-        }
-    }
-}
-
-pub fn latin_hypercube(samples: &mut [Point2f], n_samples: u32, rng: &mut ThreadRng) {
-    let n_dim: usize = 2;
-    // generate LHS samples along diagonal
-    let inv_n_samples: f64 = 1.0 as f64 / n_samples as f64;
-    for i in 0..n_samples {
-        for j in 0..n_dim {
-            let sj: f64 = (i as f64 + (rng.gen_range(0.0, ONE_MINUS_EPSILON))) * inv_n_samples;
-            if j == 0 {
-                samples[i as usize].x = sj.min(ONE_MINUS_EPSILON);
-            } else {
-                samples[i as usize].y = sj.min(ONE_MINUS_EPSILON);
-            }
-        }
-    }
-    // permute LHS samples in each dimension
-    for i in 0..n_dim {
-        for j in 0..n_samples {
-            let other: u32 = j as u32 + rng.gen_range(0, (n_samples - j) as u32);
-            if i == 0 {
-                let tmp = samples[j as usize].x;
-                samples[j as usize].x = samples[other as usize].x;
-                samples[other as usize].x = tmp;
-            } else {
-                let tmp = samples[j as usize].y;
-                samples[j as usize].y = samples[other as usize].y;
-                samples[other as usize].y = tmp;
-            }
-            // samples.swap(
-            //     (n_dim * j + i) as usize,
-            //     (n_dim * other + i) as usize,
-            // );
-        }
-    }
 }
 
 /// Computes the remainder of a/b. Provides the behavior that the

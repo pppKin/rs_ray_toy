@@ -9,9 +9,10 @@ use crate::{
     interaction::Interaction,
     lowdiscrepancy::radical_inverse,
     medium::MediumOpArc,
-    misc::{concentric_sample_disk, copy_option_arc, lerp, quadratic},
+    misc::{copy_option_arc, lerp, quadratic},
     reflection::refract,
     rtoycore::SPECTRUM_N,
+    sampling::concentric_sample_disk,
     spectrum::Spectrum,
     transform::{ToWorld, Transform},
 };

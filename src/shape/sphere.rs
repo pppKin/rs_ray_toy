@@ -5,8 +5,9 @@ use crate::{
         Point2f, Point3f, Ray, Vector3f,
     },
     interaction::{BaseInteraction, SurfaceInteraction},
-    misc::{clamp_t, quadratic, uniform_sample_sphere},
+    misc::{clamp_t, quadratic},
     rtoycore::MAX_DIST,
+    sampling::uniform_sample_sphere,
     transform::Transform,
 };
 

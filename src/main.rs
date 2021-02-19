@@ -1,6 +1,7 @@
 #![feature(iter_partition_in_place)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
+#![feature(associated_type_bounds)]
 
 mod bssrdf;
 mod bvh;
@@ -23,6 +24,7 @@ mod primitives;
 mod reflection;
 mod rtoycore;
 mod samplers;
+mod sampling;
 mod scene;
 mod shape;
 mod spectrum;

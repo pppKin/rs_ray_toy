@@ -1,4 +1,4 @@
-use crate::misc::{shuffle, ONE_MINUS_EPSILON};
+use crate::{misc::ONE_MINUS_EPSILON, sampling::shuffle};
 use rand::prelude::*;
 
 pub const PRIME_TABLE_SIZE: usize = 1000;

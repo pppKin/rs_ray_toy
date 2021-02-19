@@ -1,7 +1,7 @@
 use std::f64::{consts::PI, INFINITY};
 
 use crate::{
-    misc::{uniform_hemisphere_pdf, uniform_sample_sphere},
+    sampling::{uniform_hemisphere_pdf, uniform_sample_sphere},
     transform::Transform,
 };
 

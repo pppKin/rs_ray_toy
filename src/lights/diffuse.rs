@@ -2,7 +2,7 @@ use std::{f64::consts::PI, sync::Arc};
 
 use crate::{
     geometry::{dot3, vec3_coordinate_system},
-    misc::{cosine_hemisphere_pdf, cosine_sample_hemisphere},
+    sampling::{cosine_hemisphere_pdf, cosine_sample_hemisphere},
     shape::Shape,
     transform::Transform,
 };

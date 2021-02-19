@@ -2,8 +2,8 @@ use std::f64::{consts::PI, INFINITY};
 
 use crate::{
     geometry::{vec3_coordinate_system, Bounds3f},
-    misc::concentric_sample_disk,
     primitives::Primitive,
+    sampling::concentric_sample_disk,
     transform::Transform,
 };
 
