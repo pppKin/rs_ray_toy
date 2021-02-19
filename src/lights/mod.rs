@@ -41,7 +41,7 @@ pub trait Light: Debug + ToWorld {
     fn power(&self) -> Spectrum<SPECTRUM_N>;
     /// by default this does absolutely nothing at all
     fn preprocess(&mut self, _scene: &Scene) {}
-    fn le(&self, r: &RayDifferential) -> Spectrum<SPECTRUM_N> {
+    fn le(&self, _r: &RayDifferential) -> Spectrum<SPECTRUM_N> {
         Spectrum::zero()
     }
     fn pdf_li(&self, ref_ist: &BaseInteraction, wi: &Vector3f) -> f64;
@@ -114,6 +114,6 @@ pub trait AreaLight: Light {
     fn l(&self, ist: &BaseInteraction, w: &Vector3f) -> Spectrum<SPECTRUM_N>;
 }
 
+pub mod diffuse;
 pub mod distant;
 pub mod point;
-pub mod diffuse;

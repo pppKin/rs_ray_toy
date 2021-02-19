@@ -55,7 +55,7 @@ impl Light for PointLight {
     fn sample_li(
         &self,
         ref_ist: &BaseInteraction,
-        u: &Point2f,
+        _u: &Point2f,
         wi: &mut Vector3f,
         pdf: &mut f64,
         vis: &mut VisibilityTester,

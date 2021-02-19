@@ -63,7 +63,7 @@ impl Light for DistantLight {
     fn sample_li(
         &self,
         ref_ist: &BaseInteraction,
-        u: &Point2f,
+        _u: &Point2f,
         wi: &mut Vector3f,
         pdf: &mut f64,
         vis: &mut VisibilityTester,
@@ -104,7 +104,7 @@ impl Light for DistantLight {
     fn sample_le(
         &self,
         u1: &Point2f,
-        u2: &Point2f,
+        _u2: &Point2f,
         time: f64,
         ray: &mut Ray,
         n_light: &mut Normal3f,

@@ -327,6 +327,11 @@ pub fn cosine_sample_hemisphere(u: Point2f) -> Vector3f {
     Vector3f { x: d.x, y: d.y, z }
 }
 
+/// Returns a weight of cos_theta / PI.
+pub fn cosine_hemisphere_pdf(cos_theta: f64) -> f64 {
+    cos_theta * INV_PI
+}
+
 pub fn erf_inv(x: f64) -> f64 {
     let clamped_x: f64 = clamp_t(x, -0.99999, 0.99999);
     let mut w: f64 = -((1.0 as f64 - clamped_x) * (1.0 as f64 + clamped_x)).ln();
