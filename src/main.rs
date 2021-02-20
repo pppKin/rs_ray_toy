@@ -10,6 +10,7 @@ mod color;
 mod film;
 mod filters;
 mod geometry;
+mod integrator;
 mod interaction;
 mod interpolation;
 mod lights;
@@ -41,6 +42,7 @@ use image::{ImageBuffer, ImageError, Rgba};
 use crate::{
     geometry::{Bounds2i, Point2i},
     misc::{clamp_t, gamma_correct},
+    scene::Scene,
 };
 pub const N_SPECTRAL_SAMPLES: usize = 60;
 pub const SPECTRUM_SAMPLED_N: usize = N_SPECTRAL_SAMPLES;
@@ -58,8 +60,12 @@ fn main() {
     let filename = &args[1];
     let num = u8::from_str(&args[2]).unwrap();
     let save_to = &args[3];
-
+    let scene = make_scene(filename, num, save_to);
     todo!()
+}
+
+pub fn make_scene(filename: &str, num: u8, save_to: &str) -> Scene {
+    todo!();
 }
 
 pub fn write_image(

@@ -1,4 +1,4 @@
-use std::{f64::INFINITY, sync::Arc};
+use std::{f64::INFINITY, fmt::Debug, sync::Arc};
 
 use crate::{
     film::Film,
@@ -17,6 +17,7 @@ use crate::{
     SPECTRUM_N,
 };
 
+#[derive(Debug)]
 pub struct CameraData<T>
 where
     T: IFilter,
@@ -79,7 +80,7 @@ impl CameraSample {
     }
 }
 
-pub trait ICamera: ToWorld {
+pub trait ICamera: ToWorld + Debug {
     fn generate_ray(&mut self, sample: &CameraSample, ray: &mut Ray) -> f64;
     fn generate_ray_differential(
         &mut self,
@@ -129,13 +130,14 @@ pub trait ICamera: ToWorld {
         rd.has_differentials = true;
         wt
     }
-    fn we(_ray: &Ray, _p_raster2: &Point2f) -> Spectrum<SPECTRUM_N> {
+    fn we(&self, _ray: &Ray, _p_raster2: &Point2f) -> Spectrum<SPECTRUM_N> {
         unimplemented!()
     }
-    fn pdf_we(_ray: &Ray, _pdf_pos: &mut f64, _pdf_dir: &mut f64) {
+    fn pdf_we(&self, _ray: &Ray, _pdf_pos: &mut f64, _pdf_dir: &mut f64) {
         unimplemented!()
     }
     fn sample__wi(
+        &self,
         _ref_int: &Interaction,
         _u: &Point2f,
         _wi: &Vector3f,
@@ -154,6 +156,7 @@ pub struct LensElementInterface {
     aperture_radius: f64,
 }
 
+#[derive(Debug)]
 pub struct RealisticCamera<T>
 where
     T: IFilter,
@@ -580,7 +583,7 @@ impl<T: IFilter> ToWorld for RealisticCamera<T> {
 
 impl<T> ICamera for RealisticCamera<T>
 where
-    T: IFilter,
+    T: IFilter + Debug,
 {
     fn generate_ray(&mut self, sample: &CameraSample, ray: &mut Ray) -> f64 {
         // Find point on film, _pFilm_, corresponding to _sample.pFilm_

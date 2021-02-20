@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{camera::*, geometry::*};
 // use crate::misc::ONE_MINUS_EPSILON;
 use rand::prelude::*;
@@ -12,7 +14,7 @@ pub trait StartPixel {
     fn start_pixel(&mut self, p: Point2i);
 }
 
-pub trait Sampler: RoundCount + StartPixel {
+pub trait Sampler: RoundCount + StartPixel + Debug {
     fn start_next_sample(&mut self) -> bool;
     fn set_sample_number(&mut self, sample_num: u64) -> bool;
     fn request_1d_array(&mut self, n: u32);
@@ -137,7 +139,7 @@ pub trait PixelSamplerStartPixel {
     fn start_pixel_ps(&mut self, p: Point2i, bsplr: &mut BaseSampler, psplr: &mut PixelSamplerData);
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct PixelSampler<T>
 where
     T: PixelSamplerStartPixel + RoundCount,
@@ -193,7 +195,7 @@ where
 
 impl<T> Sampler for PixelSampler<T>
 where
-    T: PixelSamplerStartPixel + RoundCount,
+    T: PixelSamplerStartPixel + RoundCount + Debug,
 {
     fn start_next_sample(&mut self) -> bool {
         self.psplr.current1d_dimension = 0;
@@ -364,7 +366,7 @@ where
 
 impl<T> Sampler for GlobalSampler<T>
 where
-    T: IGlobalSampler,
+    T: IGlobalSampler + Debug,
 {
     fn start_next_sample(&mut self) -> bool {
         self.gsplr.dimension = 0;

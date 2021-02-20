@@ -1,6 +1,8 @@
+use std::fmt::Debug;
+
 use crate::geometry::{Point2f, Vector2f};
 
-pub trait IFilter {
+pub trait IFilter: Debug {
     fn evaluate(&mut self, p: &Point2f, r: &mut FilterRadius) -> f64;
 }
 
