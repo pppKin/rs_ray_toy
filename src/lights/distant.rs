@@ -48,7 +48,7 @@ impl ToWorld for DistantLight {
 
 impl Light for DistantLight {
     #[inline]
-    fn flags(&self) -> LightFlags {
+    fn flags(&self) -> LightFlag {
         LIGHT_DELTADIRECTION
     }
     #[inline]

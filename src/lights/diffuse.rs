@@ -48,7 +48,7 @@ impl ToWorld for DiffuseAreaLight {
 }
 
 impl Light for DiffuseAreaLight {
-    fn flags(&self) -> LightFlags {
+    fn flags(&self) -> LightFlag {
         LIGHT_AREA
     }
 

@@ -315,3 +315,10 @@ pub fn uniform_sample_cone(u: Point2f, cos_theta_max: f64) -> Vector3f {
         z: cos_theta,
     }
 }
+
+#[inline]
+pub fn power_heuristic(nf: i32, f_pdf: f64, ng: i32, g_pdf: f64) -> f64 {
+    let f = nf as f64 * f_pdf;
+    let g = ng as f64 * g_pdf;
+    (f * f) / (f * f + g * g)
+}

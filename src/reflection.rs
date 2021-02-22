@@ -379,7 +379,7 @@ impl Bsdf {
         }
         f
     }
-    fn pdf(&self, wo_world: &Vector3f, wi_world: &Vector3f, flags: BxDFType) -> f64 {
+    pub fn pdf(&self, wo_world: &Vector3f, wi_world: &Vector3f, flags: BxDFType) -> f64 {
         if self.bxdfs.len() == 0 {
             return 0.0;
         }

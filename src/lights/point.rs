@@ -40,7 +40,7 @@ impl ToWorld for PointLight {
 
 impl Light for PointLight {
     #[inline]
-    fn flags(&self) -> LightFlags {
+    fn flags(&self) -> LightFlag {
         LIGHT_DELTAPOSITION
     }
     #[inline]

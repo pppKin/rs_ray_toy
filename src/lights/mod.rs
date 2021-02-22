@@ -24,10 +24,14 @@ pub const LIGHT_DELTAPOSITION: u8 = 1 << 0;
 pub const LIGHT_DELTADIRECTION: u8 = 1 << 1;
 pub const LIGHT_AREA: u8 = 1 << 2;
 pub const LIGHT_INFINITE: u8 = 1 << 3;
-pub type LightFlags = u8;
+pub type LightFlag = u8;
+
+pub fn is_delta_light(flag: LightFlag) -> bool {
+    (flag & LIGHT_DELTAPOSITION) > 0 || (flag & LIGHT_DELTADIRECTION) > 0
+}
 
 pub trait Light: Debug + ToWorld {
-    fn flags(&self) -> LightFlags;
+    fn flags(&self) -> LightFlag;
     fn n_samples(&self) -> usize;
     fn medium_interface(&self) -> &MediumInterface;
     fn sample_li(
@@ -58,7 +62,7 @@ pub trait Light: Debug + ToWorld {
     fn pdf_le(&self, ray: &Ray, n_light: &Normal3f, pdf_pos: &mut f64, pdf_dir: &mut f64);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VisibilityTester {
     p0: BaseInteraction,
     p1: BaseInteraction,
