@@ -34,6 +34,7 @@ mod transform;
 extern crate image;
 extern crate lazy_static;
 extern crate rand;
+extern crate rayon;
 
 use std::{env, str::FromStr};
 

@@ -1,16 +1,17 @@
 use std::sync::Arc;
 
 use crate::{
-    camera::ICamera,
+    camera::RealisticCamera,
+    filters::IFilter,
     geometry::{abs_dot3, Point2f, Point2i, RayDifferential, Vector3f},
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
     primitives::Primitive,
     reflection::{BXDF_ALL, BXDF_NONE, BXDF_SPECULAR},
     samplers::Sampler,
-    sampling::power_heuristic,
+    sampling::{power_heuristic, Distribution1D},
     scene::Scene,
-    spectrum::Spectrum,
+    spectrum::{ISpectrum, Spectrum},
     SPECTRUM_N,
 };
 
@@ -19,16 +20,20 @@ pub trait Integrator {
 }
 
 #[derive(Debug, Clone)]
-pub struct SamplerIntegratorData {
-    cam: Arc<dyn ICamera>,
+pub struct SamplerIntegratorData<T: IFilter> {
+    cam: Arc<RealisticCamera<T>>,
     sampler: Arc<dyn Sampler>,
     pixel_bounds: Point2i,
 }
 
-pub trait SamplerIntegrator: Integrator {
-    fn itgt(&self) -> &SamplerIntegratorData;
+pub trait SamplerIntegrator<T: IFilter>: Integrator {
+    fn print_helloworld(&self) {
+        println!("hello world");
+    }
 
-    fn preprocess(&self, scene: &Scene, sampler: &dyn Sampler);
+    fn itgt(&self) -> Arc<SamplerIntegratorData<T>>;
+
+    fn preprocess(&self, scene: &Scene, sampler: Arc<dyn Sampler>);
     fn li(
         &self,
         ray: &RayDifferential,
@@ -61,7 +66,7 @@ pub fn uniform_sample_all_lights(
     n_light_samples: &[usize],
     handle_media: bool,
 ) -> Spectrum<SPECTRUM_N> {
-    //     ProfilePhase p(Prof::DirectLighting);
+    // ProfilePhase p(Prof::DirectLighting);
     let mut l = Spectrum::zero();
     for j in 0..scene.lights.len() {
         // Accumulate contribution of _j_th light to _L_
@@ -254,4 +259,17 @@ pub fn estimate_direct(
         }
     }
     ld
+}
+
+fn compute_light_power_distribution(scene: &Scene) -> Option<Arc<Distribution1D>> {
+    if scene.lights.len() <= 0 {
+        return None;
+    }
+    let mut light_power = vec![];
+    let mut tmps = vec![];
+    for light in &scene.lights {
+        light_power.push(light.power().y());
+        tmps.push(light);
+    }
+    Some(Arc::new(Distribution1D::new(light_power)))
 }

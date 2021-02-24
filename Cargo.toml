@@ -9,6 +9,7 @@ license = "GPL-3.0-or-later"
 rand = "0.7"
 image = "0.23.3"
 lazy_static = "1.4.0"
+rayon = "1.5"
 
 [[bin]]
 name = "rs_ray_toy"

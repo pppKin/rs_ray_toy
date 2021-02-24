@@ -161,7 +161,7 @@ pub struct RealisticCamera<T>
 where
     T: IFilter,
 {
-    camera: CameraData<T>,
+    pub camera: CameraData<T>,
 
     element_interfaces: Vec<LensElementInterface>,
     exit_pupil_bounds: Vec<Bounds2f>,
