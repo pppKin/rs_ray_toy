@@ -7,7 +7,7 @@ use crate::{
     spectrum::{xyz_to_rgb, ISpectrum, Spectrum},
     {write_image, SPECTRUM_N},
 };
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 const FILTER_TABLE_WIDTH: usize = 16;
 #[derive(Debug, Default, Copy, Clone)]
@@ -79,11 +79,11 @@ impl<'a> FilmTile<'a> {
     pub fn add_sample(
         &mut self,
         p_film: &Point2f,
-        L: &mut Spectrum<SPECTRUM_N>,
+        l: &mut Spectrum<SPECTRUM_N>,
         sample_weight: f64,
     ) {
-        if L.y() > self.max_sample_luminance {
-            *L *= self.max_sample_luminance / L.y();
+        if l.y() > self.max_sample_luminance {
+            *l *= self.max_sample_luminance / l.y();
         }
         // Compute sample's raster bounds
         let p_film_discrete = *p_film - Vector2f::new(0.5, 0.5);
@@ -125,7 +125,7 @@ impl<'a> FilmTile<'a> {
 
                 // Update pixel values with filtered sample contribution
                 let pixel = self.get_pixel(&Point2i::new(x, y));
-                pixel[0].contrib_sum += (*L * sample_weight) * filter_weight;
+                pixel[0].contrib_sum += (*l * sample_weight) * filter_weight;
                 pixel[0].filter_weight_sum += filter_weight;
             }
         }
@@ -229,8 +229,7 @@ where
             + (p.y - self.cropped_pixel_bounds.p_min.y) * width;
         offset as usize
     }
-    pub fn get_film_tile(&self, sample_bounds: &Bounds2i) -> FilmTile
-where {
+    pub fn get_film_tile(&self, sample_bounds: &Bounds2i) -> FilmTile {
         // Bound image pixels that samples in _sampleBounds_ contribute to
         let half_pixel = Vector2f::new(0.5, 0.5);
         let f_bounds = Bounds2f::from(*sample_bounds);
@@ -262,11 +261,10 @@ where {
         }
     }
 
-    pub fn MergeFilmTile(&self, tile: Arc<RwLock<FilmTile>>) {
-        let mut t = tile.write().expect("Error preparing tile for writing");
-        for p in t.get_pixel_bounds().into_iter() {
+    pub fn merge_film_tile(&self, tile: &mut FilmTile) {
+        for p in tile.get_pixel_bounds().into_iter() {
             // Merge _pixel_ into _Film::pixels_
-            let tile_pixels = t.get_pixel(&p);
+            let tile_pixels = tile.get_pixel(&p);
             let merge_pixels_offset = self.get_pixel_offset(&p);
             let xyz = tile_pixels[0].contrib_sum.to_xyz();
             let mut pixels = self

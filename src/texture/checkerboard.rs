@@ -48,7 +48,7 @@ fn bump_int(x: f64) -> f64 {
 
 impl<T> Texture<T> for Checkerboard2DTexture<T>
 where
-    T: std::fmt::Debug + Mul<f64, Output = T> + Add<Output = T>,
+    T: std::fmt::Debug + Mul<f64, Output = T> + Add<Output = T> + Send + Sync,
 {
     fn evaluate(&self, si: &SurfaceInteraction) -> T {
         let mut dstdx = Vector2f::default();
@@ -103,7 +103,7 @@ pub struct Checkerboard3DTexture<T: std::fmt::Debug> {
     tex2: Arc<dyn Texture<T>>,
 }
 
-impl<T: std::fmt::Debug> Texture<T> for Checkerboard3DTexture<T> {
+impl<T: std::fmt::Debug + Send + Sync> Texture<T> for Checkerboard3DTexture<T> {
     fn evaluate(&self, si: &SurfaceInteraction) -> T {
         let mut dpdx = Vector3f::default();
         let mut dpdy = Vector3f::default();

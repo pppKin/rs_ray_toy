@@ -1,9 +1,11 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+use rayon::prelude::*;
 
 use crate::{
-    camera::RealisticCamera,
+    camera::{ICamera, RealisticCamera},
     filters::IFilter,
-    geometry::{abs_dot3, Point2f, Point2i, RayDifferential, Vector3f},
+    geometry::{abs_dot3, Bounds2i, Point2f, Point2i, RayDifferential, Vector3f},
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
     primitives::Primitive,
@@ -15,30 +17,117 @@ use crate::{
     SPECTRUM_N,
 };
 
-pub trait Integrator {
-    fn render(&self, scene: &Scene);
+pub trait Integrator: Send + Sync {
+    fn render(self: Arc<Self>, scene: &Scene);
 }
 
 #[derive(Debug, Clone)]
-pub struct SamplerIntegratorData<T: IFilter> {
-    cam: Arc<RealisticCamera<T>>,
-    sampler: Arc<dyn Sampler>,
-    pixel_bounds: Point2i,
+pub struct SamplerIntegratorData<T: IFilter + Send + Sync> {
+    pub cam: Arc<RealisticCamera<T>>,
+    pub sampler: Arc<Mutex<dyn Sampler + Send + Sync>>,
+    pub pixel_bounds: Bounds2i,
 }
 
-pub trait SamplerIntegrator<T: IFilter>: Integrator {
-    fn print_helloworld(&self) {
-        println!("hello world");
-    }
-
+pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
     fn itgt(&self) -> Arc<SamplerIntegratorData<T>>;
+    fn render(self: Arc<Self>, scene: &Scene) {
+        let sampler = self.itgt().sampler.clone();
+        self.preprocess(scene, sampler);
 
-    fn preprocess(&self, scene: &Scene, sampler: Arc<dyn Sampler>);
+        let sample_bounds = self.itgt().cam.camera.film.get_sample_bounds();
+        let sample_extent = sample_bounds.diagonal();
+        let tile_size = 16;
+        let n_tiles_x = (sample_extent.x + tile_size - 1) / tile_size;
+        let n_tiles_y = (sample_extent.y + tile_size - 1) / tile_size;
+
+        let itgt = self.itgt();
+        let am_tile_sampler = itgt.sampler.clone();
+
+        (0..n_tiles_x).into_par_iter().for_each(|tile_x| {
+            (0..n_tiles_y).into_par_iter().for_each(|tile_y| {
+                // Compute sample bounds for tile
+                let x0 = sample_bounds.p_min.x + tile_x * tile_size;
+                let x1 = (x0 + tile_size).min(sample_bounds.p_max.x);
+                let y0 = sample_bounds.p_min.y + tile_y * tile_size;
+                let y1 = (y0 + tile_size).min(sample_bounds.p_max.y);
+                let tile_bounds = Bounds2i::new(Point2i::new(x0, y0), Point2i::new(x1, y1));
+
+                let mut tile_sampler = am_tile_sampler.lock().unwrap();
+                let mut film_tile = itgt.cam.camera.film.get_film_tile(&tile_bounds);
+                // Loop over pixels in tile to render them
+                for pixel in tile_bounds.into_iter() {
+                    tile_sampler.start_pixel(pixel);
+                    // Do this check after the StartPixel() call; this keeps
+                    // the usage of RNG values from (most) Samplers that use
+                    // RNGs consistent, which improves reproducability /
+                    // debugging.
+                    if !Bounds2i::inside_exclusive(&pixel, &itgt.pixel_bounds) {
+                        continue;
+                    }
+                    // do {
+                    while tile_sampler.start_next_sample() {
+                        // Initialize _CameraSample_ for current sample
+
+                        let camera_sample = tile_sampler.get_camerasample(&pixel);
+                        // Generate camera ray for current sample
+                        let mut ray = RayDifferential::default();
+                        let ray_weight =
+                            itgt.cam.generate_ray_differential(&camera_sample, &mut ray);
+                        ray.scale_differentials(
+                            1.0 / (tile_sampler.samples_per_pixel() as f64).sqrt(),
+                        );
+
+                        // Evaluate radiance along camera ray
+                        let mut l = Spectrum::zero();
+                        if ray_weight > 0.0 {
+                            l = self.li(&ray, scene, &*tile_sampler, 1);
+                        }
+                        // Issue warning if unexpected radiance value returned
+                        if l.has_nan() {
+                            // TODO:     LOG(ERROR) << StringPrintf(
+                            //         "Not-a-number radiance value returned "
+                            //         "for pixel (%d, %d), sample %d. Setting to black.",
+                            //         pixel.x, pixel.y,
+                            //         (int)tileSampler->CurrentSampleNumber());
+                            //     L = Spectrum(0.f);
+                            l = Spectrum::zero();
+                        } else if l.y() < -1e-5 {
+                            // TODO:      LOG(ERROR) << StringPrintf(
+                            //         "Negative luminance value, %f, returned "
+                            //         "for pixel (%d, %d), sample %d. Setting to black.",
+                            //         L.y(), pixel.x, pixel.y,
+                            //         (int)tileSampler->CurrentSampleNumber());
+                            //     L = Spectrum(0.f);
+                            l = Spectrum::zero();
+                        } else if l.y().is_infinite() {
+                            //  TODO:         LOG(ERROR) << StringPrintf(
+                            //         "Infinite luminance value returned "
+                            //         "for pixel (%d, %d), sample %d. Setting to black.",
+                            //         pixel.x, pixel.y,
+                            //         (int)tileSampler->CurrentSampleNumber());
+                            //     L = Spectrum(0.f);
+                            l = Spectrum::zero();
+                        }
+                        // TODO: VLOG(1) << "Camera sample: " << cameraSample << " -> ray: " <<
+                        //     ray << " -> L = " << L;
+
+                        // Add camera ray's contribution to image
+                        film_tile.add_sample(&camera_sample.p_film, &mut l, ray_weight);
+                    }
+                }
+                // TODO: LOG(INFO) << "Finished image tile " << tileBounds;
+
+                // Merge image tile into _Film_
+                itgt.cam.camera.film.merge_film_tile(&mut film_tile);
+            });
+        });
+    }
+    fn preprocess(&self, scene: &Scene, sampler: Arc<Mutex<dyn Sampler>>);
     fn li(
         &self,
         ray: &RayDifferential,
         scene: &Scene,
-        sampler: &dyn Sampler,
+        sampler: &(dyn Sampler + Send + Sync),
         depth: usize,
     ) -> Spectrum<SPECTRUM_N>;
     fn specular_reflect(

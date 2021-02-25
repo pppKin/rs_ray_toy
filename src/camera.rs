@@ -81,12 +81,8 @@ impl CameraSample {
 }
 
 pub trait ICamera: ToWorld + Debug {
-    fn generate_ray(&mut self, sample: &CameraSample, ray: &mut Ray) -> f64;
-    fn generate_ray_differential(
-        &mut self,
-        sample: &CameraSample,
-        rd: &mut RayDifferential,
-    ) -> f64 {
+    fn generate_ray(&self, sample: &CameraSample, ray: &mut Ray) -> f64;
+    fn generate_ray_differential(&self, sample: &CameraSample, rd: &mut RayDifferential) -> f64 {
         // Float wt = GenerateRay(sample, rd);
         let wt = self.generate_ray(sample, &mut rd.ray);
         // if (wt == 0) return 0;
@@ -585,7 +581,7 @@ impl<T> ICamera for RealisticCamera<T>
 where
     T: IFilter + Debug,
 {
-    fn generate_ray(&mut self, sample: &CameraSample, ray: &mut Ray) -> f64 {
+    fn generate_ray(&self, sample: &CameraSample, ray: &mut Ray) -> f64 {
         // Find point on film, _pFilm_, corresponding to _sample.pFilm_
         let s = Point2f::new(
             sample.p_film.x / self.camera.film.full_resolution.x as f64,

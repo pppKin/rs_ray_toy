@@ -40,7 +40,7 @@ pub const NOISE_PERM: [u8; 2 * NOISE_PERM_SIZE] = [
     222, 114, 67, 29, 24, 72, 243, 141, 128, 195, 78, 66, 215, 61, 156, 180,
 ];
 
-pub trait Texture<T>: std::fmt::Debug {
+pub trait Texture<T: Send + Sync>: std::fmt::Debug + Send + Sync {
     fn evaluate(&self, si: &SurfaceInteraction) -> T;
 }
 
@@ -203,7 +203,7 @@ pub fn lanczos(x: f64, tau: f64) -> f64 {
     s * lanczos
 }
 
-pub trait TextureMapping2D: std::fmt::Debug {
+pub trait TextureMapping2D: std::fmt::Debug + Send + Sync {
     fn map(&self, si: &SurfaceInteraction, dstdx: &mut Vector2f, dstdy: &mut Vector2f) -> Point2f;
 }
 
@@ -345,7 +345,7 @@ impl TextureMapping2D for PlanarMapping2D {
     }
 }
 
-pub trait TextureMapping3D: std::fmt::Debug {
+pub trait TextureMapping3D: std::fmt::Debug + Send + Sync {
     fn map(&self, si: &SurfaceInteraction, dpdx: &mut Vector3f, dpdy: &mut Vector3f) -> Point3f;
 }
 

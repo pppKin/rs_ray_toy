@@ -17,7 +17,7 @@ where
 
 impl<T> Texture<T> for MixTexture<T>
 where
-    T: std::fmt::Debug + Mul<f64, Output = T> + Add<Output = T>,
+    T: std::fmt::Debug + Mul<f64, Output = T> + Add<Output = T> + Send + Sync,
 {
     fn evaluate(&self, si: &SurfaceInteraction) -> T {
         let amt = self.amount.evaluate(si);

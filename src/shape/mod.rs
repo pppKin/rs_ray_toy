@@ -6,7 +6,7 @@ use crate::{
     transform::Transform,
 };
 
-pub trait Shape: IntersectP + Debug {
+pub trait Shape: IntersectP + Debug + Send + Sync {
     fn obj2world(&self) -> &Transform;
     fn world2obj(&self) -> &Transform;
     fn object_bound(&self) -> Bounds3f;

@@ -18,7 +18,7 @@ pub struct BilerpTexture<T: Debug> {
 
 impl<T> Texture<T> for BilerpTexture<T>
 where
-    T: Debug + Copy + Mul<f64, Output = T> + Add<Output = T>,
+    T: Debug + Copy + Mul<f64, Output = T> + Add<Output = T> + Send + Sync,
 {
     fn evaluate(&self, si: &SurfaceInteraction) -> T {
         let mut dstdx = Vector2f::default();

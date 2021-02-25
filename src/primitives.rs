@@ -10,7 +10,7 @@ use crate::{
 };
 use std::sync::Arc;
 
-pub trait Primitive: IntersectP {
+pub trait Primitive: IntersectP + Send + Sync {
     fn world_bound(&self) -> Bounds3f;
     fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool;
 }

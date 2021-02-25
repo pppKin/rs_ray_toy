@@ -11,7 +11,7 @@ pub enum TransportMode {
     Importance,
 }
 
-pub trait Material: std::fmt::Debug {
+pub trait Material: std::fmt::Debug + Send + Sync {
     fn compute_scattering_functions(
         &self,
         si: &mut SurfaceInteraction,

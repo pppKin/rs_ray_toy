@@ -30,7 +30,7 @@ pub fn is_delta_light(flag: LightFlag) -> bool {
     (flag & LIGHT_DELTAPOSITION) > 0 || (flag & LIGHT_DELTADIRECTION) > 0
 }
 
-pub trait Light: Debug + ToWorld {
+pub trait Light: Debug + ToWorld + Send + Sync {
     fn flags(&self) -> LightFlag;
     fn n_samples(&self) -> usize;
     fn medium_interface(&self) -> &MediumInterface;

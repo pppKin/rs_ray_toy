@@ -24,9 +24,8 @@ where
 
 impl<T, U> Texture<T> for ScaleTexture<T, U>
 where
-    T: std::fmt::Debug,
-    U: std::fmt::Debug,
-    T: Mul<U, Output = T>,
+    T: std::fmt::Debug + Mul<U, Output = T> + Send + Sync,
+    U: std::fmt::Debug + Send + Sync,
 {
     fn evaluate(&self, si: &SurfaceInteraction) -> T {
         self.t1.evaluate(si) * self.t2.evaluate(si)

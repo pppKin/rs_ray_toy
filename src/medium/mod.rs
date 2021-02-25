@@ -66,7 +66,7 @@ pub trait Medium: Debug {
     ) -> Spectrum<SPECTRUM_N>;
 }
 
-pub type MediumOpArc = Option<Arc<dyn Medium>>;
+pub type MediumOpArc = Option<Arc<dyn Medium + Send + Sync>>;
 
 #[derive(Debug)]
 pub struct MediumInterface {

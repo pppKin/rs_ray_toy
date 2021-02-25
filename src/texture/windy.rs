@@ -12,7 +12,7 @@ impl WindyTexture {
     }
 }
 
-impl<T: From<f64>> Texture<T> for WindyTexture {
+impl<T: From<f64> + Send + Sync> Texture<T> for WindyTexture {
     fn evaluate(&self, si: &crate::interaction::SurfaceInteraction) -> T {
         let mut dpdx = Vector3f::default();
         let mut dpdy = Vector3f::default();
