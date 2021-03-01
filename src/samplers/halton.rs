@@ -22,8 +22,7 @@ pub type HaltonSampler = GlobalSampler<Halton>;
 impl Halton {
     fn new(sample_bounds: &Bounds2i, sample_at_pixel_center: bool) -> Self {
         // Generate random digit permutations for Halton sampler
-        let mut rng = ThreadRng::default();
-        let radical_inverse_permutations = compute_radical_inverse_permutations(&mut rng);
+        let radical_inverse_permutations = compute_radical_inverse_permutations();
 
         // Find radical inverse base scales and exponents that cover sampling area
         let mut base_scales = Point2i::default();

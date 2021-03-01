@@ -3,7 +3,6 @@ use crate::{
     misc::{round_up_pow2, ONE_MINUS_EPSILON},
     sampling::{latin_hypercube, shuffle},
 };
-use rand::prelude::ThreadRng;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Stratified {
@@ -42,14 +41,12 @@ impl PixelSamplerStartPixel for Stratified {
             stratified_sample1d(
                 psplr.samples1d[i].as_mut_slice(),
                 self.x_pixel_samples * self.y_pixel_samples,
-                &mut psplr.rng,
                 self.jitter_samples,
             );
             shuffle(
                 psplr.samples1d[i].as_mut_slice(),
                 self.x_pixel_samples * self.y_pixel_samples,
                 1,
-                &mut psplr.rng,
             );
         }
         for i in 0..psplr.samples2d.len() {
@@ -57,14 +54,12 @@ impl PixelSamplerStartPixel for Stratified {
                 psplr.samples2d[i].as_mut_slice(),
                 self.x_pixel_samples,
                 self.y_pixel_samples,
-                &mut psplr.rng,
                 self.jitter_samples,
             );
             shuffle(
                 psplr.samples2d[i].as_mut_slice(),
                 self.x_pixel_samples * self.y_pixel_samples,
                 1,
-                &mut psplr.rng,
             );
         }
 
@@ -75,14 +70,12 @@ impl PixelSamplerStartPixel for Stratified {
                 stratified_sample1d(
                     &mut bsplr.sample_array1d[i][(j * count as u64) as usize..],
                     count,
-                    &mut psplr.rng,
                     self.jitter_samples,
                 );
                 shuffle(
                     &mut bsplr.sample_array1d[i][(j * count as u64) as usize..],
                     count,
                     1,
-                    &mut psplr.rng,
                 );
             }
         }
@@ -93,7 +86,6 @@ impl PixelSamplerStartPixel for Stratified {
                 latin_hypercube(
                     &mut bsplr.sample_array2d[i][(j * count as u64) as usize..],
                     count,
-                    &mut psplr.rng,
                 );
             }
         }
@@ -102,7 +94,8 @@ impl PixelSamplerStartPixel for Stratified {
     }
 }
 
-fn stratified_sample1d(samp: &mut [f64], n_samples: u32, rng: &mut ThreadRng, jitter: bool) {
+fn stratified_sample1d(samp: &mut [f64], n_samples: u32, jitter: bool) {
+    let mut rng = thread_rng();
     let inv_n_samples = 1.0 / (n_samples as f64);
     for i in 0..n_samples as usize {
         let delta = if jitter { rng.gen_range(0.0..1.0) } else { 0.5 };
@@ -110,9 +103,11 @@ fn stratified_sample1d(samp: &mut [f64], n_samples: u32, rng: &mut ThreadRng, ji
     }
 }
 
-fn stratified_sample2d(samp: &mut [Point2f], nx: u32, ny: u32, rng: &mut ThreadRng, jitter: bool) {
+fn stratified_sample2d(samp: &mut [Point2f], nx: u32, ny: u32, jitter: bool) {
     let dx = 1_f64 / nx as f64;
     let dy = 1_f64 / ny as f64;
+    let mut rng = thread_rng();
+
     let mut samp_iter = samp.iter_mut();
     for y in 0..ny {
         for x in 0..nx {

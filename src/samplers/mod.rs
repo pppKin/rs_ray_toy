@@ -14,7 +14,7 @@ pub trait StartPixel {
     fn start_pixel(&mut self, p: Point2i);
 }
 
-pub trait Sampler: RoundCount + StartPixel + Debug {
+pub trait Sampler: RoundCount + StartPixel + Debug + Send + Sync {
     fn start_next_sample(&mut self) -> bool;
     fn set_sample_number(&mut self, sample_num: u64) -> bool;
     fn request_1d_array(&mut self, n: u32);
@@ -132,7 +132,6 @@ pub struct PixelSamplerData {
     samples2d: Vec<Vec<Point2f>>,
     current1d_dimension: u32,
     current2d_dimension: u32,
-    rng: ThreadRng,
 }
 
 pub trait PixelSamplerStartPixel {
@@ -142,7 +141,7 @@ pub trait PixelSamplerStartPixel {
 #[derive(Debug, Clone)]
 pub struct PixelSampler<T>
 where
-    T: PixelSamplerStartPixel + RoundCount,
+    T: PixelSamplerStartPixel + RoundCount + Send + Sync,
 {
     bsplr: BaseSampler,
     psplr: PixelSamplerData,
@@ -151,7 +150,7 @@ where
 
 impl<T> PixelSampler<T>
 where
-    T: PixelSamplerStartPixel + RoundCount,
+    T: PixelSamplerStartPixel + RoundCount + Send + Sync,
 {
     fn new(samples_per_pixel: u64, n_sampled_dimensions: u32, splr: T) -> Self {
         let mut s = PixelSampler {
@@ -174,7 +173,7 @@ where
 
 impl<T> RoundCount for PixelSampler<T>
 where
-    T: PixelSamplerStartPixel + RoundCount,
+    T: PixelSamplerStartPixel + RoundCount + Send + Sync,
 {
     fn round_count(&self, n: u32) -> u32 {
         self.splr.round_count(n)
@@ -183,7 +182,7 @@ where
 
 impl<T> StartPixel for PixelSampler<T>
 where
-    T: PixelSamplerStartPixel + RoundCount,
+    T: PixelSamplerStartPixel + RoundCount + Send + Sync,
 {
     fn start_pixel(&mut self, p: Point2i) {
         // self.s.start_pixel(p);
@@ -195,7 +194,7 @@ where
 
 impl<T> Sampler for PixelSampler<T>
 where
-    T: PixelSamplerStartPixel + RoundCount + Debug,
+    T: PixelSamplerStartPixel + RoundCount + Debug + Send + Sync,
 {
     fn start_next_sample(&mut self) -> bool {
         self.psplr.current1d_dimension = 0;
@@ -214,7 +213,8 @@ where
             return self.psplr.samples1d[(self.psplr.current1d_dimension - 1) as usize]
                 [self.bsplr.current_pixel_sample_index as usize];
         } else {
-            return self.psplr.rng.gen_range(-1.0..1.0);
+            let mut rng = thread_rng();
+            return rng.gen_range(-1.0..1.0);
         }
     }
     fn get_2d(&mut self) -> Point2f {
@@ -224,10 +224,9 @@ where
             return self.psplr.samples2d[(self.psplr.current1d_dimension - 1) as usize]
                 [self.bsplr.current_pixel_sample_index as usize];
         } else {
-            return Point2f::new(
-                self.psplr.rng.gen_range(-1.0..1.0),
-                self.psplr.rng.gen_range(-1.0..1.0),
-            );
+            let mut rng = thread_rng();
+
+            return Point2f::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
         }
     }
 
@@ -277,7 +276,7 @@ where
     splr: T,
 }
 
-pub trait IGlobalSampler {
+pub trait IGlobalSampler: Send + Sync {
     fn get_index_for_sample(
         &mut self,
         sample_num: u64,

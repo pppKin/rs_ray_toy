@@ -1,5 +1,4 @@
 use crate::{misc::ONE_MINUS_EPSILON, sampling::shuffle};
-use rand::prelude::*;
 
 pub const PRIME_TABLE_SIZE: usize = 1000;
 // pub const fn pow2m64()->f64{
@@ -248,7 +247,7 @@ pub fn inverse_radical_inverse(base: u8, inverse: u64, n_digits: u64) -> u64 {
     index
 }
 
-pub fn compute_radical_inverse_permutations(rng: &mut ThreadRng) -> Vec<u16> {
+pub fn compute_radical_inverse_permutations() -> Vec<u16> {
     let mut perms = vec![];
     let mut perm_array_size = 0_usize;
     for i in 0..PRIME_TABLE_SIZE {
@@ -264,7 +263,6 @@ pub fn compute_radical_inverse_permutations(rng: &mut ThreadRng) -> Vec<u16> {
             &mut perms[p..(p + PRIME_NUMS[i as usize] as usize)],
             PRIME_NUMS[i] as u32,
             1,
-            rng,
         );
         p += PRIME_NUMS[i as usize] as usize;
     }

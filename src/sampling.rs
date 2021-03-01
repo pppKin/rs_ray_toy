@@ -4,7 +4,7 @@ use crate::{
     geometry::{Point2f, Vector2f, Vector3f},
     misc::{clamp_t, INV_4_PI, INV_PI, ONE_MINUS_EPSILON, PI_OVER_2, PI_OVER_4},
 };
-use rand::{prelude::ThreadRng, Rng};
+use rand::prelude::*;
 
 #[derive(Debug, Default, Clone)]
 pub struct Distribution1D {
@@ -178,7 +178,9 @@ impl Distribution2D {
 
 /// Randomly permute an array of *count* sample values, each of which
 /// has *n_dimensions* dimensions.
-pub fn shuffle<T>(samp: &mut [T], count: u32, n_dimensions: u32, rng: &mut ThreadRng) {
+pub fn shuffle<T>(samp: &mut [T], count: u32, n_dimensions: u32) {
+    let mut rng = thread_rng();
+
     for i in 0..count {
         let other = i + rng.gen_range(0..count - i);
         for j in 0..n_dimensions {
@@ -190,7 +192,9 @@ pub fn shuffle<T>(samp: &mut [T], count: u32, n_dimensions: u32, rng: &mut Threa
     }
 }
 
-pub fn latin_hypercube(samples: &mut [Point2f], n_samples: u32, rng: &mut ThreadRng) {
+pub fn latin_hypercube(samples: &mut [Point2f], n_samples: u32) {
+    let mut rng = thread_rng();
+
     let n_dim: usize = 2;
     // generate LHS samples along diagonal
     let inv_n_samples: f64 = 1.0 as f64 / n_samples as f64;

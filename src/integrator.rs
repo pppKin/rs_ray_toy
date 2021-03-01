@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use crate::{
     camera::{ICamera, RealisticCamera},
     filters::IFilter,
-    geometry::{abs_dot3, dot3, Bounds2i, Point2f, Point2i, RayDifferential, Vector3f, Normal3f},
+    geometry::{abs_dot3, dot3, Bounds2i, Normal3f, Point2f, Point2i, RayDifferential, Vector3f},
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
     primitives::Primitive,
@@ -24,7 +24,7 @@ pub trait Integrator: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct SamplerIntegratorData<T: IFilter + Send + Sync> {
     pub cam: Arc<RealisticCamera<T>>,
-    pub sampler: Arc<Mutex<dyn Sampler + Send + Sync>>,
+    pub sampler: Arc<Mutex<dyn Sampler>>,
     pub pixel_bounds: Bounds2i,
 }
 
@@ -124,7 +124,7 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
         &self,
         ray: &RayDifferential,
         scene: &Scene,
-        sampler: &(dyn Sampler + Send + Sync),
+        sampler: &(dyn Sampler),
         depth: usize,
     ) -> Spectrum<SPECTRUM_N>;
     fn specular_reflect(
@@ -132,7 +132,7 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
         ray: &RayDifferential,
         isect: &SurfaceInteraction,
         scene: &Scene,
-        sampler: &mut (dyn Sampler + Send + Sync),
+        sampler: &mut (dyn Sampler),
         depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         // Compute specular reflection direction _wi_ and BSDF value
@@ -166,15 +166,18 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
                 rd.ry_origin = isect.ist.p + isect.dpdy;
 
                 // Compute differential reflected directions
-                let dndx: Normal3f = isect.shading.dndu * isect.dudx + isect.shading.dndv * isect.dvdx;
-                let dndy: Normal3f = isect.shading.dndu * isect.dudy + isect.shading.dndv * isect.dvdy;
+                let dndx: Normal3f =
+                    isect.shading.dndu * isect.dudx + isect.shading.dndv * isect.dvdx;
+                let dndy: Normal3f =
+                    isect.shading.dndu * isect.dudy + isect.shading.dndv * isect.dvdy;
                 let dwodx = -ray.rx_direction - wo;
                 let dwody = -ray.ry_direction - wo;
                 let ddndx = dot3(&dwodx, &ns) + dot3(&wo, &dndx);
                 let ddndy = dot3(&dwody, &ns) + dot3(&wo, &dndy);
-                rd.rx_direction = wi - dwodx + Vector3f::from(dndx * dot3(&wo, &ns) + ns * ddndx) * 0.2;
+                rd.rx_direction =
+                    wi - dwodx + Vector3f::from(dndx * dot3(&wo, &ns) + ns * ddndx) * 0.2;
                 rd.ry_direction =
-                wi - dwody + Vector3f::from(dndy * dot3(&wo, &ns) + ns * ddndy) * 0.2;
+                    wi - dwody + Vector3f::from(dndy * dot3(&wo, &ns) + ns * ddndy) * 0.2;
             }
             return f * self.li(&rd, scene, sampler, depth) * abs_dot3(&wi, &ns) / pdf;
         } else {
