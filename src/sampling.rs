@@ -180,7 +180,7 @@ impl Distribution2D {
 /// has *n_dimensions* dimensions.
 pub fn shuffle<T>(samp: &mut [T], count: u32, n_dimensions: u32, rng: &mut ThreadRng) {
     for i in 0..count {
-        let other = i + rng.gen_range(0, count - i);
+        let other = i + rng.gen_range(0..count - i);
         for j in 0..n_dimensions {
             samp.swap(
                 (n_dimensions * i + j) as usize,
@@ -196,7 +196,7 @@ pub fn latin_hypercube(samples: &mut [Point2f], n_samples: u32, rng: &mut Thread
     let inv_n_samples: f64 = 1.0 as f64 / n_samples as f64;
     for i in 0..n_samples {
         for j in 0..n_dim {
-            let sj: f64 = (i as f64 + (rng.gen_range(0.0, ONE_MINUS_EPSILON))) * inv_n_samples;
+            let sj: f64 = (i as f64 + (rng.gen_range(0.0..ONE_MINUS_EPSILON))) * inv_n_samples;
             if j == 0 {
                 samples[i as usize].x = sj.min(ONE_MINUS_EPSILON);
             } else {
@@ -207,7 +207,7 @@ pub fn latin_hypercube(samples: &mut [Point2f], n_samples: u32, rng: &mut Thread
     // permute LHS samples in each dimension
     for i in 0..n_dim {
         for j in 0..n_samples {
-            let other: u32 = j as u32 + rng.gen_range(0, (n_samples - j) as u32);
+            let other: u32 = j as u32 + rng.gen_range(0..(n_samples - j) as u32);
             if i == 0 {
                 let tmp = samples[j as usize].x;
                 samples[j as usize].x = samples[other as usize].x;

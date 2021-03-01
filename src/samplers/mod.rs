@@ -214,7 +214,7 @@ where
             return self.psplr.samples1d[(self.psplr.current1d_dimension - 1) as usize]
                 [self.bsplr.current_pixel_sample_index as usize];
         } else {
-            return self.psplr.rng.gen_range(-1.0, 1.0);
+            return self.psplr.rng.gen_range(-1.0..1.0);
         }
     }
     fn get_2d(&mut self) -> Point2f {
@@ -225,8 +225,8 @@ where
                 [self.bsplr.current_pixel_sample_index as usize];
         } else {
             return Point2f::new(
-                self.psplr.rng.gen_range(-1.0, 1.0),
-                self.psplr.rng.gen_range(-1.0, 1.0),
+                self.psplr.rng.gen_range(-1.0..1.0),
+                self.psplr.rng.gen_range(-1.0..1.0),
             );
         }
     }

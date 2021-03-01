@@ -5,11 +5,11 @@ use rayon::prelude::*;
 use crate::{
     camera::{ICamera, RealisticCamera},
     filters::IFilter,
-    geometry::{abs_dot3, Bounds2i, Point2f, Point2i, RayDifferential, Vector3f},
+    geometry::{abs_dot3, dot3, Bounds2i, Point2f, Point2i, RayDifferential, Vector3f, Normal3f},
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
     primitives::Primitive,
-    reflection::{BXDF_ALL, BXDF_NONE, BXDF_SPECULAR},
+    reflection::{BXDF_ALL, BXDF_NONE, BXDF_REFLECTION, BXDF_SPECULAR},
     samplers::Sampler,
     sampling::{power_heuristic, Distribution1D},
     scene::Scene,
@@ -64,7 +64,7 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
                     if !Bounds2i::inside_exclusive(&pixel, &itgt.pixel_bounds) {
                         continue;
                     }
-                    // do {
+
                     while tile_sampler.start_next_sample() {
                         // Initialize _CameraSample_ for current sample
 
@@ -89,7 +89,6 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
                             //         "for pixel (%d, %d), sample %d. Setting to black.",
                             //         pixel.x, pixel.y,
                             //         (int)tileSampler->CurrentSampleNumber());
-                            //     L = Spectrum(0.f);
                             l = Spectrum::zero();
                         } else if l.y() < -1e-5 {
                             // TODO:      LOG(ERROR) << StringPrintf(
@@ -97,7 +96,6 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
                             //         "for pixel (%d, %d), sample %d. Setting to black.",
                             //         L.y(), pixel.x, pixel.y,
                             //         (int)tileSampler->CurrentSampleNumber());
-                            //     L = Spectrum(0.f);
                             l = Spectrum::zero();
                         } else if l.y().is_infinite() {
                             //  TODO:         LOG(ERROR) << StringPrintf(
@@ -105,7 +103,6 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
                             //         "for pixel (%d, %d), sample %d. Setting to black.",
                             //         pixel.x, pixel.y,
                             //         (int)tileSampler->CurrentSampleNumber());
-                            //     L = Spectrum(0.f);
                             l = Spectrum::zero();
                         }
                         // TODO: VLOG(1) << "Camera sample: " << cameraSample << " -> ray: " <<
@@ -135,9 +132,55 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
         ray: &RayDifferential,
         isect: &SurfaceInteraction,
         scene: &Scene,
-        sampler: &dyn Sampler,
+        sampler: &mut (dyn Sampler + Send + Sync),
         depth: usize,
-    ) -> Spectrum<SPECTRUM_N>;
+    ) -> Spectrum<SPECTRUM_N> {
+        // Compute specular reflection direction _wi_ and BSDF value
+        let wo = isect.ist.wo;
+        let mut wi = Vector3f::default();
+        let mut pdf = 0.0;
+        let ty = BXDF_SPECULAR | BXDF_REFLECTION;
+        let mut sampled_type = 0;
+        let f;
+        if let Some(bsdf) = &isect.bsdf {
+            f = bsdf.sample_f(
+                &wo,
+                &mut wi,
+                &sampler.get_2d(),
+                &mut pdf,
+                ty,
+                &mut sampled_type,
+            );
+        } else {
+            return Spectrum::zero();
+        }
+
+        // Return contribution of specular reflection
+        let ns = isect.shading.n;
+        if pdf > 0.0 && !f.is_black() && abs_dot3(&wi, &ns) != 0.0 {
+            // Compute ray differential _rd_ for specular reflection
+            let mut rd: RayDifferential = isect.ist.spawn_ray(wi).into();
+            if ray.has_differentials {
+                rd.has_differentials = true;
+                rd.rx_origin = isect.ist.p + isect.dpdx;
+                rd.ry_origin = isect.ist.p + isect.dpdy;
+
+                // Compute differential reflected directions
+                let dndx: Normal3f = isect.shading.dndu * isect.dudx + isect.shading.dndv * isect.dvdx;
+                let dndy: Normal3f = isect.shading.dndu * isect.dudy + isect.shading.dndv * isect.dvdy;
+                let dwodx = -ray.rx_direction - wo;
+                let dwody = -ray.ry_direction - wo;
+                let ddndx = dot3(&dwodx, &ns) + dot3(&wo, &dndx);
+                let ddndy = dot3(&dwody, &ns) + dot3(&wo, &dndy);
+                rd.rx_direction = wi - dwodx + Vector3f::from(dndx * dot3(&wo, &ns) + ns * ddndx) * 0.2;
+                rd.ry_direction =
+                wi - dwody + Vector3f::from(dndy * dot3(&wo, &ns) + ns * ddndy) * 0.2;
+            }
+            return f * self.li(&rd, scene, sampler, depth) * abs_dot3(&wi, &ns) / pdf;
+        } else {
+            return Spectrum::zero();
+        }
+    }
     fn specular_transmit(
         &self,
         ray: &RayDifferential,

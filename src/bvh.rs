@@ -757,14 +757,14 @@ mod tests {
         let mut pi_vec = Vec::<BVHPrimitiveInfo>::with_capacity(50);
         for idx in 0..10 {
             let p1 = Point3f::new(
-                rng.gen_range(-10.0, 10.0),
-                rng.gen_range(-20.0, 5.0),
-                rng.gen_range(6.0, 50.0),
+                rng.gen_range(-10.0..10.0),
+                rng.gen_range(-20.0..5.0),
+                rng.gen_range(6.0..50.0),
             );
             let p2 = Point3f::new(
-                rng.gen_range(11.0, 54.0),
-                rng.gen_range(6.0, 33.0),
-                rng.gen_range(51.0, 88.0),
+                rng.gen_range(11.0..54.0),
+                rng.gen_range(6.0..33.0),
+                rng.gen_range(51.0..88.0),
             );
             let bd = Bounds3f::new(p1, p2);
             let pi = BVHPrimitiveInfo {
