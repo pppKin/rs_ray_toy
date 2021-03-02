@@ -9,7 +9,7 @@ use crate::{
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
     primitives::Primitive,
-    reflection::{BXDF_ALL, BXDF_NONE, BXDF_REFLECTION, BXDF_SPECULAR},
+    reflection::{BXDF_ALL, BXDF_NONE, BXDF_REFLECTION, BXDF_SPECULAR, BXDF_TRANSMISSION},
     samplers::Sampler,
     sampling::{power_heuristic, Distribution1D},
     scene::Scene,
@@ -132,7 +132,7 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
         ray: &RayDifferential,
         isect: &SurfaceInteraction,
         scene: &Scene,
-        sampler: &mut (dyn Sampler),
+        sampler: &mut dyn Sampler,
         depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         // Compute specular reflection direction _wi_ and BSDF value
@@ -179,7 +179,7 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
                 rd.ry_direction =
                     wi - dwody + Vector3f::from(dndy * dot3(&wo, &ns) + ns * ddndy) * 0.2;
             }
-            return f * self.li(&rd, scene, sampler, depth) * abs_dot3(&wi, &ns) / pdf;
+            return f * self.li(&rd, scene, sampler, depth + 1) * abs_dot3(&wi, &ns) / pdf;
         } else {
             return Spectrum::zero();
         }
@@ -189,9 +189,96 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
         ray: &RayDifferential,
         isect: &SurfaceInteraction,
         scene: &Scene,
-        sampler: &dyn Sampler,
+        sampler: &mut dyn Sampler,
         depth: usize,
-    ) -> Spectrum<SPECTRUM_N>;
+    ) -> Spectrum<SPECTRUM_N> {
+        let wo = isect.ist.wo;
+        let mut wi = Vector3f::default();
+        let mut pdf = 0.0;
+        let ty = BXDF_SPECULAR | BXDF_TRANSMISSION;
+        let mut sampled_type = 0;
+        let f;
+        if let Some(bsdf) = &isect.bsdf {
+            f = bsdf.sample_f(
+                &wo,
+                &mut wi,
+                &sampler.get_2d(),
+                &mut pdf,
+                ty,
+                &mut sampled_type,
+            );
+        } else {
+            return Spectrum::zero();
+        }
+
+        let mut ns = isect.shading.n;
+        if pdf > 0.0 && !f.is_black() && abs_dot3(&wi, &ns) != 0.0 {
+            // Compute ray differential _rd_ for specular transmission
+            let mut rd: RayDifferential = isect.ist.spawn_ray(wi).into();
+            if ray.has_differentials {
+                rd.has_differentials = true;
+                rd.rx_origin = isect.ist.p + isect.dpdx;
+                rd.ry_origin = isect.ist.p + isect.dpdy;
+
+                let mut dndx: Normal3f =
+                    isect.shading.dndu * isect.dudx + isect.shading.dndv * isect.dvdx;
+                let mut dndy: Normal3f =
+                    isect.shading.dndu * isect.dudy + isect.shading.dndv * isect.dvdy;
+
+                if let Some(bsdf) = &isect.bsdf {
+                    // The BSDF stores the IOR of the interior of the object being
+                    // intersected.  Compute the relative IOR by first out by
+                    // assuming that the ray is entering the object.
+                    let mut eta = 1.0 / bsdf.eta;
+                    if dot3(&wo, &ns) < 0.0 {
+                        // If the ray isn't entering, then we need to invert the
+                        // relative IOR and negate the normal and its derivatives.
+                        eta = 1.0 / eta;
+                        ns = -ns;
+                        dndx = -dndx;
+                        dndy = -dndy;
+                    }
+
+                    // /*
+                    //   Notes on the derivation:
+                    //   - pbrt computes the refracted ray as: \wi = -\eta \omega_o + [ \eta (\wo \cdot \N) - \cos \theta_t ] \N
+                    //     It flips the normal to lie in the same hemisphere as \wo, and then \eta is the relative IOR from
+                    //     \wo's medium to \wi's medium.
+                    //   - If we denote the term in brackets by \mu, then we have: \wi = -\eta \omega_o + \mu \N
+                    //   - Now let's take the partial derivative. (We'll use "d" for \partial in the following for brevity.)
+                    //     We get: -\eta d\omega_o / dx + \mu dN/dx + d\mu/dx N.
+                    //   - We have the values of all of these except for d\mu/dx (using bits from the derivation of specularly
+                    //     reflected ray deifferentials).
+                    //   - The first term of d\mu/dx is easy: \eta d(\wo \cdot N)/dx. We already have d(\wo \cdot N)/dx.
+                    //   - The second term takes a little more work. We have:
+                    //      \cos \theta_i = \sqrt{1 - \eta^2 (1 - (\wo \cdot N)^2)}.
+                    //      Starting from (\wo \cdot N)^2 and reading outward, we have \cos^2 \theta_o, then \sin^2 \theta_o,
+                    //      then \sin^2 \theta_i (via Snell's law), then \cos^2 \theta_i and then \cos \theta_i.
+                    //   - Let's take the partial derivative of the sqrt expression. We get:
+                    //     1 / 2 * 1 / \cos \theta_i * d/dx (1 - \eta^2 (1 - (\wo \cdot N)^2)).
+                    //   - That partial derivatve is equal to:
+                    //     d/dx \eta^2 (\wo \cdot N)^2 = 2 \eta^2 (\wo \cdot N) d/dx (\wo \cdot N).
+                    //   - Plugging it in, we have d\mu/dx =
+                    //     \eta d(\wo \cdot N)/dx - (\eta^2 (\wo \cdot N) d/dx (\wo \cdot N))/(-\wi \cdot N).
+                    //  */
+                    let dwodx = -ray.rx_direction - wo;
+                    let dwody = -ray.ry_direction - wo;
+                    let ddndx = dot3(&dwodx, &ns) + dot3(&wo, &dndx);
+                    let ddndy = dot3(&dwody, &ns) + dot3(&wo, &dndy);
+                    let mu = eta * dot3(&wo, &ns) - abs_dot3(&wi, &ns);
+                    let dmudx = ddndx * (eta - (eta * eta * dot3(&wo, &ns)) / abs_dot3(&wi, &ns));
+                    let dmudy = ddndy * (eta - (eta * eta * dot3(&wo, &ns)) / abs_dot3(&wi, &ns));
+                    rd.rx_direction = wi - dwodx * eta + (dndx * mu + ns * dmudx).into();
+                    rd.ry_direction = wi - dwody * eta + (dndy * mu + ns * dmudy).into();
+                } else {
+                    return Spectrum::zero();
+                }
+            }
+            return f * self.li(&rd, scene, sampler, depth + 1) * abs_dot3(&wi, &ns) / pdf;
+        } else {
+            return Spectrum::zero();
+        }
+    }
 }
 
 pub fn uniform_sample_all_lights(
