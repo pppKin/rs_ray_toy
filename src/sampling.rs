@@ -242,7 +242,7 @@ pub fn uniform_sample_sphere(u: Point2f) -> Vector3f {
 }
 
 /// Uniformly sample rays in a hemisphere. Choose a direction.
-pub fn uniform_sample_hemisphere(u: &Point2f) -> Vector3f {
+pub fn uniform_sample_hemisphere(u: Point2f) -> Vector3f {
     let z: f64 = u[0];
     let r: f64 = (0.0 as f64).max(1.0 as f64 - z * z).sqrt();
     let phi: f64 = 2.0 as f64 * PI * u[1];

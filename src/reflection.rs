@@ -488,7 +488,7 @@ pub trait BxDF: std::fmt::Debug {
             // Estimate one term of $\rho_\roman{hh}$
             let wo;
             let mut wi = Vector3f::default();
-            wo = uniform_sample_hemisphere(&samples1[i]);
+            wo = uniform_sample_hemisphere(samples1[i]);
             let pdfo = uniform_hemisphere_pdf();
             let mut pdfi = 0.0;
             let mut temp = 0;

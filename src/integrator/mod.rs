@@ -28,9 +28,9 @@ pub struct SamplerIntegratorData<T: IFilter + Send + Sync> {
     pub pixel_bounds: Bounds2i,
 }
 
-pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
+pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Send + Sync {
     fn itgt(&self) -> Arc<SamplerIntegratorData<T>>;
-    fn render(self: Arc<Self>, scene: &Scene) {
+    fn si_render(self: Arc<Self>, scene: &Scene) {
         let sampler = self.itgt().sampler.clone();
         self.preprocess(scene, sampler);
 
@@ -80,7 +80,7 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
                         // Evaluate radiance along camera ray
                         let mut l = Spectrum::zero();
                         if ray_weight > 0.0 {
-                            l = self.li(&ray, scene, &*tile_sampler, 1);
+                            l = self.li(&ray, scene, &mut *tile_sampler, 1);
                         }
                         // Issue warning if unexpected radiance value returned
                         if l.has_nan() {
@@ -124,7 +124,7 @@ pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Integrator {
         &self,
         ray: &RayDifferential,
         scene: &Scene,
-        sampler: &(dyn Sampler),
+        sampler: &mut dyn Sampler,
         depth: usize,
     ) -> Spectrum<SPECTRUM_N>;
     fn specular_reflect(
@@ -495,3 +495,5 @@ fn compute_light_power_distribution(scene: &Scene) -> Option<Arc<Distribution1D>
     }
     Some(Arc::new(Distribution1D::new(light_power)))
 }
+
+pub mod ao;
