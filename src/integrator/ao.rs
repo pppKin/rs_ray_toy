@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::{
     geometry::{cross, dot3, faceforward, IntersectP, RayDifferential, Vector3f},
@@ -42,7 +42,7 @@ impl AOIntegrator {
 }
 
 impl Integrator for AOIntegrator {
-    fn render(self: Arc<Self>, scene: &Scene) {
+    fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
@@ -52,11 +52,9 @@ impl SamplerIntegrator for AOIntegrator {
         Arc::clone(&self.i)
     }
 
-    fn preprocess(&self, _scene: &crate::scene::Scene, _sampler: Arc<Mutex<dyn Sampler>>) {}
-
     fn li(
         &self,
-        r: &RayDifferential,
+        r: &mut RayDifferential,
         scene: &Scene,
         sampler: &mut dyn Sampler,
         _depth: usize,

@@ -17,7 +17,7 @@ use crate::{
 };
 
 pub trait Integrator: Send + Sync {
-    fn render(self: Arc<Self>, scene: &Scene);
+    fn render(&mut self, scene: &Scene);
 }
 
 #[derive(Debug, Clone)]
@@ -29,18 +29,16 @@ pub struct SamplerIntegratorData {
 
 pub trait SamplerIntegrator: Send + Sync {
     fn itgt(&self) -> Arc<SamplerIntegratorData>;
-    fn si_render(self: Arc<Self>, scene: &Scene) {
-        let sampler = self.itgt().sampler.clone();
-        self.preprocess(scene, sampler);
+    fn si_render(&mut self, scene: &Scene) {
+        let itgt = self.itgt();
+        let am_tile_sampler = itgt.sampler.clone();
+        self.preprocess(scene, am_tile_sampler.clone());
 
         let sample_bounds = self.itgt().cam.camera.film.get_sample_bounds();
         let sample_extent = sample_bounds.diagonal();
         let tile_size = 16;
         let n_tiles_x = (sample_extent.x + tile_size - 1) / tile_size;
         let n_tiles_y = (sample_extent.y + tile_size - 1) / tile_size;
-
-        let itgt = self.itgt();
-        let am_tile_sampler = itgt.sampler.clone();
 
         (0..n_tiles_x).into_par_iter().for_each(|tile_x| {
             (0..n_tiles_y).into_par_iter().for_each(|tile_y| {
@@ -79,7 +77,7 @@ pub trait SamplerIntegrator: Send + Sync {
                         // Evaluate radiance along camera ray
                         let mut l = Spectrum::zero();
                         if ray_weight > 0.0 {
-                            l = self.li(&ray, scene, &mut *tile_sampler, 1);
+                            l = self.li(&mut ray, scene, &mut *tile_sampler, 1);
                         }
                         // Issue warning if unexpected radiance value returned
                         if l.has_nan() {
@@ -118,10 +116,12 @@ pub trait SamplerIntegrator: Send + Sync {
             });
         });
     }
-    fn preprocess(&self, scene: &Scene, sampler: Arc<Mutex<dyn Sampler>>);
+    fn preprocess(&mut self, _scene: &Scene, _sampler: Arc<Mutex<dyn Sampler>>) {
+        // do absolutely nothing at all
+    }
     fn li(
         &self,
-        ray: &RayDifferential,
+        ray: &mut RayDifferential,
         scene: &Scene,
         sampler: &mut dyn Sampler,
         depth: usize,
@@ -178,7 +178,7 @@ pub trait SamplerIntegrator: Send + Sync {
                 rd.ry_direction =
                     wi - dwody + Vector3f::from(dndy * dot3(&wo, &ns) + ns * ddndy) * 0.2;
             }
-            return f * self.li(&rd, scene, sampler, depth + 1) * abs_dot3(&wi, &ns) / pdf;
+            return f * self.li(&mut rd, scene, sampler, depth + 1) * abs_dot3(&wi, &ns) / pdf;
         } else {
             return Spectrum::zero();
         }
@@ -273,7 +273,7 @@ pub trait SamplerIntegrator: Send + Sync {
                     return Spectrum::zero();
                 }
             }
-            return f * self.li(&rd, scene, sampler, depth + 1) * abs_dot3(&wi, &ns) / pdf;
+            return f * self.li(&mut rd, scene, sampler, depth + 1) * abs_dot3(&wi, &ns) / pdf;
         } else {
             return Spectrum::zero();
         }
@@ -284,7 +284,7 @@ pub fn uniform_sample_all_lights(
     it: &Interaction,
     scene: &Scene,
     sampler: &mut dyn Sampler,
-    n_light_samples: &[usize],
+    n_light_samples: &[u32],
     handle_media: bool,
 ) -> Spectrum<SPECTRUM_N> {
     // ProfilePhase p(Prof::DirectLighting);
@@ -315,7 +315,7 @@ pub fn uniform_sample_all_lights(
         } else {
             // Estimate direct lighting using sample arrays
             let mut ld = Spectrum::zero();
-            for k in 0..n_samples {
+            for k in 0..n_samples as usize {
                 ld += estimate_direct(
                     it,
                     &u_scattering_array[k],
@@ -331,6 +331,52 @@ pub fn uniform_sample_all_lights(
         }
     }
     l
+}
+
+/// Estimate direct lighting for only one randomly chosen light and
+/// multiply the result by the number of lights to compensate.
+pub fn uniform_sample_one_light(
+    it: &Interaction,
+    scene: &Scene,
+    sampler: &mut dyn Sampler,
+    handle_media: bool,
+    light_distrib: Option<&Distribution1D>,
+) -> Spectrum<SPECTRUM_N> {
+    // ProfilePhase p(Prof::DirectLighting);
+    // Randomly choose a single light to sample, _light_
+    let n_lights = scene.lights.len();
+    if n_lights == 0 {
+        return Spectrum::zero();
+    }
+    let light_num;
+    let mut light_pdf = 0.0;
+
+    match light_distrib {
+        Some(dis) => {
+            light_num = dis.sample_discrete(sampler.get_1d(), Some(&mut light_pdf));
+            if light_pdf == 0.0 {
+                return Spectrum::zero();
+            }
+        }
+        None => {
+            light_num = ((sampler.get_1d() * n_lights as f64) as usize).min(n_lights - 1);
+            light_pdf = 1.0 / n_lights as f64;
+        }
+    }
+
+    let light = (&scene.lights[light_num]).clone();
+    let u_light = sampler.get_2d();
+    let u_scattering = sampler.get_2d();
+    estimate_direct(
+        it,
+        &u_scattering,
+        light,
+        &u_light,
+        scene,
+        sampler,
+        handle_media,
+        false,
+    ) / light_pdf
 }
 
 pub fn estimate_direct(
@@ -496,3 +542,6 @@ fn compute_light_power_distribution(scene: &Scene) -> Option<Arc<Distribution1D>
 }
 
 pub mod ao;
+pub mod directlighting;
+pub mod path;
+pub mod volpath;
