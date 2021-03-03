@@ -26,14 +26,11 @@ pub struct FilmTilePixel {
 }
 
 #[derive(Debug)]
-pub struct Film<T>
-where
-    T: IFilter,
-{
+pub struct Film {
     // Film Public Data
     pub full_resolution: Point2i,
     pub diagonal: f64,
-    pub filter: Box<Filter<T>>,
+    pub filter: Filter<dyn IFilter>,
     pub filename: String,
     pub cropped_pixel_bounds: Bounds2i,
 
@@ -141,14 +138,11 @@ impl<'a> FilmTile<'a> {
     }
 }
 
-impl<T> Film<T>
-where
-    T: IFilter,
-{
+impl Film {
     pub fn new(
         full_resolution: Point2i,
         diagonal: f64,
-        mut filter: Box<Filter<T>>,
+        filter: Filter<dyn IFilter>,
         filename: String,
         cropped_window: Bounds2f,
         scale: f64,

@@ -4,7 +4,6 @@ use rayon::prelude::*;
 
 use crate::{
     camera::{ICamera, RealisticCamera},
-    filters::IFilter,
     geometry::{abs_dot3, dot3, Bounds2i, Normal3f, Point2f, Point2i, RayDifferential, Vector3f},
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
@@ -22,14 +21,14 @@ pub trait Integrator: Send + Sync {
 }
 
 #[derive(Debug, Clone)]
-pub struct SamplerIntegratorData<T: IFilter + Send + Sync> {
-    pub cam: Arc<RealisticCamera<T>>,
+pub struct SamplerIntegratorData {
+    pub cam: Arc<RealisticCamera>,
     pub sampler: Arc<Mutex<dyn Sampler>>,
     pub pixel_bounds: Bounds2i,
 }
 
-pub trait SamplerIntegrator<T: IFilter + Send + Sync>: Send + Sync {
-    fn itgt(&self) -> Arc<SamplerIntegratorData<T>>;
+pub trait SamplerIntegrator: Send + Sync {
+    fn itgt(&self) -> Arc<SamplerIntegratorData>;
     fn si_render(self: Arc<Self>, scene: &Scene) {
         let sampler = self.itgt().sampler.clone();
         self.preprocess(scene, sampler);

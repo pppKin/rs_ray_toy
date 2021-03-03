@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    filters::IFilter,
     geometry::{cross, dot3, faceforward, IntersectP, RayDifferential, Vector3f},
     interaction::SurfaceInteraction,
     primitives::Primitive,
@@ -18,15 +17,15 @@ use crate::{
 use super::{Integrator, SamplerIntegrator, SamplerIntegratorData};
 
 #[derive(Debug)]
-pub struct AOIntegrator<T: IFilter + Send + Sync> {
+pub struct AOIntegrator {
     cos_sample: bool,
     n_samples: u32,
 
-    i: Arc<SamplerIntegratorData<T>>,
+    i: Arc<SamplerIntegratorData>,
 }
 
-impl<T: IFilter + Send + Sync> AOIntegrator<T> {
-    pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData<T>>) -> Self {
+impl AOIntegrator {
+    pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData>) -> Self {
         let am_s = i.sampler.clone();
         let mut s = am_s.lock().unwrap();
         let n_samples = s.round_count(ns);
@@ -42,14 +41,14 @@ impl<T: IFilter + Send + Sync> AOIntegrator<T> {
     }
 }
 
-impl<T: IFilter + Send + Sync> Integrator for AOIntegrator<T> {
+impl Integrator for AOIntegrator {
     fn render(self: Arc<Self>, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl<T: IFilter + Send + Sync> SamplerIntegrator<T> for AOIntegrator<T> {
-    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
+impl SamplerIntegrator for AOIntegrator {
+    fn itgt(&self) -> Arc<SamplerIntegratorData> {
         Arc::clone(&self.i)
     }
 

@@ -2,7 +2,6 @@ use std::{f64::INFINITY, fmt::Debug, sync::Arc};
 
 use crate::{
     film::Film,
-    filters::IFilter,
     geometry::{
         faceforward, Bounds2f, Normal3f, Point2f, Point2i, Point3f, Ray, RayDifferential, Vector3f,
     },
@@ -18,24 +17,21 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct CameraData<T>
-where
-    T: IFilter,
-{
+pub struct CameraData {
     camera_to_world: Transform,
     pub shutter_open: f64,
     pub shutter_close: f64,
 
-    pub film: Arc<Film<T>>,
+    pub film: Arc<Film>,
     pub medium: MediumOpArc,
 }
 
-impl<T: IFilter> CameraData<T> {
+impl CameraData {
     pub fn new(
         camera_to_world: Transform,
         shutter_open: f64,
         shutter_close: f64,
-        film: Arc<Film<T>>,
+        film: Arc<Film>,
         medium: MediumOpArc,
     ) -> Self {
         Self {
@@ -153,23 +149,17 @@ pub struct LensElementInterface {
 }
 
 #[derive(Debug)]
-pub struct RealisticCamera<T>
-where
-    T: IFilter,
-{
-    pub camera: CameraData<T>,
+pub struct RealisticCamera {
+    pub camera: CameraData,
 
     element_interfaces: Vec<LensElementInterface>,
     exit_pupil_bounds: Vec<Bounds2f>,
     simple_weighting: bool,
 }
 
-impl<T> RealisticCamera<T>
-where
-    T: IFilter,
-{
+impl RealisticCamera {
     pub fn new(
-        camera: CameraData<T>,
+        camera: CameraData,
         element_interfaces: Vec<LensElementInterface>,
         exit_pupil_bounds: Vec<Bounds2f>,
         simple_weighting: bool,
@@ -571,16 +561,13 @@ where
     }
 }
 
-impl<T: IFilter> ToWorld for RealisticCamera<T> {
+impl ToWorld for RealisticCamera {
     fn to_world(&self) -> &Transform {
         &self.camera.camera_to_world
     }
 }
 
-impl<T> ICamera for RealisticCamera<T>
-where
-    T: IFilter + Debug,
-{
+impl ICamera for RealisticCamera {
     fn generate_ray(&self, sample: &CameraSample, ray: &mut Ray) -> f64 {
         // Find point on film, _pFilm_, corresponding to _sample.pFilm_
         let s = Point2f::new(

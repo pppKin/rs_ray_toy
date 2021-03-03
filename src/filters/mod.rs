@@ -1,9 +1,9 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use crate::geometry::{Point2f, Vector2f};
 
-pub trait IFilter: Debug {
-    fn evaluate(&mut self, p: &Point2f, r: &mut FilterRadius) -> f64;
+pub trait IFilter: Debug + Send + Sync {
+    fn if_evaluate(&self, p: &Point2f, r: &FilterRadius) -> f64;
 }
 
 #[derive(Default, Debug, Copy, Clone)]
@@ -21,24 +21,22 @@ impl FilterRadius {
     }
 }
 
-#[derive(Default, Debug, Copy, Clone)]
-pub struct Filter<T> {
-    f: T,
+#[derive(Default, Debug, Clone)]
+pub struct Filter<T: IFilter + ?Sized> {
+    f: Arc<T>,
     pub r: FilterRadius,
-}
-
-impl<T> Filter<T> {
-    pub fn new(f: T, r: FilterRadius) -> Self {
-        Self { f, r }
-    }
 }
 
 impl<T> Filter<T>
 where
-    T: IFilter,
+    T: IFilter + ?Sized,
 {
-    pub fn evaluate(&mut self, p: &Point2f) -> f64 {
-        self.f.evaluate(p, &mut self.r)
+    pub fn new(f: Arc<T>, r: FilterRadius) -> Self {
+        Self { f, r }
+    }
+
+    pub fn evaluate(&self, p: &Point2f) -> f64 {
+        self.f.if_evaluate(p, &self.r)
     }
 }
 
