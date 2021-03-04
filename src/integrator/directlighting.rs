@@ -28,17 +28,27 @@ pub struct DirectLightingIntegrator {
     i: Arc<SamplerIntegratorData>,
 }
 
+impl DirectLightingIntegrator {
+    pub fn new(
+        strategy: LightStrategy,
+        max_depth: usize,
+        n_light_samples: Vec<u32>,
+        i: Arc<SamplerIntegratorData>,
+    ) -> Self {
+        Self {
+            strategy,
+            max_depth,
+            n_light_samples,
+            i,
+        }
+    }
+}
+
 impl Integrator for DirectLightingIntegrator {
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
-
-// Spectrum DirectLightingIntegrator::Li(const RayDifferential &ray,
-//                                       const Scene &scene, Sampler &sampler,
-//                                       MemoryArena &arena, int depth) const {
-
-// }
 
 impl SamplerIntegrator for DirectLightingIntegrator {
     fn itgt(&self) -> Arc<SamplerIntegratorData> {

@@ -340,7 +340,7 @@ pub fn uniform_sample_one_light(
     scene: &Scene,
     sampler: &mut dyn Sampler,
     handle_media: bool,
-    light_distrib: Option<&Distribution1D>,
+    light_distrib: Option<Arc<Distribution1D>>,
 ) -> Spectrum<SPECTRUM_N> {
     // ProfilePhase p(Prof::DirectLighting);
     // Randomly choose a single light to sample, _light_

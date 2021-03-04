@@ -11,7 +11,7 @@ use super::{Integrator, SamplerIntegrator, SamplerIntegratorData};
 pub struct VolPathIntegrator {
     max_depth: usize,
     rr_threshold: f64,
-    //  we'll use UniformLightDistribution for now, which is just like a [1.0;lights.len()]
+    //  we'll use UniformLightDistribution/PowerLightDistribution for now
     light_distr: Arc<Distribution1D>,
 
     i: Arc<SamplerIntegratorData>,
