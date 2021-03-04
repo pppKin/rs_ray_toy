@@ -15,7 +15,7 @@ use crate::{
     SPECTRUM_N,
 };
 
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 #[derive(Default, Debug, Clone)]
 pub struct BaseInteraction {
@@ -70,12 +70,6 @@ impl BaseInteraction {
         self.spawn_ray(p2 - self.p)
     }
     pub fn spawn_ray_to_si(&self, ist: &BaseInteraction) -> Ray {
-        // Ray SpawnRayTo(const Interaction &it) const {
-        //     Point3f origin = OffsetRayOrigin(p, pError, n, it.p - p);
-        //     Point3f target = OffsetRayOrigin(it.p, it.pError, it.n, origin - it.p);
-        //     Vector3f d = target - origin;
-        //     return Ray(origin, d, 1 - ShadowEpsilon, time, GetMedium(d));
-        // }
         let origin = pnt3_offset_ray_origin(&self.p, &self.p_error, &self.n, &(ist.p - self.p));
         let target = pnt3_offset_ray_origin(&ist.p, &ist.p_error, &ist.n, &(origin - ist.p));
         let d = target - origin;
@@ -304,14 +298,20 @@ impl SurfaceInteraction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct MediumInteraction {
     pub ist: BaseInteraction,
-    pub phase: Box<dyn PhaseFunction>,
+    pub phase: Option<Arc<dyn PhaseFunction>>,
 }
 
 impl MediumInteraction {
-    pub fn new(ist: BaseInteraction, phase: Box<dyn PhaseFunction>) -> Self {
+    pub fn is_valid(&self) -> bool {
+        self.phase.is_some()
+    }
+}
+
+impl MediumInteraction {
+    pub fn new(ist: BaseInteraction, phase: Option<Arc<dyn PhaseFunction>>) -> Self {
         Self { ist, phase }
     }
 }

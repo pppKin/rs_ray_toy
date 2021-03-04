@@ -15,14 +15,14 @@ pub fn create_triangle_filter(radius: Vector2f) -> TriangleFilter {
     TriangleFilter::new(Arc::new(TriangleFltr::default()), FilterRadius::new(radius))
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn test_tri_filter() {
-//         let mut t = create_triangle_filter(Vector2f::new(0.5, 0.5));
-//         let s = t.evaluate(&Point2f::new(0.1, 0.2));
-//         println!("{:?}", s);
-//     }
-// }
+    #[test]
+    fn test_tri_filter() {
+        let t = create_triangle_filter(Vector2f::new(0.5, 0.5));
+        let s = t.evaluate(&Point2f::new(0.1, 0.2));
+        println!("{:?}", s);
+    }
+}

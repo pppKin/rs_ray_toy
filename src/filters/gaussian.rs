@@ -40,14 +40,14 @@ pub fn create_gaussian_filter(radius: Vector2f, alpha: f64) -> GaussianFilter {
     )
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn test_gaussian_filter() {
-//         let mut f = create_gaussian_filter(Vector2f::new(0.5, 0.5), 1_f64);
-//         let s = f.evaluate(&Point2f::new(0.0, 0.0));
-//         println!("{:?}", s);
-//     }
-// }
+    #[test]
+    fn test_gaussian_filter() {
+        let f = create_gaussian_filter(Vector2f::new(0.5, 0.5), 1_f64);
+        let s = f.evaluate(&Point2f::new(0.0, 0.0));
+        println!("{:?}", s);
+    }
+}

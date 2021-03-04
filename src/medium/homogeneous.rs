@@ -1,4 +1,4 @@
-use std::f64::INFINITY;
+use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
     geometry::{Normal3, Ray, Vector3f},
@@ -61,7 +61,7 @@ impl Medium for HomogeneousMedium {
                     Normal3::default(),
                     None,
                 ),
-                Box::new(HenyeyGreenstein::new(self.g)),
+                Some(Arc::new(HenyeyGreenstein::new(self.g))),
             );
         }
         // Compute the transmittance and sampling density

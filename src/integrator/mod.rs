@@ -426,9 +426,13 @@ pub fn estimate_direct(
             }
             Interaction::Medium(mi) => {
                 // Evaluate phase function for light sampling strategy
-                let p = mi.phase.p(&mi.ist.wo, &wi);
-                f = Spectrum::from(p);
-                scattering_pdf = p;
+                if let Some(phase) = &mi.phase {
+                    let p = phase.p(&mi.ist.wo, &wi);
+                    f = Spectrum::from(p);
+                    scattering_pdf = p;
+                } else {
+                    f = Spectrum::zero();
+                }
             }
         }
         if !f.is_black() {
@@ -480,9 +484,13 @@ pub fn estimate_direct(
             }
             Interaction::Medium(mi) => {
                 // Sample scattered direction for medium interactions
-                let p = mi.phase.sample_p(&mi.ist.wo, &mut wi, *u_scattering);
-                f = Spectrum::from(p);
-                scattering_pdf = p;
+                if let Some(phase) = &mi.phase {
+                    let p = phase.sample_p(&mi.ist.wo, &mut wi, *u_scattering);
+                    f = Spectrum::from(p);
+                    scattering_pdf = p;
+                } else {
+                    f = Spectrum::zero();
+                }
             }
         }
 

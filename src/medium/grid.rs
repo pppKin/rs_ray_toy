@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     geometry::{
         pnt3_floor, Bounds3f, Bounds3i, Normal3f, Point3f, Point3i, Ray, Vector3f, Vector3i,
@@ -196,7 +198,7 @@ impl Medium for GridDensityMedium {
                         Normal3f::default(),
                         None,
                     ),
-                    Box::new(phase),
+                    Some(Arc::new(phase)),
                 );
                 return self.sigma_s / self.sigma_t;
             }

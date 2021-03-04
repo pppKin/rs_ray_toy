@@ -15,14 +15,14 @@ pub fn create_box_filter(radius: Vector2f) -> BoxFilter {
     BoxFilter::new(Arc::new(BoxFltr::default()), FilterRadius::new(radius))
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn test_boxfilter() {
-//         let mut f = create_box_filter(Vector2f::new(0.5, 0.5));
-//         let s = f.evaluate(&Point2f::new(0.1, 0.2));
-//         println!("{:?}", s);
-//     }
-// }
+    #[test]
+    fn test_boxfilter() {
+        let f = create_box_filter(Vector2f::new(0.5, 0.5));
+        let s = f.evaluate(&Point2f::new(0.1, 0.2));
+        println!("{:?}", s);
+    }
+}
