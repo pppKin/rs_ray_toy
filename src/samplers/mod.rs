@@ -296,7 +296,7 @@ impl<T> GlobalSampler<T>
 where
     T: IGlobalSampler,
 {
-    fn new(samples_per_pixel: u64, g: T) -> Self {
+    pub fn new(samples_per_pixel: u64, g: T) -> Self {
         let s = GlobalSampler {
             bsplr: BaseSampler::new(samples_per_pixel),
             gsplr: GlobalSamplerData::default(),

@@ -9,7 +9,10 @@ use std::{
     },
     path::Path,
     rc::Rc,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 pub const SHADOW_EPSILON: f64 = 0.0001;
@@ -422,4 +425,23 @@ where
     T: CommonLogicalNum,
 {
     v != T::default() && (v & (v - T::num_one())) == T::default()
+}
+
+#[derive(Debug, Default)]
+pub struct AtomicF64 {
+    v: AtomicU64,
+}
+
+impl AtomicF64 {
+    pub fn new(value: f64) -> Self {
+        Self {
+            v: AtomicU64::new(value.to_bits()),
+        }
+    }
+    pub fn load(&self, order: Ordering) -> f64 {
+        f64::from_bits(self.v.load(order))
+    }
+    pub fn store(&self, val: f64, order: Ordering) {
+        self.v.store(val.to_bits(), order)
+    }
 }

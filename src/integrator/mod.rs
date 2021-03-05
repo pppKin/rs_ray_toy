@@ -27,7 +27,7 @@ pub struct SamplerIntegratorData {
     pub pixel_bounds: Bounds2i,
 }
 
-pub trait SamplerIntegrator: Send + Sync {
+trait SamplerIntegrator: Send + Sync {
     fn itgt(&self) -> Arc<SamplerIntegratorData>;
     fn si_render(&mut self, scene: &Scene) {
         let itgt = self.itgt();
@@ -552,4 +552,5 @@ fn compute_light_power_distribution(scene: &Scene) -> Option<Arc<Distribution1D>
 pub mod ao;
 pub mod directlighting;
 pub mod path;
+// pub mod sppm;
 pub mod volpath;

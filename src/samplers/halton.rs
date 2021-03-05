@@ -20,7 +20,7 @@ pub struct Halton {
 pub type HaltonSampler = GlobalSampler<Halton>;
 
 impl Halton {
-    fn new(sample_bounds: &Bounds2i, sample_at_pixel_center: bool) -> Self {
+    pub fn new(sample_bounds: &Bounds2i, sample_at_pixel_center: bool) -> Self {
         // Generate random digit permutations for Halton sampler
         let radical_inverse_permutations = compute_radical_inverse_permutations();
 
