@@ -1,7 +1,6 @@
 use std::{
     f64::{consts::PI, INFINITY},
     fmt::Debug,
-    rc::Rc,
     sync::Arc,
 };
 
@@ -21,17 +20,17 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct BSSRDFData {
-    po: SurfaceInteraction,
+    po: Arc<SurfaceInteraction>,
     eta: f64,
 }
 
 impl BSSRDFData {
-    pub fn new(po: SurfaceInteraction, eta: f64) -> Self {
+    pub fn new(po: Arc<SurfaceInteraction>, eta: f64) -> Self {
         Self { po, eta }
     }
 }
 
-pub trait BSSRDF: Debug {
+pub trait BSSRDF: Debug + Send + Sync {
     // BSSRDF Interface
     fn s(&self, pi: &SurfaceInteraction, wi: &Vector3f) -> Spectrum<SPECTRUM_N>;
     fn sample_s(
@@ -78,11 +77,11 @@ pub struct SeparableBSSRDF {
     bd: BSSRDFData,
     sbd: SeparableBSSRDFData,
     // Generics part
-    s: Rc<dyn ISeparableBSSRDF>,
+    s: Arc<dyn ISeparableBSSRDF>,
 }
 
 impl SeparableBSSRDF {
-    pub fn new(bd: BSSRDFData, sbd: SeparableBSSRDFData, s: Rc<dyn ISeparableBSSRDF>) -> Self {
+    pub fn new(bd: BSSRDFData, sbd: SeparableBSSRDFData, s: Arc<dyn ISeparableBSSRDF>) -> Self {
         Self { bd, sbd, s }
     }
     fn sp(&self, pi: &SurfaceInteraction) -> Spectrum<SPECTRUM_N> {
@@ -164,7 +163,7 @@ impl SeparableBSSRDF {
             }
             base = tmp_si.ist.clone();
             if let Some(tmp_pri) = &tmp_si.primitive {
-                let tmp_pri = Rc::clone(tmp_pri);
+                let tmp_pri = Arc::clone(tmp_pri);
                 if Arc::ptr_eq(&tmp_pri.get_material(), &self.sbd.material) {
                     chain.push(tmp_si);
                     n_found += 1;
@@ -221,7 +220,7 @@ impl SeparableBSSRDF {
     }
 }
 
-pub trait ISeparableBSSRDF: Debug {
+pub trait ISeparableBSSRDF: Debug + Send + Sync {
     fn sr(&self, d: f64, bd: &BSSRDFData, sbd: &SeparableBSSRDFData) -> Spectrum<SPECTRUM_N>;
     fn sample_sr(&self, ch: usize, u: f64, bd: &BSSRDFData, sbd: &SeparableBSSRDFData) -> f64;
     fn pdf_sr(&self, ch: usize, r: f64, bd: &BSSRDFData, sbd: &SeparableBSSRDFData) -> f64;
@@ -245,7 +244,7 @@ impl BSSRDF for SeparableBSSRDF {
         if !sp.is_black() {
             // Initialize material model at sampled surface interaction
             let mut bsdf = Bsdf::new(si, 1.0);
-            bsdf.add(Rc::new(self.clone()));
+            bsdf.add(Arc::new(self.clone()));
             si.bsdf = Some(bsdf);
             si.ist.wo = Vector3f::from(si.shading.n);
         }

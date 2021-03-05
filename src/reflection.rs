@@ -8,7 +8,7 @@ use crate::{
     spectrum::Spectrum,
     SPECTRUM_N,
 };
-use std::{f64::consts::PI, rc::Rc};
+use std::{f64::consts::PI, sync::Arc};
 #[inline]
 pub fn schlick_weight(cos_theta: f64) -> f64 {
     let m = clamp_t(1.0 - cos_theta, 0.0, 1.0);
@@ -209,7 +209,7 @@ pub struct Bsdf {
     ng: Normal3f,
     ss: Vector3f,
     ts: Vector3f,
-    pub bxdfs: Vec<Rc<dyn BxDF>>,
+    pub bxdfs: Vec<Arc<dyn BxDF>>,
 }
 
 impl Bsdf {
@@ -225,7 +225,7 @@ impl Bsdf {
             bxdfs: vec![],
         }
     }
-    pub fn add(&mut self, b: Rc<dyn BxDF>) {
+    pub fn add(&mut self, b: Arc<dyn BxDF>) {
         assert!(self.bxdfs.len() < MAX_BXDFS);
         self.bxdfs.push(b);
     }
@@ -442,7 +442,7 @@ pub fn bxdf_is_spec(t: u8) -> bool {
     t & BXDF_SPECULAR > 0
 }
 
-pub trait BxDF: std::fmt::Debug {
+pub trait BxDF: std::fmt::Debug + Send + Sync {
     // BxDF Interface
     fn f(&self, wo: &Vector3f, wi: &Vector3f) -> Spectrum<SPECTRUM_N>;
     fn sample_f(
@@ -534,12 +534,12 @@ pub trait BxDF: std::fmt::Debug {
 
 #[derive(Debug)]
 pub struct ScaledBxdf {
-    bxdf: Rc<dyn BxDF>,
+    bxdf: Arc<dyn BxDF>,
     scale: Spectrum<SPECTRUM_N>,
 }
 
 impl ScaledBxdf {
-    pub fn new(bxdf: Rc<dyn BxDF>, scale: Spectrum<SPECTRUM_N>) -> Self {
+    pub fn new(bxdf: Arc<dyn BxDF>, scale: Spectrum<SPECTRUM_N>) -> Self {
         Self { bxdf, scale }
     }
 }
@@ -582,7 +582,7 @@ impl BxDF for ScaledBxdf {
     }
 }
 
-pub trait Fresnel: std::fmt::Debug {
+pub trait Fresnel: std::fmt::Debug + Send + Sync {
     fn evaluate(&self, cos_i: f64) -> Spectrum<SPECTRUM_N>;
 }
 
@@ -641,11 +641,11 @@ impl Fresnel for FresnelNoOp {
 #[derive(Debug)]
 pub struct SpecularReflection {
     r: Spectrum<SPECTRUM_N>,
-    fresnel: Box<dyn Fresnel>,
+    fresnel: Arc<dyn Fresnel>,
 }
 
 impl SpecularReflection {
-    pub fn new(r: Spectrum<SPECTRUM_N>, fresnel: Box<dyn Fresnel>) -> Self {
+    pub fn new(r: Spectrum<SPECTRUM_N>, fresnel: Arc<dyn Fresnel>) -> Self {
         Self { r, fresnel }
     }
 }
@@ -996,15 +996,15 @@ impl BxDF for OrenNayar {
 #[derive(Debug)]
 pub struct MicrofacetReflection {
     r: Spectrum<SPECTRUM_N>,
-    distribution: Box<dyn MicrofacetDistribution>,
-    fresnel: Box<dyn Fresnel>,
+    distribution: Arc<dyn MicrofacetDistribution>,
+    fresnel: Arc<dyn Fresnel>,
 }
 
 impl MicrofacetReflection {
     pub fn new(
         r: Spectrum<SPECTRUM_N>,
-        distribution: Box<dyn MicrofacetDistribution>,
-        fresnel: Box<dyn Fresnel>,
+        distribution: Arc<dyn MicrofacetDistribution>,
+        fresnel: Arc<dyn Fresnel>,
     ) -> Self {
         Self {
             r,

@@ -1,4 +1,4 @@
-use std::{f64::INFINITY, rc::Rc, sync::Arc};
+use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
     interaction::SurfaceInteraction,
@@ -47,14 +47,14 @@ impl Material for MixMaterial {
         let mut result_bsdfs = Bsdf::new(si, 1.0);
         if let Some(bsdf) = si.bsdf.take() {
             for b in &bsdf.bxdfs {
-                let tmp_b = Rc::clone(b);
-                result_bsdfs.add(Rc::new(ScaledBxdf::new(tmp_b, s1)));
+                let tmp_b = Arc::clone(b);
+                result_bsdfs.add(Arc::new(ScaledBxdf::new(tmp_b, s1)));
             }
         }
         if let Some(bsdf) = si2.bsdf.take() {
             for b in &bsdf.bxdfs {
-                let tmp_b = Rc::clone(b);
-                result_bsdfs.add(Rc::new(ScaledBxdf::new(tmp_b, s2)));
+                let tmp_b = Arc::clone(b);
+                result_bsdfs.add(Arc::new(ScaledBxdf::new(tmp_b, s2)));
             }
         }
         si.bsdf = Some(result_bsdfs);

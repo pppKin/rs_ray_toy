@@ -1,7 +1,7 @@
 use crate::{
     geometry::{cross, faceforward, Bounds3f, Normal3f, Point3f, Ray, Vector3f},
     interaction::{BaseInteraction, SurfaceInteraction},
-    misc::{copy_option_arc, copy_option_rc, radians},
+    misc::{copy_option_arc, radians},
 };
 use std::ops::Mul;
 
@@ -631,7 +631,7 @@ impl Transformable for SurfaceInteraction {
         let mut r_si = SurfaceInteraction::default();
         r_si.ist = ist;
         r_si.uv = self.uv;
-        r_si.shape = copy_option_rc(&self.shape);
+        r_si.shape = copy_option_arc(&self.shape);
         r_si.dpdu = self.dpdu.t_by(transform);
         r_si.dpdv = self.dpdv.t_by(transform);
         r_si.dndu = self.dndu.t_by(transform);
@@ -649,7 +649,7 @@ impl Transformable for SurfaceInteraction {
         r_si.dpdy = self.dpdy;
         r_si.bsdf = self.bsdf.clone();
         r_si.bssrdf = self.bssrdf.clone();
-        r_si.primitive = copy_option_rc(&self.primitive);
+        r_si.primitive = copy_option_arc(&self.primitive);
         r_si.shading.n = faceforward(&r_si.shading.n, &r_si.ist.n);
         r_si
     }

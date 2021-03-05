@@ -1,4 +1,4 @@
-use std::{f64::INFINITY, rc::Rc, sync::Arc};
+use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
     reflection::{Bsdf, FresnelNoOp, SpecularReflection},
@@ -38,9 +38,9 @@ impl Material for MirrorMaterial {
         let r = self.kr.evaluate(si).clamp(0.0, INFINITY);
         let mut bsdf = Bsdf::new(si, 1.0);
         if !r.is_black() {
-            bsdf.add(Rc::new(SpecularReflection::new(
+            bsdf.add(Arc::new(SpecularReflection::new(
                 r,
-                Box::new(FresnelNoOp::default()),
+                Arc::new(FresnelNoOp::default()),
             )));
         }
         si.bsdf = Some(bsdf);

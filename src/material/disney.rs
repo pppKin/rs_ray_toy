@@ -1,4 +1,4 @@
-use std::{f64::consts::PI, f64::INFINITY, rc::Rc, sync::Arc};
+use std::{f64::consts::PI, f64::INFINITY, sync::Arc};
 
 use crate::{
     geometry::{dot3, spherical_direction, Point2f, Vector3f},
@@ -427,10 +427,10 @@ impl Material for DisneyMaterial {
                 let flat = self.flatness.evaluate(si);
                 // Blend between DisneyDiffuse and fake subsurface based on
                 // flatness.  Additionally, weight using diffTrans.
-                bsdf.add(Rc::new(DisneyDiffuse::new(
+                bsdf.add(Arc::new(DisneyDiffuse::new(
                     c * diffuse_weight * (1.0 - flat) * (1.0 - dt),
                 )));
-                bsdf.add(Rc::new(DisneyFakeSS::new(
+                bsdf.add(Arc::new(DisneyFakeSS::new(
                     c * diffuse_weight * flat * (1.0 - dt),
                     rough,
                 )));
@@ -439,7 +439,7 @@ impl Material for DisneyMaterial {
                 if sd.is_black() {
                     // No subsurface scattering; use regular (Fresnel modified)
                     // diffuse.
-                    bsdf.add(Rc::new(DisneyDiffuse::new(c * diffuse_weight)));
+                    bsdf.add(Arc::new(DisneyDiffuse::new(c * diffuse_weight)));
                 } else {
                     // SpecularTransmission::new(1.0, 1.0, e, mode)
                     // DisneyBSSRDF::new(c* diffuse_weight, sd, si, e, mode)
@@ -447,11 +447,11 @@ impl Material for DisneyMaterial {
                 }
             }
             // Retro-reflection.
-            bsdf.add(Rc::new(DisneyRetro::new(c * diffuse_weight, rough)));
+            bsdf.add(Arc::new(DisneyRetro::new(c * diffuse_weight, rough)));
 
             // Sheen (if enabled)
             if sheen_weight > 0.0 {
-                bsdf.add(Rc::new(DisneySheen::new(
+                bsdf.add(Arc::new(DisneySheen::new(
                     c_sheen * sheen_weight * diffuse_weight,
                 )));
             }
@@ -473,15 +473,15 @@ impl Material for DisneyMaterial {
         );
 
         let fresnel = DisneyFresnel::new(c_spec_0, metallic_weight, e);
-        bsdf.add(Rc::new(MicrofacetReflection::new(
+        bsdf.add(Arc::new(MicrofacetReflection::new(
             Spectrum::one(),
-            Box::new(distrib),
-            Box::new(fresnel),
+            Arc::new(distrib),
+            Arc::new(fresnel),
         )));
         // Clearcoat
         let cc = self.clearcoat.evaluate(si);
         if cc > 0.0 {
-            bsdf.add(Rc::new(DisneyClearcoat::new(
+            bsdf.add(Arc::new(DisneyClearcoat::new(
                 cc,
                 lerp(self.clearcoat_gloss.evaluate(si), 0.1, 0.001),
             )))
@@ -499,7 +499,7 @@ impl Material for DisneyMaterial {
                 let ax = (r_scaled.powi(2) / aspect).max(0.001);
                 let ay = (r_scaled.powi(2) * aspect).max(0.001);
                 let scaled_distrib = TrowbridgeReitzDistribution::new(ax, ay, true);
-                bsdf.add(Rc::new(MicrofacetTransmission::new(
+                bsdf.add(Arc::new(MicrofacetTransmission::new(
                     t,
                     Box::new(scaled_distrib),
                     1.0,
@@ -507,7 +507,7 @@ impl Material for DisneyMaterial {
                     mode,
                 )));
             } else {
-                bsdf.add(Rc::new(MicrofacetTransmission::new(
+                bsdf.add(Arc::new(MicrofacetTransmission::new(
                     t,
                     Box::new(distrib),
                     1.0,
@@ -518,7 +518,7 @@ impl Material for DisneyMaterial {
         }
 
         if self.thin {
-            bsdf.add(Rc::new(LambertianTransmission::new(c * dt)));
+            bsdf.add(Arc::new(LambertianTransmission::new(c * dt)));
         }
         si.bsdf = Some(bsdf);
     }

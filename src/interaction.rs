@@ -6,7 +6,7 @@ use crate::{
     },
     material::TransportMode,
     medium::{MediumInterface, MediumOpArc, PhaseFunction},
-    misc::{copy_option_rc, SHADOW_EPSILON},
+    misc::{copy_option_arc, SHADOW_EPSILON},
     primitives::GeometricPrimitive,
     reflection::Bsdf,
     shape::Shape,
@@ -15,7 +15,7 @@ use crate::{
     SPECTRUM_N,
 };
 
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Default, Debug, Clone)]
 pub struct BaseInteraction {
@@ -105,11 +105,11 @@ pub struct SurfaceInteraction {
     pub dpdv: Vector3f,
     pub dndu: Normal3f,
     pub dndv: Normal3f,
-    pub shape: Option<Rc<dyn Shape>>,
+    pub shape: Option<Arc<dyn Shape>>,
     pub shading: Shading,
-    pub primitive: Option<Rc<GeometricPrimitive>>,
+    pub primitive: Option<Arc<GeometricPrimitive>>,
     pub bsdf: Option<Bsdf>,
-    pub bssrdf: Option<Rc<dyn BSSRDF>>,
+    pub bssrdf: Option<Arc<dyn BSSRDF>>,
     pub dpdx: Vector3f,
     pub dpdy: Vector3f,
     pub dudx: f64,
@@ -213,7 +213,7 @@ impl SurfaceInteraction {
         mode: TransportMode,
     ) {
         self.compute_differentials(ray);
-        let opt_pri = copy_option_rc(&self.primitive);
+        let opt_pri = copy_option_arc(&self.primitive);
         if let Some(pri) = opt_pri {
             pri.compute_scattering_functions(self, mode, allow_multiple_lobes);
         }

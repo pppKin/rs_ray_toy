@@ -19,7 +19,7 @@ pub fn roughness_to_alpha(roughness: f64) -> f64 {
         + 0.000_640_711 * x * x * x * x
 }
 
-pub trait MicrofacetDistribution: std::fmt::Debug {
+pub trait MicrofacetDistribution: std::fmt::Debug + Send + Sync {
     fn d(&self, wh: &Vector3f) -> f64;
     fn lambda(&self, w: &Vector3f) -> f64;
     fn g1(&self, w: &Vector3f) -> f64 {

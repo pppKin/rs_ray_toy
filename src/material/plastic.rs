@@ -1,4 +1,4 @@
-use std::{f64::INFINITY, rc::Rc, sync::Arc};
+use std::{f64::INFINITY, sync::Arc};
 
 use crate::{
     interaction::SurfaceInteraction,
@@ -53,7 +53,7 @@ impl Material for PlasticMaterial {
         // Initialize diffuse component of plastic material
         let kd = self.kd.evaluate(si).clamp(0.0, INFINITY);
         if !kd.is_black() {
-            bsdf.add(Rc::new(LambertianReflection::new(kd)));
+            bsdf.add(Arc::new(LambertianReflection::new(kd)));
         }
         // Initialize specular component of plastic material
         let ks = self.ks.evaluate(si).clamp(0.0, INFINITY);
@@ -65,8 +65,8 @@ impl Material for PlasticMaterial {
                 rough = roughness_to_alpha(rough);
             }
             let distrib = TrowbridgeReitzDistribution::new(rough, rough, true);
-            let spec = MicrofacetReflection::new(ks, Box::new(distrib), Box::new(fresnel));
-            bsdf.add(Rc::new(spec));
+            let spec = MicrofacetReflection::new(ks, Arc::new(distrib), Arc::new(fresnel));
+            bsdf.add(Arc::new(spec));
         }
         si.bsdf = Some(bsdf);
     }
