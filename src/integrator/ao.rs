@@ -17,17 +17,22 @@ use crate::{
 use super::{Integrator, SamplerIntegrator, SamplerIntegratorData};
 
 #[derive(Debug)]
-pub struct AOIntegrator {
+pub struct AOIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     cos_sample: bool,
     n_samples: u32,
 
-    i: Arc<SamplerIntegratorData>,
+    i: Arc<SamplerIntegratorData<T>>,
 }
 
-impl AOIntegrator {
-    pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData>) -> Self {
-        let am_s = i.sampler.clone();
-        let mut s = am_s.lock().unwrap();
+impl<T> AOIntegrator<T>
+where
+    T: Sampler + Clone,
+{
+    pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData<T>>) -> Self {
+        let mut s = (&(*i.sampler)).clone();
         let n_samples = s.round_count(ns);
         if n_samples != ns {
             // TODO: warn n_samples != ns
@@ -41,14 +46,20 @@ impl AOIntegrator {
     }
 }
 
-impl Integrator for AOIntegrator {
+impl<T> Integrator for AOIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl SamplerIntegrator for AOIntegrator {
-    fn itgt(&self) -> Arc<SamplerIntegratorData> {
+impl<T> SamplerIntegrator<T> for AOIntegrator<T>
+where
+    T: Sampler + Clone,
+{
+    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
         Arc::clone(&self.i)
     }
 

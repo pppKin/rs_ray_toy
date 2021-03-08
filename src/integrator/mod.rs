@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use rayon::prelude::*;
 
@@ -21,18 +21,24 @@ pub trait Integrator: Send + Sync {
 }
 
 #[derive(Debug, Clone)]
-pub struct SamplerIntegratorData {
+pub struct SamplerIntegratorData<T>
+where
+    T: Sampler + Clone,
+{
     pub cam: Arc<RealisticCamera>,
-    pub sampler: Arc<Mutex<dyn Sampler>>,
+    pub sampler: Arc<T>,
     pub pixel_bounds: Bounds2i,
 }
 
-trait SamplerIntegrator: Send + Sync {
-    fn itgt(&self) -> Arc<SamplerIntegratorData>;
+trait SamplerIntegrator<T>: Send + Sync
+where
+    T: Sampler + Clone,
+{
+    fn itgt(&self) -> Arc<SamplerIntegratorData<T>>;
     fn si_render(&mut self, scene: &Scene) {
         let itgt = self.itgt();
-        let am_tile_sampler = itgt.sampler.clone();
-        self.preprocess(scene, am_tile_sampler.clone());
+        let mut pre_sampler = (&(*itgt.sampler)).clone();
+        self.preprocess(scene, &mut pre_sampler);
 
         let sample_bounds = self.itgt().cam.camera.film.get_sample_bounds();
         let sample_extent = sample_bounds.diagonal();
@@ -49,7 +55,7 @@ trait SamplerIntegrator: Send + Sync {
                 let y1 = (y0 + tile_size).min(sample_bounds.p_max.y);
                 let tile_bounds = Bounds2i::new(Point2i::new(x0, y0), Point2i::new(x1, y1));
 
-                let mut tile_sampler = am_tile_sampler.lock().unwrap();
+                let mut tile_sampler = (&(*itgt.sampler)).clone();
                 let mut film_tile = itgt.cam.camera.film.get_film_tile(&tile_bounds);
                 // Loop over pixels in tile to render them
                 for pixel in tile_bounds.into_iter() {
@@ -77,7 +83,7 @@ trait SamplerIntegrator: Send + Sync {
                         // Evaluate radiance along camera ray
                         let mut l = Spectrum::zero();
                         if ray_weight > 0.0 {
-                            l = self.li(&mut ray, scene, &mut *tile_sampler, 1);
+                            l = self.li(&mut ray, scene, &mut tile_sampler, 1);
                         }
                         // Issue warning if unexpected radiance value returned
                         if l.has_nan() {
@@ -116,7 +122,7 @@ trait SamplerIntegrator: Send + Sync {
             });
         });
     }
-    fn preprocess(&mut self, _scene: &Scene, _sampler: Arc<Mutex<dyn Sampler>>) {
+    fn preprocess(&mut self, _scene: &Scene, _sampler: &mut T) {
         // do absolutely nothing at all
     }
     fn li(

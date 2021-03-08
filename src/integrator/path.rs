@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::{
     geometry::{abs_dot3, dot3, RayDifferential, Vector3f},
@@ -14,21 +14,27 @@ use crate::{
 
 use super::{uniform_sample_one_light, Integrator, SamplerIntegrator, SamplerIntegratorData};
 
-pub struct PathIntegrator {
+pub struct PathIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     max_depth: usize,
     rr_threshold: f64,
     //  we'll use UniformLightDistribution/PowerLightDistribution for now
     light_distrib: Arc<Distribution1D>,
 
-    i: Arc<SamplerIntegratorData>,
+    i: Arc<SamplerIntegratorData<T>>,
 }
 
-impl PathIntegrator {
+impl<T> PathIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     pub fn new(
         max_depth: usize,
         rr_threshold: f64,
         light_distrib: Arc<Distribution1D>,
-        i: Arc<SamplerIntegratorData>,
+        i: Arc<SamplerIntegratorData<T>>,
     ) -> Self {
         Self {
             max_depth,
@@ -39,18 +45,24 @@ impl PathIntegrator {
     }
 }
 
-impl Integrator for PathIntegrator {
+impl<T> Integrator for PathIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl SamplerIntegrator for PathIntegrator {
-    fn itgt(&self) -> Arc<SamplerIntegratorData> {
+impl<T> SamplerIntegrator<T> for PathIntegrator<T>
+where
+    T: Sampler + Clone,
+{
+    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
         Arc::clone(&self.i)
     }
 
-    fn preprocess(&mut self, scene: &Scene, _sampler: Arc<Mutex<dyn Sampler>>) {
+    fn preprocess(&mut self, scene: &Scene, _sampler: &mut T) {
         self.light_distrib = Arc::new(Distribution1D::new(vec![1.0; scene.lights.len()]));
     }
 

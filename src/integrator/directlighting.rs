@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::{
     geometry::RayDifferential,
@@ -20,20 +20,26 @@ pub enum LightStrategy {
     UniformSampleOne,
 }
 
-pub struct DirectLightingIntegrator {
+pub struct DirectLightingIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     strategy: LightStrategy,
     max_depth: usize,
     n_light_samples: Vec<u32>,
 
-    i: Arc<SamplerIntegratorData>,
+    i: Arc<SamplerIntegratorData<T>>,
 }
 
-impl DirectLightingIntegrator {
+impl<T> DirectLightingIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     pub fn new(
         strategy: LightStrategy,
         max_depth: usize,
         n_light_samples: Vec<u32>,
-        i: Arc<SamplerIntegratorData>,
+        i: Arc<SamplerIntegratorData<T>>,
     ) -> Self {
         Self {
             strategy,
@@ -44,22 +50,27 @@ impl DirectLightingIntegrator {
     }
 }
 
-impl Integrator for DirectLightingIntegrator {
+impl<T> Integrator for DirectLightingIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl SamplerIntegrator for DirectLightingIntegrator {
-    fn itgt(&self) -> Arc<SamplerIntegratorData> {
+impl<T> SamplerIntegrator<T> for DirectLightingIntegrator<T>
+where
+    T: Sampler + Clone,
+{
+    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
         Arc::clone(&self.i)
     }
 
-    fn preprocess(&mut self, scene: &Scene, am_sampler: Arc<Mutex<dyn Sampler>>) {
+    fn preprocess(&mut self, scene: &Scene, sampler: &mut T) {
         match self.strategy {
             LightStrategy::UniformSampleAll => {
                 // Compute number of samples to use for each light
-                let mut sampler = am_sampler.lock().unwrap();
                 for light in &scene.lights {
                     self.n_light_samples
                         .push(sampler.round_count(light.n_samples() as u32));

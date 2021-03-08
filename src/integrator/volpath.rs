@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::{
     geometry::{abs_dot3, dot3, RayDifferential, Vector3f},
@@ -15,27 +15,36 @@ use crate::{
 use super::{uniform_sample_one_light, Integrator, SamplerIntegrator, SamplerIntegratorData};
 
 #[derive(Debug)]
-pub struct VolPathIntegrator {
+pub struct VolPathIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     max_depth: usize,
     rr_threshold: f64,
     //  we'll use UniformLightDistribution/PowerLightDistribution for now
     light_distr: Arc<Distribution1D>,
 
-    i: Arc<SamplerIntegratorData>,
+    i: Arc<SamplerIntegratorData<T>>,
 }
 
-impl Integrator for VolPathIntegrator {
+impl<T> Integrator for VolPathIntegrator<T>
+where
+    T: Sampler + Clone,
+{
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl SamplerIntegrator for VolPathIntegrator {
-    fn itgt(&self) -> Arc<SamplerIntegratorData> {
+impl<T> SamplerIntegrator<T> for VolPathIntegrator<T>
+where
+    T: Sampler + Clone,
+{
+    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
         Arc::clone(&self.i)
     }
 
-    fn preprocess(&mut self, scene: &Scene, _sampler: Arc<Mutex<dyn Sampler>>) {
+    fn preprocess(&mut self, scene: &Scene, _sampler: &mut T) {
         if scene.lights.len() == 0 {
             self.light_distr = Arc::new(Distribution1D::default());
         } else {
