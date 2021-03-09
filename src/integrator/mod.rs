@@ -37,7 +37,7 @@ where
     fn itgt(&self) -> Arc<SamplerIntegratorData<T>>;
     fn si_render(&mut self, scene: &Scene) {
         let itgt = self.itgt();
-        let mut pre_sampler = (&(*itgt.sampler)).clone();
+        let mut pre_sampler = (*itgt.sampler).clone();
         self.preprocess(scene, &mut pre_sampler);
 
         let sample_bounds = self.itgt().cam.camera.film.get_sample_bounds();
@@ -55,7 +55,7 @@ where
                 let y1 = (y0 + tile_size).min(sample_bounds.p_max.y);
                 let tile_bounds = Bounds2i::new(Point2i::new(x0, y0), Point2i::new(x1, y1));
 
-                let mut tile_sampler = (&(*itgt.sampler)).clone();
+                let mut tile_sampler = (*itgt.sampler).clone();
                 let mut film_tile = itgt.cam.camera.film.get_film_tile(&tile_bounds);
                 // Loop over pixels in tile to render them
                 for pixel in tile_bounds.into_iter() {
@@ -558,5 +558,5 @@ fn compute_light_power_distribution(scene: &Scene) -> Option<Arc<Distribution1D>
 pub mod ao;
 pub mod directlighting;
 pub mod path;
-// pub mod sppm;
+pub mod sppm;
 pub mod volpath;

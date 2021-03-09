@@ -32,7 +32,7 @@ where
     T: Sampler + Clone,
 {
     pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData<T>>) -> Self {
-        let mut s = (&(*i.sampler)).clone();
+        let mut s = (*i.sampler).clone();
         let n_samples = s.round_count(ns);
         if n_samples != ns {
             // TODO: warn n_samples != ns

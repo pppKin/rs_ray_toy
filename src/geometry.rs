@@ -1071,8 +1071,9 @@ pub fn cross(a: &impl Cxyz<f64>, b: &impl Cxyz<f64>) -> Vector3f {
 }
 
 /// Return the largest coordinate value.
-pub fn vec3_max_component(v: &Vector3<f64>) -> f64 {
-    v.x.max(v.y.max(v.z))
+pub fn max_component(v: &impl Cxyz<f64>) -> f64 {
+    let (x, y, z) = v.to_xyz();
+    x.max(y).max(z)
 }
 
 /// Return the index of the component with the largest value.

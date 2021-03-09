@@ -1,49 +1,17 @@
-use std::sync::{atomic::AtomicI32, Arc, Mutex};
-
-use crate::{
-    camera::RealisticCamera,
-    geometry::{abs_dot3, dot3, Bounds3f, Point3f, Point3i, RayDifferential, Vector3f},
-    interaction::{Interaction, MediumInteraction, SurfaceInteraction},
-    misc::{clamp_t, AtomicF64},
-    primitives::Primitive,
-    reflection::{Bsdf, BXDF_ALL, BXDF_SPECULAR, BXDF_TRANSMISSION},
-    samplers::{halton::Halton, GlobalSampler, Sampler, StartPixel},
-    sampling::Distribution1D,
-    scene::Scene,
-    spectrum::{ISpectrum, Spectrum},
-    SPECTRUM_N,
+use std::{
+    f64::consts::PI,
+    sync::{Arc, Mutex},
 };
 
 use super::*;
-
-use rayon::prelude::*;
-
-// SPPM Declarations
-// class SPPMIntegrator : public Integrator {
-//   public:
-//     // SPPMIntegrator Public Methods
-//     SPPMIntegrator(std::shared_ptr<const Camera> &camera, int nIterations,
-//                    int photonsPerIteration, int maxDepth,
-//                    Float initialSearchRadius, int writeFrequency)
-//         : camera(camera),
-//           initialSearchRadius(initialSearchRadius),
-//           nIterations(nIterations),
-//           maxDepth(maxDepth),
-//           photonsPerIteration(photonsPerIteration > 0
-//                                   ? photonsPerIteration
-//                                   : camera->film->croppedPixelBounds.Area()),
-//           writeFrequency(writeFrequency) {}
-//     void Render(const Scene &scene);
-
-//   private:
-//     // SPPMIntegrator Private Data
-//     std::shared_ptr<const Camera> camera;
-//     const Float initialSearchRadius;
-//     const int nIterations;
-//     const int maxDepth;
-//     const int photonsPerIteration;
-//     const int writeFrequency;
-// };
+use crate::{
+    geometry::{max_component, Bounds3f, Point3f, Point3i},
+    lowdiscrepancy::radical_inverse,
+    material::TransportMode,
+    misc::{clamp_t, lerp},
+    reflection::{Bsdf, BXDF_DIFFUSE, BXDF_GLOSSY},
+    samplers::{halton::Halton, GlobalSampler, StartPixel},
+};
 
 #[derive(Debug)]
 pub struct SPPMIntegrator {
@@ -66,22 +34,34 @@ pub struct VisiblePoint {
     pub beta: Spectrum<SPECTRUM_N>,
 }
 
+impl VisiblePoint {
+    pub fn new(p: Point3f, wo: Vector3f, bsdf: Option<Bsdf>, beta: Spectrum<SPECTRUM_N>) -> Self {
+        Self { p, wo, bsdf, beta }
+    }
+}
+
 #[derive(Debug, Default)]
 struct SPPMPixel {
     pub radius: f64,
 
     pub ld: Spectrum<SPECTRUM_N>,
     pub vp: VisiblePoint,
-    pub phi: [AtomicF64; SPECTRUM_N],
-    pub m: AtomicI32,
+    pub phi: [f64; SPECTRUM_N],
+    pub m: i32,
     pub n: f64,
     pub tau: Spectrum<SPECTRUM_N>,
 }
 
 struct SPPMPixelListNode {
-    pixel: SPPMPixel,
+    pixel: Arc<Mutex<SPPMPixel>>,
 
-    next: Box<SPPMPixelListNode>,
+    next: Box<Option<SPPMPixelListNode>>,
+}
+
+impl SPPMPixelListNode {
+    fn new(pixel: Arc<Mutex<SPPMPixel>>, next: Box<Option<SPPMPixelListNode>>) -> Self {
+        Self { pixel, next }
+    }
 }
 
 pub fn to_grid(p: &Point3f, bounds: &Bounds3f, grid_res: [i64; 3], pi: &mut Point3i) -> bool {
@@ -109,9 +89,9 @@ impl Integrator for SPPMIntegrator {
         for _pidx in 0..n_pixels as usize {
             let mut tmp = SPPMPixel::default();
             tmp.radius = self.init_search_radius;
-            tmp_pixels.push(tmp);
+            tmp_pixels.push(Arc::new(Mutex::new(tmp)));
         }
-        let am_pixels = Arc::new(Mutex::new(tmp_pixels));
+        let am_pixels = tmp_pixels;
         let inv_sqrt_spp = 1.0 / (self.n_iters as f64).sqrt();
 
         if scene.lights.len() == 0 {
@@ -125,9 +105,8 @@ impl Integrator for SPPMIntegrator {
         }
 
         // Perform _nIterations_ of SPPM integration
-        let mut halton = Halton::new(&pixel_bounds, true);
-        let mut halton_sampler =
-            Arc::new(Mutex::new(GlobalSampler::new(self.n_iters as u64, halton)));
+        let halton = Halton::new(&pixel_bounds, true);
+        let halton_sampler = Arc::new(GlobalSampler::new(self.n_iters as u64, halton));
 
         // Compute number of tiles to use for SPPM camera pass
         let pixel_extent = pixel_bounds.diagonal();
@@ -139,10 +118,8 @@ impl Integrator for SPPMIntegrator {
             // Generate SPPM visible points
             (0..n_tiles_x).into_par_iter().for_each(|tile_x| {
                 (0..n_tiles_y).into_par_iter().for_each(|tile_y| {
-                    // let mut pixels = am_pixels.lock().unwrap();
                     // Follow camera paths for _tile_ in image for SPPM
-                    let tile_idx = tile_y * n_tiles_x + tile_x;
-                    let mut tile_sampler = halton_sampler.lock().unwrap();
+                    let mut ht_sampler = (*halton_sampler).clone();
 
                     // Compute _tileBounds_ for SPPM tile
                     let x0 = pixel_bounds.p_min.x + tile_x as i64 * tile_size;
@@ -152,12 +129,12 @@ impl Integrator for SPPMIntegrator {
                     let tile_bounds = Bounds2i::new(Point2i::new(x0, y0), Point2i::new(x1, y1));
                     for p_pixel in tile_bounds.into_iter() {
                         // Prepare _tileSampler_ for _pPixel_
-                        tile_sampler.start_pixel(p_pixel);
-                        tile_sampler.set_sample_number(iter as u64);
+                        ht_sampler.start_pixel(p_pixel);
+                        ht_sampler.set_sample_number(iter as u64);
                         // Generate camera ray for pixel for SPPM
-                        let camera_sample = tile_sampler.get_camerasample(&p_pixel);
+                        let camera_sample = ht_sampler.get_camerasample(&p_pixel);
                         let mut ray = RayDifferential::default();
-                        let beta = Spectrum::<SPECTRUM_N>::from(
+                        let mut beta = Spectrum::<SPECTRUM_N>::from(
                             self.cam.generate_ray_differential(&camera_sample, &mut ray),
                         );
                         if beta.is_black() {
@@ -169,337 +146,392 @@ impl Integrator for SPPMIntegrator {
 
                         // Get _SPPMPixel_ for _pPixel_
                         let p_pixel_o = p_pixel - pixel_bounds.p_min;
-                        // int pixelOffset =
-                        //     pPixelO.x +
-                        //     pPixelO.y * (pixelBounds.pMax.x - pixelBounds.pMin.x);
                         let pixel_offset = p_pixel_o.x
                             + p_pixel_o.y * (pixel_bounds.p_max.x - pixel_bounds.p_min.x);
-                        // SPPMPixel &pixel = pixels[pixelOffset];
-                        // let pixel = [pixel_offset as usize];
-                        // bool specularBounce = false;
-                        // for (int depth = 0; depth < maxDepth; ++depth) {
-                        //     SurfaceInteraction isect;
-                        //     ++totalPhotonSurfaceInteractions;
-                        //     if (!scene.Intersect(ray, &isect)) {
-                        //         // Accumulate light contributions for ray with no
-                        //         // intersection
-                        //         for (const auto &light : scene.lights)
-                        //             pixel.Ld += beta * light->Le(ray);
-                        //         break;
-                        //     }
-                        //     // Process SPPM camera ray intersection
+                        let mut pixel = am_pixels[pixel_offset as usize].lock().unwrap();
+                        let mut specular_bounce = false;
+                        for depth in 0..self.max_depth {
+                            let mut isect = SurfaceInteraction::default();
 
-                        //     // Compute BSDF at SPPM camera ray intersection
-                        //     isect.ComputeScatteringFunctions(ray, arena, true);
-                        //     if (!isect.bsdf) {
-                        //         ray = isect.SpawnRay(ray.d);
-                        //         --depth;
-                        //         continue;
-                        //     }
-                        //     const BSDF &bsdf = *isect.bsdf;
+                            if !scene.intersect(&mut ray.ray, &mut isect) {
+                                // Accumulate light contributions for ray with no intersection
+                                for light in &scene.lights {
+                                    pixel.ld += beta * light.le(&ray);
+                                }
+                                break;
+                            }
+                            // Process SPPM camera ray intersection
 
-                        //     // Accumulate direct illumination at SPPM camera ray
-                        //     // intersection
-                        //     Vector3f wo = -ray.d;
-                        //     if (depth == 0 || specularBounce)
-                        //         pixel.Ld += beta * isect.Le(wo);
-                        //     pixel.Ld +=
-                        //         beta * UniformSampleOneLight(isect, scene, arena,
-                        //                                      *tileSampler);
+                            // Compute BSDF at SPPM camera ray intersection
+                            isect.compute_scattering_functions(
+                                &ray,
+                                true,
+                                crate::material::TransportMode::Radiance,
+                            );
+                            if isect.bsdf.is_none() {
+                                ray = isect.ist.spawn_ray(ray.ray.d).into();
+                                // depth -= 1;
+                                continue;
+                            }
+                            // Accumulate direct illumination at SPPM camera ray intersection
+                            let wo = -ray.ray.d;
+                            if depth == 0 || specular_bounce {
+                                pixel.ld += beta * isect.le(&wo);
+                            }
+                            pixel.ld += beta
+                                * uniform_sample_one_light(
+                                    &Interaction::Surface(isect.clone()),
+                                    scene,
+                                    &mut ht_sampler,
+                                    false,
+                                    None,
+                                );
+                            // Possibly create visible point and end camera path
+                            if let Some(bsdf) = &isect.bsdf {
+                                let is_diffuse = bsdf.num_components(
+                                    BXDF_DIFFUSE | BXDF_REFLECTION | BXDF_TRANSMISSION,
+                                ) > 0;
+                                let is_glossy = bsdf.num_components(
+                                    BXDF_GLOSSY | BXDF_REFLECTION | BXDF_TRANSMISSION,
+                                ) > 0;
 
-                        //     // Possibly create visible point and end camera path
-                        //     bool isDiffuse = bsdf.NumComponents(BxDFType(
-                        //                          BSDF_DIFFUSE | BSDF_REFLECTION |
-                        //                          BSDF_TRANSMISSION)) > 0;
-                        //     bool isGlossy = bsdf.NumComponents(BxDFType(
-                        //                         BSDF_GLOSSY | BSDF_REFLECTION |
-                        //                         BSDF_TRANSMISSION)) > 0;
-                        //     if (isDiffuse || (isGlossy && depth == maxDepth - 1)) {
-                        //         pixel.vp = {isect.p, wo, &bsdf, beta};
-                        //         break;
-                        //     }
+                                if is_diffuse || (is_glossy && depth == self.max_depth - 1) {
+                                    pixel.vp = VisiblePoint::new(
+                                        isect.ist.p,
+                                        wo,
+                                        Some(bsdf.clone()),
+                                        beta,
+                                    );
+                                    break;
+                                }
 
-                        //     // Spawn ray from SPPM camera path vertex
-                        //     if (depth < maxDepth - 1) {
-                        //         Float pdf;
-                        //         Vector3f wi;
-                        //         BxDFType type;
-                        //         Spectrum f =
-                        //             bsdf.Sample_f(wo, &wi, tileSampler->Get2D(),
-                        //                           &pdf, BSDF_ALL, &type);
-                        //         if (pdf == 0. || f.IsBlack()) break;
-                        //         specularBounce = (type & BSDF_SPECULAR) != 0;
-                        //         beta *= f * AbsDot(wi, isect.shading.n) / pdf;
-                        //         if (beta.y() < 0.25) {
-                        //             Float continueProb =
-                        //                 std::min((Float)1, beta.y());
-                        //             if (tileSampler->Get1D() > continueProb) break;
-                        //             beta /= continueProb;
-                        //         }
-                        //         ray = (RayDifferential)isect.SpawnRay(wi);
-                        //     }
-                        // }
+                                // Spawn ray from SPPM camera path vertex
+                                if depth < self.max_depth - 1 {
+                                    let mut wi = Vector3f::default();
+                                    let mut pdf = 0.0;
+                                    let mut flags = 0;
+                                    let f = bsdf.sample_f(
+                                        &wo,
+                                        &mut wi,
+                                        &ht_sampler.get_2d(),
+                                        &mut pdf,
+                                        BXDF_ALL,
+                                        &mut flags,
+                                    );
+                                    if pdf == 0.0 || f.is_black() {
+                                        break;
+                                    }
+                                    specular_bounce = (flags & BXDF_SPECULAR) != 0;
+                                    beta *= f * abs_dot3(&wi, &isect.shading.n) / pdf;
+                                    if beta.y() < 0.25 {
+                                        let continue_prob = beta.y().min(1.0);
+                                        if ht_sampler.get_1d() > continue_prob {
+                                            break;
+                                        }
+                                        beta /= continue_prob;
+                                    }
+                                    ray = isect.ist.spawn_ray(wi).into();
+                                }
+                            }
+                        }
                     }
                 })
-            })
+            });
 
-            //     // Create grid of all SPPM visible points
-            //     int gridRes[3];
-            //     Bounds3f gridBounds;
-            //     // Allocate grid for SPPM visible points
-            //     const int hashSize = nPixels;
-            //     std::vector<std::atomic<SPPMPixelListNode *>> grid(hashSize);
-            //     {
-            //         ProfilePhase _(Prof::SPPMGridConstruction);
+            // Create grid of all SPPM visible points
+            let mut grid_res = [0_i64; 3];
+            let mut grid_bounds = Bounds3f::default();
+            // Allocate grid for SPPM visible points
+            let hash_size = n_pixels as usize;
+            let mut grid: Vec<Arc<Mutex<Option<SPPMPixelListNode>>>> =
+                Vec::with_capacity(hash_size);
+            for _g_i in 0..hash_size {
+                grid.push(Arc::new(Mutex::new(None)));
+            }
+            // Compute grid bounds for SPPM visible points
+            let mut max_radius: f64 = 0.0;
+            for i in 0..hash_size {
+                let pixel = am_pixels[i].lock().unwrap();
+                if pixel.vp.beta.is_black() {
+                    continue;
+                }
 
-            //         // Compute grid bounds for SPPM visible points
-            //         Float maxRadius = 0.;
-            //         for (int i = 0; i < nPixels; ++i) {
-            //             const SPPMPixel &pixel = pixels[i];
-            //             if (pixel.vp.beta.IsBlack()) continue;
-            //             Bounds3f vpBound = Expand(Bounds3f(pixel.vp.p), pixel.radius);
-            //             gridBounds = Union(gridBounds, vpBound);
-            //             maxRadius = std::max(maxRadius, pixel.radius);
-            //         }
+                let vp_bound = Bounds3f::new(pixel.vp.p, pixel.vp.p).expand(pixel.radius);
+                grid_bounds = Bounds3f::union_bnd(&grid_bounds, &vp_bound);
+                max_radius = max_radius.max(pixel.radius);
+            }
 
-            //         // Compute resolution of SPPM grid in each dimension
-            //         Vector3f diag = gridBounds.Diagonal();
-            //         Float maxDiag = MaxComponent(diag);
-            //         int baseGridRes = (int)(maxDiag / maxRadius);
-            //         CHECK_GT(baseGridRes, 0);
-            //         for (int i = 0; i < 3; ++i)
-            //             gridRes[i] = std::max((int)(baseGridRes * diag[i] / maxDiag), 1);
+            // Compute resolution of SPPM grid in each dimension
+            let diag = grid_bounds.diagonal();
+            let max_diag = max_component(&diag);
+            assert!(max_diag > 0.0);
+            let base_grid_res = max_diag / max_radius;
+            for i in 0..3 {
+                grid_res[i] = ((base_grid_res * diag[i as u8] / max_diag) as i64).max(1);
+            }
 
-            //         // Add visible points to SPPM grid
-            //         ParallelFor([&](int pixelIndex) {
-            //             MemoryArena &arena = perThreadArenas[ThreadIndex];
-            //             SPPMPixel &pixel = pixels[pixelIndex];
-            //             if (!pixel.vp.beta.IsBlack()) {
-            //                 // Add pixel's visible point to applicable grid cells
-            //                 Float radius = pixel.radius;
-            //                 Point3i pMin, pMax;
-            //                 ToGrid(pixel.vp.p - Vector3f(radius, radius, radius),
-            //                        gridBounds, gridRes, &pMin);
-            //                 ToGrid(pixel.vp.p + Vector3f(radius, radius, radius),
-            //                        gridBounds, gridRes, &pMax);
-            //                 for (int z = pMin.z; z <= pMax.z; ++z)
-            //                     for (int y = pMin.y; y <= pMax.y; ++y)
-            //                         for (int x = pMin.x; x <= pMax.x; ++x) {
-            //                             // Add visible point to grid cell $(x, y, z)$
-            //                             int h = hash(Point3i(x, y, z), hashSize);
-            //                             SPPMPixelListNode *node =
-            //                                 arena.Alloc<SPPMPixelListNode>();
-            //                             node->pixel = &pixel;
+            // Add visible points to SPPM grid
+            (0..am_pixels.len()).into_par_iter().for_each(|pixel_idx| {
+                let pixel = am_pixels[pixel_idx].lock().unwrap();
+                if !pixel.vp.beta.is_black() {
+                    // Add pixel's visible point to applicable grid cells
+                    let radius = pixel.radius;
+                    let mut p_min = Point3i::default();
+                    let mut p_max = Point3i::default();
 
-            //                             // Atomically add _node_ to the start of
-            //                             // _grid[h]_'s linked list
-            //                             node->next = grid[h];
-            //                             while (grid[h].compare_exchange_weak(
-            //                                        node->next, node) == false)
-            //                                 ;
-            //                         }
-            //                 ReportValue(gridCellsPerVisiblePoint,
-            //                             (1 + pMax.x - pMin.x) * (1 + pMax.y - pMin.y) *
-            //                                 (1 + pMax.z - pMin.z));
-            //             }
-            //         }, nPixels, 4096);
-            //     }
+                    to_grid(
+                        &(pixel.vp.p - Vector3f::new(radius, radius, radius)),
+                        &grid_bounds,
+                        grid_res,
+                        &mut p_min,
+                    );
+                    to_grid(
+                        &(pixel.vp.p + Vector3f::new(radius, radius, radius)),
+                        &grid_bounds,
+                        grid_res,
+                        &mut p_max,
+                    );
 
-            //     // Trace photons and accumulate contributions
-            //     {
-            //         ProfilePhase _(Prof::SPPMPhotonPass);
-            //         std::vector<MemoryArena> photonShootArenas(MaxThreadIndex());
-            //         ParallelFor([&](int photonIndex) {
-            //             MemoryArena &arena = photonShootArenas[ThreadIndex];
-            //             // Follow photon path for _photonIndex_
-            //             uint64_t haltonIndex =
-            //                 (uint64_t)iter * (uint64_t)photonsPerIteration +
-            //                 photonIndex;
-            //             int haltonDim = 0;
+                    for z in p_min.z..=p_max.z {
+                        for y in p_min.y..=p_max.y {
+                            for x in p_min.x..=p_max.x {
+                                // Add visible point to grid cell $(x, y, z)$
+                                let h =
+                                    hash(&Point3f::new(x as f64, y as f64, z as f64), hash_size);
 
-            //             // Choose light to shoot photon from
-            //             Float lightPdf;
-            //             Float lightSample = RadicalInverse(haltonDim++, haltonIndex);
-            //             int lightNum =
-            //                 lightDistr->SampleDiscrete(lightSample, &lightPdf);
-            //             const std::shared_ptr<Light> &light = scene.lights[lightNum];
+                                let mut node = SPPMPixelListNode::new(
+                                    am_pixels[pixel_idx].clone(),
+                                    Box::new(None),
+                                );
 
-            //             // Compute sample values for photon ray leaving light source
-            //             Point2f uLight0(RadicalInverse(haltonDim, haltonIndex),
-            //                             RadicalInverse(haltonDim + 1, haltonIndex));
-            //             Point2f uLight1(RadicalInverse(haltonDim + 2, haltonIndex),
-            //                             RadicalInverse(haltonDim + 3, haltonIndex));
-            //             Float uLightTime =
-            //                 Lerp(RadicalInverse(haltonDim + 4, haltonIndex),
-            //                      camera->shutterOpen, camera->shutterClose);
-            //             haltonDim += 5;
+                                // Atomically add _node_ to the start of _grid[h]_'s linked list
+                                let mut cur_start_node_opt = grid[h].lock().unwrap();
+                                let old = (*cur_start_node_opt).take();
+                                match old {
+                                    Some(old_node) => {
+                                        node.next = Box::new(Some(old_node));
+                                    }
+                                    None => {
+                                        node.next = Box::new(None);
+                                    }
+                                }
+                                (*cur_start_node_opt).replace(node);
+                            }
+                        }
+                    }
+                }
+            });
 
-            //             // Generate _photonRay_ from light source and initialize _beta_
-            //             RayDifferential photonRay;
-            //             Normal3f nLight;
-            //             Float pdfPos, pdfDir;
-            //             Spectrum Le =
-            //                 light->Sample_Le(uLight0, uLight1, uLightTime, &photonRay,
-            //                                  &nLight, &pdfPos, &pdfDir);
-            //             if (pdfPos == 0 || pdfDir == 0 || Le.IsBlack()) return;
-            //             Spectrum beta = (AbsDot(nLight, photonRay.d) * Le) /
-            //                             (lightPdf * pdfPos * pdfDir);
-            //             if (beta.IsBlack()) return;
+            // Trace photons and accumulate contributions
+            (0..=self.photons_per_iter)
+                .into_par_iter()
+                .for_each(|photon_index| {
+                    // Follow photon path for _photonIndex_
+                    let halton_index = (iter * self.photons_per_iter + photon_index) as u64;
+                    let mut halton_dim = 0;
 
-            //             // Follow photon path through scene and record intersections
-            //             SurfaceInteraction isect;
-            //             for (int depth = 0; depth < maxDepth; ++depth) {
-            //                 if (!scene.Intersect(photonRay, &isect)) break;
-            //                 ++totalPhotonSurfaceInteractions;
-            //                 if (depth > 0) {
-            //                     // Add photon contribution to nearby visible points
-            //                     Point3i photonGridIndex;
-            //                     if (ToGrid(isect.p, gridBounds, gridRes,
-            //                                &photonGridIndex)) {
-            //                         int h = hash(photonGridIndex, hashSize);
-            //                         // Add photon contribution to visible points in
-            //                         // _grid[h]_
-            //                         for (SPPMPixelListNode *node =
-            //                                  grid[h].load(std::memory_order_relaxed);
-            //                              node != nullptr; node = node->next) {
-            //                             ++visiblePointsChecked;
-            //                             SPPMPixel &pixel = *node->pixel;
-            //                             Float radius = pixel.radius;
-            //                             if (DistanceSquared(pixel.vp.p, isect.p) >
-            //                                 radius * radius)
-            //                                 continue;
-            //                             // Update _pixel_ $\Phi$ and $M$ for nearby
-            //                             // photon
-            //                             Vector3f wi = -photonRay.d;
-            //                             Spectrum Phi =
-            //                                 beta * pixel.vp.bsdf->f(pixel.vp.wo, wi);
-            //                             for (int i = 0; i < Spectrum::nSamples; ++i)
-            //                                 pixel.Phi[i].Add(Phi[i]);
-            //                             ++pixel.M;
-            //                         }
-            //                     }
-            //                 }
-            //                 // Sample new photon ray direction
+                    // Choose light to shoot photon from
+                    let mut light_pdf = 0.0;
+                    let light_sample = radical_inverse(halton_dim, halton_index);
+                    halton_dim += 1;
+                    let light_num = self
+                        .light_distr
+                        .sample_discrete(light_sample, Some(&mut light_pdf));
+                    let light = scene.lights[light_num].clone();
+                    // Compute sample values for photon ray leaving light source
+                    let u_light0 = Point2f::new(
+                        radical_inverse(halton_dim, halton_index),
+                        radical_inverse(halton_dim, halton_index),
+                    );
+                    let u_light1 = Point2f::new(
+                        radical_inverse(halton_dim + 2, halton_index),
+                        radical_inverse(halton_dim + 3, halton_index),
+                    );
+                    let u_light_time = lerp(
+                        radical_inverse(halton_dim + 2, halton_index),
+                        self.cam.camera.shutter_open,
+                        self.cam.camera.shutter_close,
+                    );
+                    halton_dim += 5;
 
-            //                 // Compute BSDF at photon intersection point
-            //                 isect.ComputeScatteringFunctions(photonRay, arena, true,
-            //                                                  TransportMode::Importance);
-            //                 if (!isect.bsdf) {
-            //                     --depth;
-            //                     photonRay = isect.SpawnRay(photonRay.d);
-            //                     continue;
-            //                 }
-            //                 const BSDF &photonBSDF = *isect.bsdf;
+                    // Generate _photonRay_ from light source and initialize _beta_
+                    let mut photon_ray = RayDifferential::default();
+                    let mut n_light = Normal3f::default();
+                    let mut pdf_pos = 0.0;
+                    let mut pdf_dir = 0.0;
 
-            //                 // Sample BSDF _fr_ and direction _wi_ for reflected photon
-            //                 Vector3f wi, wo = -photonRay.d;
-            //                 Float pdf;
-            //                 BxDFType flags;
+                    let le = light.sample_le(
+                        &u_light0,
+                        &u_light1,
+                        u_light_time,
+                        &mut photon_ray.ray,
+                        &mut n_light,
+                        &mut pdf_pos,
+                        &mut pdf_dir,
+                    );
+                    if pdf_pos == 0.0 || pdf_dir == 0.0 || le.is_black() {
+                        return;
+                    }
 
-            //                 // Generate _bsdfSample_ for outgoing photon sample
-            //                 Point2f bsdfSample(
-            //                     RadicalInverse(haltonDim, haltonIndex),
-            //                     RadicalInverse(haltonDim + 1, haltonIndex));
-            //                 haltonDim += 2;
-            //                 Spectrum fr = photonBSDF.Sample_f(wo, &wi, bsdfSample, &pdf,
-            //                                                   BSDF_ALL, &flags);
-            //                 if (fr.IsBlack() || pdf == 0.f) break;
-            //                 Spectrum bnew =
-            //                     beta * fr * AbsDot(wi, isect.shading.n) / pdf;
+                    let mut beta = (le * abs_dot3(&n_light, &photon_ray.ray.d))
+                        / (light_pdf * pdf_pos * pdf_dir);
+                    if beta.is_black() {
+                        return;
+                    }
+                    // Follow photon path through scene and record intersections
+                    let mut isect = SurfaceInteraction::default();
+                    for depth in 0..self.max_depth {
+                        if !scene.intersect(&mut photon_ray.ray, &mut isect) {
+                            break;
+                        }
 
-            //                 // Possibly terminate photon path with Russian roulette
-            //                 Float q = std::max((Float)0, 1 - bnew.y() / beta.y());
-            //                 if (RadicalInverse(haltonDim++, haltonIndex) < q) break;
-            //                 beta = bnew / (1 - q);
-            //                 photonRay = (RayDifferential)isect.SpawnRay(wi);
-            //             }
-            //             arena.Reset();
-            //         }, photonsPerIteration, 8192);
-            //         progress.Update();
-            //         photonPaths += photonsPerIteration;
-            //     }
+                        if depth > 0 {
+                            // Add photon contribution to nearby visible points
+                            let mut photon_grid_index = Point3i::default();
+                            if to_grid(&isect.ist.p, &grid_bounds, grid_res, &mut photon_grid_index)
+                            {
+                                let h = hash(
+                                    &Point3f::new(
+                                        photon_grid_index.x as f64,
+                                        photon_grid_index.y as f64,
+                                        photon_grid_index.z as f64,
+                                    ),
+                                    hash_size,
+                                );
+                                // Add photon contribution to visible points in _grid[h]_
+                                // walk this linked list
+                                let mut cur_list_node_opt = grid[h].lock().unwrap();
+                                let mut cur_node_opt = Box::new(cur_list_node_opt.take());
+                                loop {
+                                    if cur_node_opt.is_none() {
+                                        break;
+                                    }
+                                    let cur_node = cur_node_opt.unwrap();
+                                    let mut pixel = cur_node.pixel.lock().unwrap();
+                                    let radius = pixel.radius;
 
-            //     // Update pixel values from this pass's photons
-            //     {
-            //         ProfilePhase _(Prof::SPPMStatsUpdate);
-            //         ParallelFor([&](int i) {
-            //             SPPMPixel &p = pixels[i];
-            //             if (p.M > 0) {
-            //                 // Update pixel photon count, search radius, and $\tau$ from
-            //                 // photons
-            //                 Float gamma = (Float)2 / (Float)3;
-            //                 Float Nnew = p.N + gamma * p.M;
-            //                 Float Rnew = p.radius * std::sqrt(Nnew / (p.N + p.M));
-            //                 Spectrum Phi;
-            //                 for (int j = 0; j < Spectrum::nSamples; ++j)
-            //                     Phi[j] = p.Phi[j];
-            //                 p.tau = (p.tau + p.vp.beta * Phi) * (Rnew * Rnew) /
-            //                         (p.radius * p.radius);
-            //                 p.N = Nnew;
-            //                 p.radius = Rnew;
-            //                 p.M = 0;
-            //                 for (int j = 0; j < Spectrum::nSamples; ++j)
-            //                     p.Phi[j] = (Float)0;
-            //             }
-            //             // Reset _VisiblePoint_ in pixel
-            //             p.vp.beta = 0.;
-            //             p.vp.bsdf = nullptr;
-            //         }, nPixels, 4096);
-            //     }
+                                    if (pixel.vp.p - isect.ist.p).length_squared()
+                                        > (radius * radius)
+                                    {
+                                        cur_node_opt = cur_node.next;
+                                        continue;
+                                    }
 
-            //     // Periodically store SPPM image in film and write image
-            //     if (iter + 1 == nIterations || ((iter + 1) % writeFrequency) == 0) {
-            //         int x0 = pixelBounds.pMin.x;
-            //         int x1 = pixelBounds.pMax.x;
-            //         uint64_t Np = (uint64_t)(iter + 1) * (uint64_t)photonsPerIteration;
-            //         std::unique_ptr<Spectrum[]> image(new Spectrum[pixelBounds.Area()]);
-            //         int offset = 0;
-            //         for (int y = pixelBounds.pMin.y; y < pixelBounds.pMax.y; ++y) {
-            //             for (int x = x0; x < x1; ++x) {
-            //                 // Compute radiance _L_ for SPPM pixel _pixel_
-            //                 const SPPMPixel &pixel =
-            //                     pixels[(y - pixelBounds.pMin.y) * (x1 - x0) + (x - x0)];
-            //                 Spectrum L = pixel.Ld / (iter + 1);
-            //                 L += pixel.tau / (Np * Pi * pixel.radius * pixel.radius);
-            //                 image[offset++] = L;
-            //             }
-            //         }
-            //         camera->film->SetImage(image.get());
-            //         camera->film->WriteImage();
-            //         // Write SPPM radius image, if requested
-            //         if (getenv("SPPM_RADIUS")) {
-            //             std::unique_ptr<Float[]> rimg(
-            //                 new Float[3 * pixelBounds.Area()]);
-            //             Float minrad = 1e30f, maxrad = 0;
-            //             for (int y = pixelBounds.pMin.y; y < pixelBounds.pMax.y; ++y) {
-            //                 for (int x = x0; x < x1; ++x) {
-            //                     const SPPMPixel &p =
-            //                         pixels[(y - pixelBounds.pMin.y) * (x1 - x0) +
-            //                                (x - x0)];
-            //                     minrad = std::min(minrad, p.radius);
-            //                     maxrad = std::max(maxrad, p.radius);
-            //                 }
-            //             }
-            //             fprintf(stderr,
-            //                     "iterations: %d (%.2f s) radius range: %f - %f\n",
-            //                     iter + 1, progress.ElapsedMS() / 1000., minrad, maxrad);
-            //             int offset = 0;
-            //             for (int y = pixelBounds.pMin.y; y < pixelBounds.pMax.y; ++y) {
-            //                 for (int x = x0; x < x1; ++x) {
-            //                     const SPPMPixel &p =
-            //                         pixels[(y - pixelBounds.pMin.y) * (x1 - x0) +
-            //                                (x - x0)];
-            //                     Float v = 1.f - (p.radius - minrad) / (maxrad - minrad);
-            //                     rimg[offset++] = v;
-            //                     rimg[offset++] = v;
-            //                     rimg[offset++] = v;
-            //                 }
-            //             }
-            //             Point2i res(pixelBounds.pMax.x - pixelBounds.pMin.x,
-            //                         pixelBounds.pMax.y - pixelBounds.pMin.y);
-            //             WriteImage("sppm_radius.png", rimg.get(), pixelBounds, res);
-            //         }
-            //     }
+                                    // Update _pixel_ $\Phi$ and $M$ for nearby photon
+                                    let wi = -photon_ray.ray.d;
+                                    if let Some(pixel_vp_bsdf) = &pixel.vp.bsdf {
+                                        let phi =
+                                            beta * pixel_vp_bsdf.f(&pixel.vp.wo, &wi, BXDF_ALL);
+                                        for i in 0..SPECTRUM_N {
+                                            pixel.phi[i] += phi[i];
+                                        }
+                                        pixel.m += 1;
+                                    }
+
+                                    cur_node_opt = cur_node.next;
+                                }
+                            }
+                        }
+                        // Sample new photon ray direction
+
+                        // Compute BSDF at photon intersection point
+                        isect.compute_scattering_functions(
+                            &photon_ray,
+                            true,
+                            TransportMode::Importance,
+                        );
+
+                        if isect.bsdf.is_none() {
+                            photon_ray = isect.ist.spawn_ray(photon_ray.ray.d).into();
+                            // depth -= 1;
+                            continue;
+                        }
+
+                        let mut wi = Vector3f::default();
+                        let wo = -photon_ray.ray.d;
+                        let mut pdf = 0.0;
+                        let mut flags = 0;
+
+                        // Generate _bsdfSample_ for outgoing photon sample
+                        let bsdf_sample = Point2f::new(
+                            radical_inverse(halton_dim, halton_index),
+                            radical_inverse(halton_dim + 1, halton_index),
+                        );
+                        halton_dim += 2;
+                        if let Some(photon_bsdf) = &isect.bsdf {
+                            let fr = photon_bsdf.sample_f(
+                                &wo,
+                                &mut wi,
+                                &bsdf_sample,
+                                &mut pdf,
+                                BXDF_ALL,
+                                &mut flags,
+                            );
+                            if fr.is_black() || pdf == 0.0 {
+                                break;
+                            }
+                            let bnew = beta * fr * abs_dot3(&wi, &isect.shading.n) / pdf;
+                            // Possibly terminate photon path with Russian roulette
+                            let q = (1.0 - bnew.y() / beta.y()).max(0.0);
+                            if radical_inverse(halton_dim, halton_index) < q {
+                                break;
+                            } else {
+                                halton_dim += 1;
+                            }
+                            beta = bnew / (1.0 - q);
+                            photon_ray = isect.ist.spawn_ray(wi).into();
+                        }
+                    }
+                });
+
+            // Update pixel values from this pass's photons
+            (0..n_pixels as usize).into_par_iter().for_each(|i| {
+                let mut p = am_pixels[i].lock().unwrap();
+                if p.m > 0 {
+                    // Update pixel photon count, search radius, and $\tau$ from photons
+                    let gamma = 2.0 / 3.0;
+                    let n_new = p.n + gamma * p.m as f64;
+                    let r_new = p.radius * (n_new / (p.n + p.m as f64));
+                    let mut phi = Spectrum::<SPECTRUM_N>::zero();
+                    for j in 0..SPECTRUM_N {
+                        phi[j] = p.phi[j];
+                    }
+                    p.tau = (p.tau + p.vp.beta * phi) * (r_new * r_new) / (p.radius * p.radius);
+
+                    p.n = n_new;
+                    p.radius = r_new;
+                    p.m = 0;
+
+                    for j in 0..SPECTRUM_N {
+                        p.phi[j] = 0.0;
+                    }
+                }
+                p.vp.beta = Spectrum::zero();
+                p.vp.bsdf = None;
+            });
+
+            // Periodically store SPPM image in film and write image
+            if (iter + 1) == self.n_iters || ((iter + 1) % self.write_freq) == 0 {
+                let x0 = pixel_bounds.p_min.x as usize;
+                let x1 = pixel_bounds.p_max.x as usize;
+                let np = (iter + 1) * self.photons_per_iter;
+                let mut image = Vec::with_capacity(pixel_bounds.area() as usize);
+
+                for y in pixel_bounds.p_min.y as usize..pixel_bounds.p_max.y as usize {
+                    for x in x0..x1 {
+                        // Compute radiance _L_ for SPPM pixel _pixel_
+                        let pixel = am_pixels
+                            [(y - pixel_bounds.p_min.y as usize) * (x1 - x0) + (x - x0)]
+                            .lock()
+                            .unwrap();
+                        let mut l = pixel.ld / (iter + 1) as f64;
+                        l += pixel.tau / (np as f64 * PI * pixel.radius * pixel.radius);
+                        image.push(l);
+                    }
+                }
+                self.cam.camera.film.set_image(&image);
+                self.cam.camera.film.write_image(1.0);
+            }
         }
     }
 }

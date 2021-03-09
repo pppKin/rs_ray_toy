@@ -444,4 +444,8 @@ impl AtomicF64 {
     pub fn store(&self, val: f64, order: Ordering) {
         self.v.store(val.to_bits(), order)
     }
+    pub fn fetch_add(&self, val: f64, order: Ordering) -> f64 {
+        let prev_val = self.v.fetch_add(val.to_bits(), order);
+        f64::from_bits(prev_val)
+    }
 }
