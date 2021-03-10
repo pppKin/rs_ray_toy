@@ -23,8 +23,8 @@ impl Scene {
         lights: Vec<Arc<dyn Light>>,
         infinite_lights: Vec<Arc<dyn Light>>,
         aggregate: Arc<dyn Primitive>,
-        w_bound: Bounds3f,
     ) -> Self {
+        let w_bound = aggregate.world_bound();
         Self {
             lights,
             infinite_lights,

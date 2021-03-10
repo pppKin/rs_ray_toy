@@ -4,8 +4,9 @@ use crate::{
         bnd2_intersect_bnd2, pnt2_ceil, pnt2_floor, pnt2_max_pnt2, pnt2_min_pnt2, Bounds2f,
         Bounds2i, Point2f, Point2i, Vector2f,
     },
+    renderprocess::write_image,
     spectrum::{xyz_to_rgb, ISpectrum, Spectrum},
-    {write_image, SPECTRUM_N},
+    SPECTRUM_N,
 };
 use std::sync::RwLock;
 
@@ -371,12 +372,7 @@ impl Film {
         }
 
         // Write RGB image
-        write_image(
-            &self.filename,
-            &rgb,
-            self.cropped_pixel_bounds,
-            self.full_resolution,
-        )
-        .expect("FAILED writing to image!");
+        write_image(&self.filename, &rgb, self.cropped_pixel_bounds)
+            .expect("FAILED writing to image!");
     }
 }

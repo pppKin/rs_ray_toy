@@ -10,6 +10,7 @@ rand = "^0.8"
 image = "^0.23"
 lazy_static = "^1.4"
 rayon = "^1.5"
+serde_json = "^1.0"
 
 [[bin]]
 name = "rs_ray_toy"
