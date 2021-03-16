@@ -192,10 +192,10 @@ impl SurfaceInteraction {
         dpdvs: &Vector3f,
         dndus: &Normal3f,
         dndvs: &Normal3f,
-        orientationIsAuthoritative: bool,
+        orientation_is_authoritative: bool,
     ) {
         let mut n = Normal3f::from(cross(dpdus, dpdvs).normalize());
-        if orientationIsAuthoritative {
+        if orientation_is_authoritative {
             n = faceforward(&self.ist.n, &n);
         } else {
             n = faceforward(&n, &self.ist.n);

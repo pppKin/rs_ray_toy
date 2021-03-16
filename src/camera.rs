@@ -128,7 +128,7 @@ pub trait ICamera: ToWorld + Debug {
     fn pdf_we(&self, _ray: &Ray, _pdf_pos: &mut f64, _pdf_dir: &mut f64) {
         unimplemented!()
     }
-    fn sample__wi(
+    fn sample_wi(
         &self,
         _ref_int: &Interaction,
         _u: &Point2f,

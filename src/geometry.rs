@@ -623,6 +623,20 @@ impl<T> IndexMut<u8> for Point3<T> {
     }
 }
 
+impl<T> Neg for Point3<T>
+where
+    T: Copy + Neg<Output = T>,
+{
+    type Output = Point3<T>;
+    fn neg(self) -> Point3<T> {
+        Point3::<T> {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
+    }
+}
+
 /// Permute the coordinate values according to the povided
 /// permutation.
 pub fn pnt3_permute<T>(v: &Point3<T>, x: usize, y: usize, z: usize) -> Point3<T>
@@ -996,10 +1010,13 @@ impl DivAssign<f64> for Vector3<f64> {
     }
 }
 
-impl Neg for Vector3<f64> {
-    type Output = Vector3<f64>;
-    fn neg(self) -> Vector3<f64> {
-        Vector3::<f64> {
+impl<T> Neg for Vector3<T>
+where
+    T: Copy + Neg<Output = T>,
+{
+    type Output = Vector3<T>;
+    fn neg(self) -> Vector3<T> {
+        Vector3::<T> {
             x: -self.x,
             y: -self.y,
             z: -self.z,

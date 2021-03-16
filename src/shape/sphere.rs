@@ -25,6 +25,28 @@ pub struct Sphere {
     phi_max: f64,
 }
 
+impl Sphere {
+    pub fn new(
+        obj_to_world: Transform,
+        world_to_obj: Transform,
+        radius: f64,
+        z_min: f64,
+        z_max: f64,
+        phi_max: f64,
+    ) -> Self {
+        Self {
+            obj_to_world,
+            world_to_obj,
+            radius,
+            z_min,
+            z_max,
+            theta_min: clamp_t(z_min.min(z_max) / radius, -1.0, 1.0).acos(),
+            theta_max: clamp_t(z_min.max(z_max) / radius, -1.0, 1.0).acos(),
+            phi_max: clamp_t(phi_max, 0.0, 360.0).to_radians(),
+        }
+    }
+}
+
 impl IntersectP for Sphere {
     fn intersect_p(&self, r: &Ray) -> bool {
         let mut phi = 0.0;
