@@ -5,6 +5,7 @@ use crate::{
     interaction::SurfaceInteraction,
     texture::Texture,
 };
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TransportMode {
     Radiance,
@@ -64,6 +65,7 @@ pub trait Material: std::fmt::Debug + Send + Sync {
 pub mod disney;
 pub mod glass;
 pub mod matte;
+pub mod metal;
 pub mod mirror;
 pub mod mixmat;
 pub mod plastic;

@@ -60,8 +60,8 @@ impl Material for GlassMaterial {
             self.bump(bm.clone(), si);
         }
         let eta = self.index.evaluate(si);
-        let mut urough = self.u_roughness.evaluate(si);
-        let mut vrough = self.v_roughness.evaluate(si);
+        let mut u_rough = self.u_roughness.evaluate(si);
+        let mut v_rough = self.v_roughness.evaluate(si);
         let r = self.kr.evaluate(si).clamp(0.0, INFINITY);
         let t = self.kt.evaluate(si).clamp(0.0, INFINITY);
 
@@ -71,21 +71,21 @@ impl Material for GlassMaterial {
             si.bsdf = None;
             return;
         }
-        let is_specular = urough == 0.0 && vrough == 0.0;
+        let is_specular = u_rough == 0.0 && v_rough == 0.0;
 
         if is_specular && allow_multiple_lobes {
             bsdf.add(Arc::new(FresnelSpecular::new(r, t, 1.0, eta, mode)));
         } else {
             if self.remap_roughness {
-                urough = roughness_to_alpha(urough);
-                vrough = roughness_to_alpha(vrough);
+                u_rough = roughness_to_alpha(u_rough);
+                v_rough = roughness_to_alpha(v_rough);
             }
             if !r.is_black() {
                 let fresnel = FresnelDielectric::new(1.0, eta);
                 if is_specular {
                     bsdf.add(Arc::new(SpecularReflection::new(r, Arc::new(fresnel))));
                 } else {
-                    let distrib = TrowbridgeReitzDistribution::new(urough, vrough, true);
+                    let distrib = TrowbridgeReitzDistribution::new(u_rough, v_rough, true);
                     bsdf.add(Arc::new(MicrofacetReflection::new(
                         r,
                         Arc::new(distrib),
@@ -97,7 +97,7 @@ impl Material for GlassMaterial {
                 if is_specular {
                     bsdf.add(Arc::new(SpecularTransmission::new(t, 1.0, eta, mode)));
                 } else {
-                    let distrib = TrowbridgeReitzDistribution::new(urough, vrough, true);
+                    let distrib = TrowbridgeReitzDistribution::new(u_rough, v_rough, true);
                     bsdf.add(Arc::new(MicrofacetTransmission::new(
                         t,
                         Box::new(distrib),

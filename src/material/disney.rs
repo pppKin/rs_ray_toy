@@ -2,7 +2,7 @@ use std::{f64::consts::PI, f64::INFINITY, sync::Arc};
 
 use crate::{
     bssrdf::{ISeparableBSSRDF, SeparableBSSRDF, BSSRDF},
-    geometry::{dot3, spherical_direction, Point2f, Vector3f},
+    geometry::{dot3, spherical_direction, Point2f},
     microfacet::{MicrofacetDistribution, TrowbridgeReitzDistribution},
     misc::{lerp, ONE_MINUS_EPSILON},
     reflection::{
@@ -12,11 +12,10 @@ use crate::{
         BXDF_GLOSSY, BXDF_REFLECTION,
     },
     spectrum::{ISpectrum, Spectrum},
-    texture::Texture,
     SPECTRUM_N,
 };
 
-use super::Material;
+use super::*;
 
 fn gtr1(cos_theta: f64, alpha: f64) -> f64 {
     let alpha2 = alpha * alpha;
