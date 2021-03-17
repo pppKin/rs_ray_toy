@@ -1,13 +1,15 @@
 use std::{f64::consts::PI, f64::INFINITY, sync::Arc};
 
 use crate::{
+    bssrdf::{ISeparableBSSRDF, SeparableBSSRDF, BSSRDF},
     geometry::{dot3, spherical_direction, Point2f, Vector3f},
     microfacet::{MicrofacetDistribution, TrowbridgeReitzDistribution},
-    misc::lerp,
+    misc::{lerp, ONE_MINUS_EPSILON},
     reflection::{
         abs_cos_theta, fr_dielectric, fr_schlick, fr_schlick_spectrum, reflect, same_hemisphere,
         schlick_r0_from_eta, schlick_weight, Bsdf, BxDF, BxDFType, Fresnel, LambertianTransmission,
-        MicrofacetReflection, MicrofacetTransmission, BXDF_DIFFUSE, BXDF_GLOSSY, BXDF_REFLECTION,
+        MicrofacetReflection, MicrofacetTransmission, SpecularTransmission, BXDF_DIFFUSE,
+        BXDF_GLOSSY, BXDF_REFLECTION,
     },
     spectrum::{ISpectrum, Spectrum},
     texture::Texture,
@@ -358,6 +360,108 @@ impl MicrofacetDistribution for DisneyMicrofacetDistribution {
     }
 }
 
+#[derive(Debug)]
+pub struct DisneyBSSRDF {
+    r: Spectrum<SPECTRUM_N>,
+    d: Spectrum<SPECTRUM_N>,
+}
+
+impl DisneyBSSRDF {
+    pub fn new(r: Spectrum<SPECTRUM_N>, d: Spectrum<SPECTRUM_N>) -> Self {
+        Self { r, d: d * 0.2 }
+    }
+}
+
+impl ISeparableBSSRDF for DisneyBSSRDF {
+    // Diffusion profile from Burley 2015, eq (5).
+    fn sr(
+        &self,
+        d: f64,
+        _bd: &crate::bssrdf::BSSRDFData,
+        _sbd: &crate::bssrdf::SeparableBSSRDFData,
+    ) -> Spectrum<SPECTRUM_N> {
+        //     ProfilePhase pp(Prof::BSSRDFEvaluation);
+        let r;
+        if d < 1_e-6f64 {
+            r = 1e-6_f64
+        } else {
+            r = d;
+        }; // Avoid singularity at r == 0.
+
+        self.r * ((-Spectrum::from(r) / self.d).exp() + (-Spectrum::from(r) / (self.d * 3.0)).exp())
+            / (self.d * r * 8.0 * PI)
+    }
+
+    fn sample_sr(
+        &self,
+        ch: usize,
+        u: f64,
+        _bd: &crate::bssrdf::BSSRDFData,
+        _sbd: &crate::bssrdf::SeparableBSSRDFData,
+    ) -> f64 {
+        // The good news is that diffusion profile implemented in Sr is
+        // normalized---integrating in polar coordinates, we have:
+        //
+        // int_0^2pi int_0^Infinity Sr(r) r dr dphi == 1.
+        //
+        // The CDF can be found in closed-form. It is:
+        //
+        // 1 - e^(-x/d) / 4 - (3 / 4) e^(-x / (3d)).
+        //
+        // Unfortunately, inverting the CDF requires solving a cubic, which
+        // would be nice to sidestep. Therefore, following Christensen and
+        // Burley's suggestion (section 6), we will sample from each of the two
+        // exponential terms individually (which can be done directly) and then
+        // compute an overall PDF using MIS.  There are a few details to work
+        // through...
+        //
+        // For the first exponential term, we can find:
+        // normalized PDF: e^(-r/d) / (2 Pi d r)
+        // CDF: 1 - e^(-r/d)
+        // sampling recipe: r = d log(1 / (1 - u))
+        //
+        // For the second:
+        // PDF: e^(-r/(3d)) / (6 Pi d r)
+        // CDF: 1 - e^(-r/(3d))
+        // sampling: r = 3 d log(1 / (1 - u))
+        //
+        // The last question is what fraction of samples to use for each
+        // technique.  The second exponential has 3x the contribution to the
+        // final value as the first does, so therefore we'll take three samples
+        // from that for every one sample we take from the first.
+
+        if u < 0.25 {
+            // Sample the first exponential
+            let u = (u * 4.0).min(ONE_MINUS_EPSILON);
+            self.d[ch] * (1.0 / (1.0 - u)).ln()
+        } else {
+            // Second exponenital
+            let u = ((u - 0.25) / 0.75).min(ONE_MINUS_EPSILON);
+            3.0 * self.d[ch] * (1.0 / (1.0 - u)).ln()
+        }
+    }
+
+    fn pdf_sr(
+        &self,
+        ch: usize,
+        r: f64,
+        _bd: &crate::bssrdf::BSSRDFData,
+        _sbd: &crate::bssrdf::SeparableBSSRDFData,
+    ) -> f64 {
+        let tmp_r;
+        if r < 1_e-6f64 {
+            tmp_r = 1e-6_f64
+        } else {
+            tmp_r = r;
+        }; // Avoid singularity at r == 0.
+
+        // Weight the two individual PDFs as per the sampling frequency in
+        // Sample_Sr().
+        0.25 * (-tmp_r / self.d[ch]).exp() / (2.0 * PI * self.d[ch] * tmp_r)
+            + 0.75 * (-tmp_r / (3.0 * self.d[ch]).exp()) / (6.0 * PI * self.d[ch] * tmp_r)
+    }
+}
+
 // TODO: DisneyBSSRDF
 #[derive(Debug, Clone)]
 pub struct DisneyMaterial {
@@ -399,7 +503,8 @@ impl Material for DisneyMaterial {
 
         // Evaluate textures for _DisneyMaterial_ material and allocate BRDF
         let mut bsdf = Bsdf::new(si, 1.0);
-        // Diffuse
+        let mut bssrdf: Option<Arc<dyn BSSRDF>> = None;
+
         let c = self.color.evaluate(si).clamp(0.0, INFINITY);
         let metallic_weight = self.metallic.evaluate(si);
         let e = self.eta.evaluate(si);
@@ -441,9 +546,21 @@ impl Material for DisneyMaterial {
                     // diffuse.
                     bsdf.add(Arc::new(DisneyDiffuse::new(c * diffuse_weight)));
                 } else {
-                    // SpecularTransmission::new(1.0, 1.0, e, mode)
-                    // DisneyBSSRDF::new(c* diffuse_weight, sd, si, e, mode)
-                    todo!()
+                    bsdf.add(Arc::new(SpecularTransmission::new(
+                        Spectrum::one(),
+                        1.0,
+                        e,
+                        mode,
+                    )));
+
+                    let disney_bssrdf = DisneyBSSRDF::new(c * diffuse_weight, sd);
+                    bssrdf = Some(Arc::new(SeparableBSSRDF::new(
+                        si.clone(),
+                        e,
+                        Arc::new(self.clone()),
+                        mode,
+                        Arc::new(disney_bssrdf),
+                    )));
                 }
             }
             // Retro-reflection.
@@ -521,5 +638,6 @@ impl Material for DisneyMaterial {
             bsdf.add(Arc::new(LambertianTransmission::new(c * dt)));
         }
         si.bsdf = Some(bsdf);
+        si.bssrdf = bssrdf;
     }
 }

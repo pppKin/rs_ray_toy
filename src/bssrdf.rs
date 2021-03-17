@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    geometry::{dot3, pnt3_distance, Normal3f, Point2f, Vector3f},
+    geometry::{cross, dot3, pnt3_distance, Normal3f, Point2f, Vector3f},
     interaction::{BaseInteraction, SurfaceInteraction},
     interpolation::{catmull_rom_weights, integrate_catmull_rom, sample_catmull_rom_2d},
     material::{Material, TransportMode},
@@ -20,12 +20,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct BSSRDFData {
-    po: Arc<SurfaceInteraction>,
+    po: SurfaceInteraction,
     eta: f64,
 }
 
 impl BSSRDFData {
-    pub fn new(po: Arc<SurfaceInteraction>, eta: f64) -> Self {
+    pub fn new(po: SurfaceInteraction, eta: f64) -> Self {
         Self { po, eta }
     }
 }
@@ -81,7 +81,17 @@ pub struct SeparableBSSRDF {
 }
 
 impl SeparableBSSRDF {
-    pub fn new(bd: BSSRDFData, sbd: SeparableBSSRDFData, s: Arc<dyn ISeparableBSSRDF>) -> Self {
+    pub fn new(
+        po: SurfaceInteraction,
+        eta: f64,
+        material: Arc<dyn Material>,
+        mode: TransportMode,
+        s: Arc<dyn ISeparableBSSRDF>,
+    ) -> Self {
+        let ns = po.shading.n;
+        let ss = po.shading.dpdu.normalize();
+        let bd = BSSRDFData::new(po, eta);
+        let sbd = SeparableBSSRDFData::new(ns, ss, cross(&ns, &ss), material, mode);
         Self { bd, sbd, s }
     }
     fn sp(&self, pi: &SurfaceInteraction) -> Spectrum<SPECTRUM_N> {
