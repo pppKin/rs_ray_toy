@@ -4,6 +4,7 @@ use crate::{
     interaction::SurfaceInteraction,
     lights::AreaLight,
     material::{Material, TransportMode},
+    medium::MediumInterface,
     misc::copy_option_arc,
     shape::Shape,
     transform::Transform,
@@ -20,7 +21,7 @@ pub struct GeometricPrimitive {
     shape: Arc<dyn Shape>,
     material: Arc<dyn Material>,
     area_light: Option<Arc<dyn AreaLight>>,
-    // medium_interface
+    medium_interface: MediumInterface,
 }
 
 pub struct TransformedPrimitive {
@@ -55,20 +56,23 @@ impl GeometricPrimitive {
         shape: Arc<dyn Shape>,
         material: Arc<dyn Material>,
         area_light: Option<Arc<dyn AreaLight>>,
+        medium_interface: MediumInterface,
     ) -> Self {
-        GeometricPrimitive {
+        Self {
             shape,
             material,
             area_light,
+            medium_interface,
         }
     }
+
     pub fn get_arealight(&self) -> Option<Arc<dyn AreaLight>> {
         copy_option_arc(&self.area_light)
     }
     pub fn get_material(&self) -> Arc<dyn Material> {
         Arc::clone(&self.material)
     }
-    // initializes represen-tations of the light-scattering properties of the material at the intersection point on the surface.
+    // initializes representations of the light-scattering properties of the material at the intersection point on the surface.
     pub fn compute_scattering_functions(
         &self,
         si: &mut SurfaceInteraction,

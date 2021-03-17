@@ -25,6 +25,28 @@ pub struct TranslucentMaterial {
     remap_roughness: bool,
 }
 
+impl TranslucentMaterial {
+    pub fn new(
+        kd: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        ks: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        roughness: Arc<dyn Texture<f64>>,
+        reflect: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        transmit: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        bump_map: Option<Arc<dyn Texture<f64>>>,
+        remap_roughness: bool,
+    ) -> Self {
+        Self {
+            kd,
+            ks,
+            roughness,
+            reflect,
+            transmit,
+            bump_map,
+            remap_roughness,
+        }
+    }
+}
+
 impl Material for TranslucentMaterial {
     fn compute_scattering_functions(
         &self,

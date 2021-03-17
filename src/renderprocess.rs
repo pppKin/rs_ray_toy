@@ -7,20 +7,27 @@ use crate::{
     geometry::{Bounds2i, Cxyz, Point3f},
     integrator::Integrator,
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
-    material::Material,
+    material::{mixmat::MixMaterial, translucent::TranslucentMaterial, Material},
     medium::{grid::GridDensityMedium, homogeneous::HomogeneousMedium, Medium, MediumInterface},
     misc::{clamp_t, gamma_correct},
     primitives::Primitive,
     scene::Scene,
     shape::{sphere::Sphere, triangle::Triangle, Shape},
     spectrum::Spectrum,
+    texture::{ConstantTexture, Texture},
     transform::Transform,
     SPECTRUM_N,
 };
 
 struct SceneGlobalData {
+    float_texture: HashMap<String, Arc<dyn Texture<f64>>>,
+    rgb_texture: HashMap<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>,
+
     materials: HashMap<String, Arc<dyn Material>>,
     triangle_mesh: HashMap<String, Vec<Arc<Triangle>>>,
+
+    lights: Vec<Arc<dyn Light>>,
+    infinite_lights: Vec<Arc<dyn Light>>,
 }
 
 /// read scene config file (json), create required resources, and start rendering
@@ -52,6 +59,10 @@ fn read_i64(root: &Value, key: &str) -> i64 {
 
 fn read_f64(root: &Value, key: &str) -> f64 {
     root.get(key).unwrap().as_f64().unwrap()
+}
+
+fn read_bool(root: &Value, key: &str) -> bool {
+    root.get(key).unwrap().as_bool().unwrap()
 }
 
 fn read_num_array(v: &Value, length: usize) -> Result<Vec<f64>, String> {
@@ -109,28 +120,109 @@ fn make_transform<'a>(root: &'a Value) -> Result<Transform, String> {
 
 fn make_scene(scene_config: &Value) -> (Scene, SceneGlobalData) {
     // material and triangle mesh is used globally so we create them first and passed them around
-    let materials = make_materials(&scene_config);
-    let triangle_mesh = make_triangle_mesh(&scene_config, &materials);
-    let scene_global_data = SceneGlobalData {
-        materials,
-        triangle_mesh,
+    let (float_texture, rgb_texture) = make_textures(scene_config);
+    let mut scene_global_data = SceneGlobalData {
+        float_texture,
+        rgb_texture,
+        materials: HashMap::new(),
+        triangle_mesh: HashMap::new(),
+        lights: vec![],
+        infinite_lights: vec![],
     };
-    let (lights, infinite_lights) = make_all_lights(&scene_config, &scene_global_data);
-    let aggregate = make_aggregate(&scene_config, &scene_global_data);
+    scene_global_data.materials = make_materials(&scene_config, &scene_global_data);
+    scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config, &scene_global_data);
 
+    let (lights, infinite_lights) = make_all_lights(&scene_config, &scene_global_data);
+    scene_global_data.lights = lights.clone();
+    scene_global_data.infinite_lights = infinite_lights.clone();
+    let aggregate = make_aggregate(&scene_config, &scene_global_data);
     (
         Scene::new(lights, infinite_lights, aggregate),
         scene_global_data,
     )
 }
 
-fn make_materials(scene_config: &Value) -> HashMap<String, Arc<dyn Material>> {
+fn make_textures(
+    scene_config: &Value,
+) -> (
+    HashMap<String, Arc<dyn Texture<f64>>>,
+    HashMap<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>,
+) {
     todo!();
+}
+
+fn make_materials(
+    scene_config: &Value,
+    scene_global: &SceneGlobalData,
+) -> HashMap<String, Arc<dyn Material>> {
+    let mut materials_map = HashMap::<String, Arc<dyn Material>>::new();
+    if let Some(Value::Array(mat_ary)) = scene_config.get("materials") {
+        for mat_config in mat_ary {
+            let material_type = mat_config.get("material_type").unwrap().as_str().unwrap();
+            let material_name =
+                String::from(mat_config.get("material_name").unwrap().as_str().unwrap());
+            match material_type {
+                "MixMaterial" => {
+                    let mat1_name = mat_config.get("mat1").unwrap().as_str().unwrap();
+                    let mat2_name = mat_config.get("mat2").unwrap().as_str().unwrap();
+                    if materials_map.contains_key(mat1_name)
+                        && materials_map.contains_key(mat2_name)
+                    {
+                        let scale: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>;
+                        if let Some(Value::String(scale_texture)) = mat_config.get("scale") {
+                            scale = scene_global.rgb_texture[scale_texture.as_str()].clone();
+                        } else {
+                            scale = Arc::new(ConstantTexture::new(Spectrum::<SPECTRUM_N>::zero()));
+                        }
+                        materials_map.insert(
+                            material_name,
+                            Arc::new(MixMaterial::new(
+                                scene_global.materials[mat1_name].clone(),
+                                scene_global.materials[mat1_name].clone(),
+                                scale,
+                            )),
+                        );
+                    }
+                }
+                "TranslucentMaterial" => {
+                    let kd_name = mat_config.get("kd").unwrap().as_str().unwrap();
+                    let ks_name = mat_config.get("ks").unwrap().as_str().unwrap();
+                    let roughness_name = mat_config.get("roughness").unwrap().as_str().unwrap();
+                    let reflect_name = mat_config.get("reflect").unwrap().as_str().unwrap();
+                    let transmit_name = mat_config.get("transmit").unwrap().as_str().unwrap();
+                    let bump_map;
+                    if let Some(Value::String(bump_map_name)) = mat_config.get("bump_map") {
+                        bump_map = Some(scene_global.float_texture[bump_map_name].clone());
+                    } else {
+                        bump_map = None;
+                    }
+                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+
+                    materials_map.insert(
+                        material_name,
+                        Arc::new(TranslucentMaterial::new(
+                            scene_global.rgb_texture[kd_name].clone(),
+                            scene_global.rgb_texture[ks_name].clone(),
+                            scene_global.float_texture[roughness_name].clone(),
+                            scene_global.rgb_texture[reflect_name].clone(),
+                            scene_global.rgb_texture[transmit_name].clone(),
+                            bump_map,
+                            remap_roughness,
+                        )),
+                    );
+                }
+                _ => {
+                    eprintln!("Unsupported Material Type {}", material_type)
+                }
+            }
+        }
+    }
+    materials_map
 }
 
 fn make_triangle_mesh(
     scene_config: &Value,
-    mats: &HashMap<String, Arc<dyn Material>>,
+    scene_global: &SceneGlobalData,
 ) -> HashMap<String, Vec<Arc<Triangle>>> {
     todo!();
 }
@@ -205,8 +297,8 @@ fn make_light(light_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn L
                 let n_samples = read_i64(light_config, "n_samples") as usize;
                 let area = read_f64(light_config, "area");
                 let s: Arc<dyn Shape>;
-                if let Some(shape_config) = light_config.get("shape") {
-                    s = make_shape(shape_config, scene_global);
+                if let Some(shape_config) = light_config.get("light_shape") {
+                    s = make_light_shape(shape_config, scene_global);
                     return Arc::new(DiffuseAreaLight::new(
                         light_to_world,
                         mi,
@@ -251,7 +343,7 @@ fn make_spectrum(spectrum_config: &Value) -> Spectrum<SPECTRUM_N> {
     panic!("Failed to parse Spectrum {:?}", spectrum_config)
 }
 
-fn make_shape(shape_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Shape> {
+fn make_light_shape(shape_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Shape> {
     if let Some(Value::String(shape_type)) = shape_config.get("shape_type") {
         match shape_type.as_str() {
             "sphere" => {
