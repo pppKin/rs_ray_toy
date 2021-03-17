@@ -85,7 +85,6 @@ where
             }
             LightStrategy::UniformSampleOne => {}
         }
-        todo!()
     }
 
     fn li(

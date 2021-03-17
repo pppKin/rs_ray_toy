@@ -11,15 +11,37 @@ use lazy_static::*;
 
 #[derive(Debug, Clone)]
 pub struct MetalMaterial {
-    eta: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>, // CopperK
-    k: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,   // CopperN
+    eta: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>, // COPPER_N
+    k: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,   // COPPER_K
 
-    roughness: Option<Arc<dyn Texture<f64>>>,
+    roughness: Arc<dyn Texture<f64>>,
     u_roughness: Option<Arc<dyn Texture<f64>>>,
     v_roughness: Option<Arc<dyn Texture<f64>>>,
 
     bump_map: Option<Arc<dyn Texture<f64>>>,
     remap_roughness: bool,
+}
+
+impl MetalMaterial {
+    pub fn new(
+        eta: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        k: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        roughness: Arc<dyn Texture<f64>>,
+        u_roughness: Option<Arc<dyn Texture<f64>>>,
+        v_roughness: Option<Arc<dyn Texture<f64>>>,
+        bump_map: Option<Arc<dyn Texture<f64>>>,
+        remap_roughness: bool,
+    ) -> Self {
+        Self {
+            eta,
+            k,
+            roughness,
+            u_roughness,
+            v_roughness,
+            bump_map,
+            remap_roughness,
+        }
+    }
 }
 
 impl Material for MetalMaterial {
@@ -38,18 +60,14 @@ impl Material for MetalMaterial {
         let mut u_rough;
         if let Some(u_roughness) = &self.u_roughness {
             u_rough = u_roughness.evaluate(si);
-        } else if let Some(roughness) = &self.roughness {
-            u_rough = roughness.evaluate(si);
         } else {
-            u_rough = 0.0;
+            u_rough = self.roughness.evaluate(si);
         }
         let mut v_rough;
         if let Some(v_roughness) = &self.v_roughness {
             v_rough = v_roughness.evaluate(si);
-        } else if let Some(roughness) = &self.roughness {
-            v_rough = roughness.evaluate(si);
         } else {
-            v_rough = 0.0;
+            v_rough = self.roughness.evaluate(si);
         }
 
         if self.remap_roughness {

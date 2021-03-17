@@ -7,7 +7,13 @@ use crate::{
     geometry::{Bounds2i, Cxyz, Point3f},
     integrator::Integrator,
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
-    material::{mixmat::MixMaterial, translucent::TranslucentMaterial, Material},
+    material::{
+        metal::{MetalMaterial, COPPER_K, COPPER_N},
+        mixmat::MixMaterial,
+        plastic::PlasticMaterial,
+        translucent::TranslucentMaterial,
+        Material,
+    },
     medium::{grid::GridDensityMedium, homogeneous::HomogeneousMedium, Medium, MediumInterface},
     misc::{clamp_t, gamma_correct},
     primitives::Primitive,
@@ -151,6 +157,54 @@ fn make_textures(
     todo!();
 }
 
+fn fetch_mat_float_texture(
+    mat_config: &Value,
+    scene_global: &SceneGlobalData,
+    tex_key: &str,
+    default_value: Option<f64>,
+) -> Arc<dyn Texture<f64>> {
+    return if let Some(Value::String(tex_name)) = mat_config.get(tex_key) {
+        scene_global.float_texture[tex_name].clone()
+    } else if let Some(d) = default_value {
+        Arc::new(ConstantTexture::new(d))
+    } else {
+        panic!("Failed to fetch Texture: {}", tex_key)
+    };
+}
+
+fn fetch_mat_float_texture_opt(
+    mat_config: &Value,
+    scene_global: &SceneGlobalData,
+    tex_key: &str,
+    default_value: Option<f64>,
+) -> Option<Arc<dyn Texture<f64>>> {
+    return if let Some(Value::String(tex_name)) = mat_config.get(tex_key) {
+        Some(scene_global.float_texture[tex_name].clone())
+    } else if let Some(d) = default_value {
+        Some(Arc::new(ConstantTexture::new(d)))
+    } else {
+        None
+    };
+}
+
+fn fetch_mat_rgb_texture<T>(
+    mat_config: &Value,
+    scene_global: &SceneGlobalData,
+    tex_key: &str,
+    default_value: Option<T>,
+) -> Arc<dyn Texture<Spectrum<SPECTRUM_N>>>
+where
+    T: Into<Spectrum<SPECTRUM_N>> + Copy + Clone,
+{
+    return if let Some(Value::String(tex_name)) = mat_config.get(tex_key) {
+        scene_global.rgb_texture[tex_name].clone()
+    } else if let Some(d) = default_value {
+        Arc::new(ConstantTexture::new(d.into()))
+    } else {
+        panic!("Failed to fetch Texture: {}", tex_key)
+    };
+}
+
 fn make_materials(
     scene_config: &Value,
     scene_global: &SceneGlobalData,
@@ -168,12 +222,8 @@ fn make_materials(
                     if materials_map.contains_key(mat1_name)
                         && materials_map.contains_key(mat2_name)
                     {
-                        let scale: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>;
-                        if let Some(Value::String(scale_texture)) = mat_config.get("scale") {
-                            scale = scene_global.rgb_texture[scale_texture.as_str()].clone();
-                        } else {
-                            scale = Arc::new(ConstantTexture::new(Spectrum::<SPECTRUM_N>::zero()));
-                        }
+                        let scale =
+                            fetch_mat_rgb_texture(mat_config, scene_global, "scale", Some(0.5));
                         materials_map.insert(
                             material_name,
                             Arc::new(MixMaterial::new(
@@ -185,27 +235,71 @@ fn make_materials(
                     }
                 }
                 "TranslucentMaterial" => {
-                    let kd_name = mat_config.get("kd").unwrap().as_str().unwrap();
-                    let ks_name = mat_config.get("ks").unwrap().as_str().unwrap();
-                    let roughness_name = mat_config.get("roughness").unwrap().as_str().unwrap();
-                    let reflect_name = mat_config.get("reflect").unwrap().as_str().unwrap();
-                    let transmit_name = mat_config.get("transmit").unwrap().as_str().unwrap();
-                    let bump_map;
-                    if let Some(Value::String(bump_map_name)) = mat_config.get("bump_map") {
-                        bump_map = Some(scene_global.float_texture[bump_map_name].clone());
-                    } else {
-                        bump_map = None;
-                    }
+                    let kd = fetch_mat_rgb_texture(mat_config, scene_global, "kd", Some(0.25));
+                    let ks = fetch_mat_rgb_texture(mat_config, scene_global, "ks", Some(0.25));
+                    let roughness =
+                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.1));
+                    let reflect =
+                        fetch_mat_rgb_texture(mat_config, scene_global, "reflect", Some(0.25));
+                    let transmit =
+                        fetch_mat_rgb_texture(mat_config, scene_global, "transmit", Some(0.25));
+                    let bump_map =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
                     let remap_roughness = read_bool(mat_config, "remap_roughness");
 
                     materials_map.insert(
                         material_name,
                         Arc::new(TranslucentMaterial::new(
-                            scene_global.rgb_texture[kd_name].clone(),
-                            scene_global.rgb_texture[ks_name].clone(),
-                            scene_global.float_texture[roughness_name].clone(),
-                            scene_global.rgb_texture[reflect_name].clone(),
-                            scene_global.rgb_texture[transmit_name].clone(),
+                            kd,
+                            ks,
+                            roughness,
+                            reflect,
+                            transmit,
+                            bump_map,
+                            remap_roughness,
+                        )),
+                    );
+                }
+                "MetalMaterial" => {
+                    let eta =
+                        fetch_mat_rgb_texture(mat_config, scene_global, "eta", Some(*COPPER_N));
+                    let k = fetch_mat_rgb_texture(mat_config, scene_global, "k", Some(*COPPER_K));
+                    let roughness =
+                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.01));
+                    let u_roughness =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "u_roughness", None);
+                    let v_roughness =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "v_roughness", None);
+                    let bump_map =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+                    materials_map.insert(
+                        material_name,
+                        Arc::new(MetalMaterial::new(
+                            eta,
+                            k,
+                            roughness,
+                            u_roughness,
+                            v_roughness,
+                            bump_map,
+                            remap_roughness,
+                        )),
+                    );
+                }
+                "PlasticMaterial" => {
+                    let kd = fetch_mat_rgb_texture(mat_config, scene_global, "kd", Some(0.25));
+                    let ks = fetch_mat_rgb_texture(mat_config, scene_global, "ks", Some(0.25));
+                    let roughness =
+                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.1));
+                    let bump_map =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+                    materials_map.insert(
+                        material_name,
+                        Arc::new(PlasticMaterial::new(
+                            kd,
+                            ks,
+                            roughness,
                             bump_map,
                             remap_roughness,
                         )),
