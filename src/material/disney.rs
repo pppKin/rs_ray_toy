@@ -461,7 +461,6 @@ impl ISeparableBSSRDF for DisneyBSSRDF {
     }
 }
 
-// TODO: DisneyBSSRDF
 #[derive(Debug, Clone)]
 pub struct DisneyMaterial {
     // DisneyMaterial Private Data
@@ -486,6 +485,46 @@ pub struct DisneyMaterial {
     flatness: Arc<dyn Texture<f64>>,
     diff_trans: Arc<dyn Texture<f64>>,
     bump_map: Option<Arc<dyn Texture<f64>>>,
+}
+
+impl DisneyMaterial {
+    pub fn new(
+        color: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        metallic: Arc<dyn Texture<f64>>,
+        eta: Arc<dyn Texture<f64>>,
+        roughness: Arc<dyn Texture<f64>>,
+        specular_tint: Arc<dyn Texture<f64>>,
+        anisotropic: Arc<dyn Texture<f64>>,
+        sheen: Arc<dyn Texture<f64>>,
+        sheen_tint: Arc<dyn Texture<f64>>,
+        clearcoat: Arc<dyn Texture<f64>>,
+        clearcoat_gloss: Arc<dyn Texture<f64>>,
+        spec_trans: Arc<dyn Texture<f64>>,
+        scatter_distance: Arc<dyn Texture<Spectrum<SPECTRUM_N>>>,
+        thin: bool,
+        flatness: Arc<dyn Texture<f64>>,
+        diff_trans: Arc<dyn Texture<f64>>,
+        bump_map: Option<Arc<dyn Texture<f64>>>,
+    ) -> Self {
+        Self {
+            color,
+            metallic,
+            eta,
+            roughness,
+            specular_tint,
+            anisotropic,
+            sheen,
+            sheen_tint,
+            clearcoat,
+            clearcoat_gloss,
+            spec_trans,
+            scatter_distance,
+            thin,
+            flatness,
+            diff_trans,
+            bump_map,
+        }
+    }
 }
 
 impl Material for DisneyMaterial {

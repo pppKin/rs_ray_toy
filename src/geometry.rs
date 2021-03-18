@@ -744,7 +744,6 @@ where
     T: PartialOrd + Copy + From<i32> + Neg<Output = T>,
 {
     pub fn max_comp(&self) -> T {
-        // todo!();
         if self.x > self.y {
             return self.x;
         } else {

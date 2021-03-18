@@ -8,7 +8,11 @@ use crate::{
     integrator::Integrator,
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
     material::{
+        disney::DisneyMaterial,
+        glass::GlassMaterial,
+        matte::MatteMaterial,
         metal::{MetalMaterial, COPPER_K, COPPER_N},
+        mirror::MirrorMaterial,
         mixmat::MixMaterial,
         plastic::PlasticMaterial,
         translucent::TranslucentMaterial,
@@ -302,6 +306,116 @@ fn make_materials(
                             roughness,
                             bump_map,
                             remap_roughness,
+                        )),
+                    );
+                }
+                "MirrorMaterial" => {
+                    let kr = fetch_mat_rgb_texture(mat_config, scene_global, "kr", Some(0.9));
+                    let bump_map =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    materials_map
+                        .insert(material_name, Arc::new(MirrorMaterial::new(kr, bump_map)));
+                }
+                "GlassMaterial" => {
+                    let kr = fetch_mat_rgb_texture(mat_config, scene_global, "kr", Some(1.0));
+                    let kt = fetch_mat_rgb_texture(mat_config, scene_global, "kt", Some(1.0));
+                    let eta = fetch_mat_float_texture(mat_config, scene_global, "eta", Some(1.5));
+
+                    let u_roughness =
+                        fetch_mat_float_texture(mat_config, scene_global, "u_roughness", Some(0.0));
+                    let v_roughness =
+                        fetch_mat_float_texture(mat_config, scene_global, "v_roughness", Some(0.0));
+
+                    let bump_map =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+
+                    materials_map.insert(
+                        material_name,
+                        Arc::new(GlassMaterial::new(
+                            kr,
+                            kt,
+                            u_roughness,
+                            v_roughness,
+                            eta,
+                            bump_map,
+                            remap_roughness,
+                        )),
+                    );
+                }
+                "MatteMaterial" => {
+                    let kd = fetch_mat_rgb_texture(mat_config, scene_global, "kd", Some(0.5));
+                    let sigma =
+                        fetch_mat_float_texture(mat_config, scene_global, "sigma", Some(0.0));
+
+                    let bump_map =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    materials_map.insert(
+                        material_name,
+                        Arc::new(MatteMaterial::new(kd, sigma, bump_map)),
+                    );
+                }
+                "DisneyMaterial" => {
+                    let color = fetch_mat_rgb_texture(mat_config, scene_global, "color", Some(0.5));
+                    let metallic =
+                        fetch_mat_float_texture(mat_config, scene_global, "metallic", Some(0.0));
+                    let eta = fetch_mat_float_texture(mat_config, scene_global, "eta", Some(1.5));
+                    let roughness =
+                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.5));
+                    let specular_tint = fetch_mat_float_texture(
+                        mat_config,
+                        scene_global,
+                        "specular_tint",
+                        Some(0.0),
+                    );
+                    let anisotropic =
+                        fetch_mat_float_texture(mat_config, scene_global, "anisotropic", Some(0.0));
+                    let sheen =
+                        fetch_mat_float_texture(mat_config, scene_global, "sheen", Some(0.0));
+                    let sheen_tint =
+                        fetch_mat_float_texture(mat_config, scene_global, "sheen_tint", Some(0.5));
+                    let clearcoat =
+                        fetch_mat_float_texture(mat_config, scene_global, "clearcoat", Some(0.0));
+                    let clearcoat_gloss = fetch_mat_float_texture(
+                        mat_config,
+                        scene_global,
+                        "clearcoat_gloss",
+                        Some(1.0),
+                    );
+                    let spec_trans =
+                        fetch_mat_float_texture(mat_config, scene_global, "spec_trans", Some(0.0));
+                    let scatter_distance = fetch_mat_rgb_texture(
+                        mat_config,
+                        scene_global,
+                        "scatter_distance",
+                        Some(0.0),
+                    );
+                    let thin = read_bool(mat_config, "thin");
+                    let flatness =
+                        fetch_mat_float_texture(mat_config, scene_global, "flatness", Some(0.0));
+                    let diff_trans =
+                        fetch_mat_float_texture(mat_config, scene_global, "diff_trans", Some(1.0));
+                    let bump_map =
+                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    materials_map.insert(
+                        material_name,
+                        Arc::new(DisneyMaterial::new(
+                            color,
+                            metallic,
+                            eta,
+                            roughness,
+                            specular_tint,
+                            anisotropic,
+                            sheen,
+                            sheen_tint,
+                            clearcoat,
+                            clearcoat_gloss,
+                            spec_trans,
+                            scatter_distance,
+                            thin,
+                            flatness,
+                            diff_trans,
+                            bump_map,
                         )),
                     );
                 }
