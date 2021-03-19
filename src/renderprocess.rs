@@ -18,13 +18,16 @@ use crate::{
         translucent::TranslucentMaterial,
         Material,
     },
-    medium::{grid::GridDensityMedium, homogeneous::HomogeneousMedium, Medium, MediumInterface},
+    medium::{
+        grid::GridDensityMedium, homogeneous::HomogeneousMedium, Medium, MediumInterface,
+        SUBSURFACE_PARAMETER_TABLE,
+    },
     misc::{clamp_t, gamma_correct},
     primitives::Primitive,
     scene::Scene,
     shape::{sphere::Sphere, triangle::Triangle, Shape},
-    spectrum::Spectrum,
-    texture::{ConstantTexture, Texture},
+    spectrum::{ISpectrum, Spectrum, SpectrumType},
+    texture::{ConstantTexture, Texture, TextureMapping2D, TextureMapping3D},
     transform::Transform,
     SPECTRUM_N,
 };
@@ -63,16 +66,39 @@ fn search_object<'a>(root: &'a Value, key: &str) -> Result<&'a Value, String> {
 }
 
 // all integer are parsed as i64, use as uszie/i32 to get desired type
-fn read_i64(root: &Value, key: &str) -> i64 {
-    root.get(key).unwrap().as_i64().unwrap()
+fn read_i64(root: &Value, key: &str, default_value: i64) -> i64 {
+    if let Some(Value::Number(value)) = root.get(key) {
+        if let Some(i) = value.as_i64() {
+            return i;
+        }
+    }
+    default_value
 }
 
-fn read_f64(root: &Value, key: &str) -> f64 {
-    root.get(key).unwrap().as_f64().unwrap()
+fn read_f64(root: &Value, key: &str, default_value: f64) -> f64 {
+    if let Some(Value::Number(value)) = root.get(key) {
+        if let Some(i) = value.as_f64() {
+            return i;
+        }
+    }
+    default_value
 }
 
-fn read_bool(root: &Value, key: &str) -> bool {
-    root.get(key).unwrap().as_bool().unwrap()
+fn read_bool(root: &Value, key: &str, default_value: bool) -> bool {
+    if let Some(Value::Bool(value)) = root.get(key) {
+        return *value;
+    }
+    default_value
+}
+
+fn read_string<T>(root: &Value, key: &str, default_value: T) -> String
+where
+    T: Into<String>,
+{
+    if let Some(Value::String(value)) = root.get(key) {
+        return String::from(value);
+    }
+    default_value.into()
 }
 
 fn read_num_array(v: &Value, length: usize) -> Result<Vec<f64>, String> {
@@ -110,6 +136,16 @@ where
             root, e
         )),
     }
+}
+
+fn fetch_point3f(config: &Value, key: &str, default_value: Point3f) -> Point3f {
+    if let Some(values) = config.get(key) {
+        match make_xyz(values) {
+            Ok(p) => return p,
+            Err(_) => {}
+        }
+    }
+    default_value
 }
 
 /// create a transform
@@ -158,10 +194,69 @@ fn make_textures(
     HashMap<String, Arc<dyn Texture<f64>>>,
     HashMap<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>,
 ) {
+    let mut float_texture = HashMap::<String, Arc<dyn Texture<f64>>>::new();
+    let mut rgb_texture = HashMap::<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>::new();
+    if let Some(Value::Array(float_texture_configs)) = scene_config.get("float_texture") {
+        for texture_config in float_texture_configs {
+            let world_pos = fetch_point3f(texture_config, "world_pos", Point3f::zero());
+            let to_world = Transform::translate(&(Point3f::zero() - world_pos));
+            let texture_type = read_string(texture_config, "texture_type", "");
+            let texture_name = read_string(texture_config, "texture_name", "DefaultTextureName");
+            match texture_type.as_str() {
+                _ => {
+                    eprintln!("Unsupported Texture Type {}", texture_type)
+                }
+            }
+        }
+    }
+    if let Some(Value::Array(rgb_texture_configs)) = scene_config.get("rgb_texture") {
+        for texture_config in rgb_texture_configs {
+            let texture_type = read_string(texture_config, "texture_type", "");
+            let texture_name = read_string(texture_config, "texture_name", "DefaultTextureName");
+            match texture_type.as_str() {
+                "UVTexture" => {
+                    // Initialize 2D texture mapping _map_ from _tp_
+                    // std::unique_ptr<TextureMapping2D> map;
+                    // std::string type = tp.FindString("mapping", "uv");
+                    // if (type == "uv") {
+                    //     Float su = tp.FindFloat("uscale", 1.);
+                    //     Float sv = tp.FindFloat("vscale", 1.);
+                    //     Float du = tp.FindFloat("udelta", 0.);
+                    //     Float dv = tp.FindFloat("vdelta", 0.);
+                    //     map.reset(new UVMapping2D(su, sv, du, dv));
+                    // } else if (type == "spherical")
+                    //     map.reset(new SphericalMapping2D(Inverse(tex2world)));
+                    // else if (type == "cylindrical")
+                    //     map.reset(new CylindricalMapping2D(Inverse(tex2world)));
+                    // else if (type == "planar")
+                    //     map.reset(new PlanarMapping2D(tp.FindVector3f("v1", Vector3f(1, 0, 0)),
+                    //                                     tp.FindVector3f("v2", Vector3f(0, 1, 0)),
+                    //                                     tp.FindFloat("udelta", 0.f),
+                    //                                     tp.FindFloat("vdelta", 0.f)));
+                    // else {
+                    //     Error("2D texture mapping \"%s\" unknown", type.c_str());
+                    //     map.reset(new UVMapping2D);
+                    // }
+                    // return new UVTexture(std::move(map));
+                }
+                _ => {
+                    eprintln!("Unsupported Texture Type {}", texture_type)
+                }
+            }
+        }
+    }
+    (float_texture, rgb_texture)
+}
+
+fn make_texture_mapping_2d(mapping_config: &Value) -> Box<dyn TextureMapping2D> {
     todo!();
 }
 
-fn fetch_mat_float_texture(
+fn make_texture_mapping_3d(mapping_config: &Value) -> Box<dyn TextureMapping3D> {
+    todo!();
+}
+
+fn fetch_float_texture(
     mat_config: &Value,
     scene_global: &SceneGlobalData,
     tex_key: &str,
@@ -176,7 +271,7 @@ fn fetch_mat_float_texture(
     };
 }
 
-fn fetch_mat_float_texture_opt(
+fn fetch_float_texture_opt(
     mat_config: &Value,
     scene_global: &SceneGlobalData,
     tex_key: &str,
@@ -191,7 +286,7 @@ fn fetch_mat_float_texture_opt(
     };
 }
 
-fn fetch_mat_rgb_texture<T>(
+fn fetch_rgb_texture<T>(
     mat_config: &Value,
     scene_global: &SceneGlobalData,
     tex_key: &str,
@@ -216,40 +311,42 @@ fn make_materials(
     let mut materials_map = HashMap::<String, Arc<dyn Material>>::new();
     if let Some(Value::Array(mat_ary)) = scene_config.get("materials") {
         for mat_config in mat_ary {
-            let material_type = mat_config.get("material_type").unwrap().as_str().unwrap();
-            let material_name =
-                String::from(mat_config.get("material_name").unwrap().as_str().unwrap());
-            match material_type {
+            let material_type = read_string(mat_config, "material_type", "");
+            let material_name = String::from(read_string(
+                mat_config,
+                "material_name",
+                "DefaultMaterialName",
+            ));
+            match material_type.as_str() {
                 "MixMaterial" => {
-                    let mat1_name = mat_config.get("mat1").unwrap().as_str().unwrap();
-                    let mat2_name = mat_config.get("mat2").unwrap().as_str().unwrap();
-                    if materials_map.contains_key(mat1_name)
-                        && materials_map.contains_key(mat2_name)
+                    let mat1_name = read_string(mat_config, "mat1", "");
+                    let mat2_name = read_string(mat_config, "mat2", "");
+                    if materials_map.contains_key(mat1_name.as_str())
+                        && materials_map.contains_key(mat2_name.as_str())
                     {
-                        let scale =
-                            fetch_mat_rgb_texture(mat_config, scene_global, "scale", Some(0.5));
+                        let scale = fetch_rgb_texture(mat_config, scene_global, "scale", Some(0.5));
                         materials_map.insert(
                             material_name,
                             Arc::new(MixMaterial::new(
-                                scene_global.materials[mat1_name].clone(),
-                                scene_global.materials[mat1_name].clone(),
+                                scene_global.materials[mat1_name.as_str()].clone(),
+                                scene_global.materials[mat1_name.as_str()].clone(),
                                 scale,
                             )),
                         );
                     }
                 }
                 "TranslucentMaterial" => {
-                    let kd = fetch_mat_rgb_texture(mat_config, scene_global, "kd", Some(0.25));
-                    let ks = fetch_mat_rgb_texture(mat_config, scene_global, "ks", Some(0.25));
+                    let kd = fetch_rgb_texture(mat_config, scene_global, "kd", Some(0.25));
+                    let ks = fetch_rgb_texture(mat_config, scene_global, "ks", Some(0.25));
                     let roughness =
-                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.1));
+                        fetch_float_texture(mat_config, scene_global, "roughness", Some(0.1));
                     let reflect =
-                        fetch_mat_rgb_texture(mat_config, scene_global, "reflect", Some(0.25));
+                        fetch_rgb_texture(mat_config, scene_global, "reflect", Some(0.25));
                     let transmit =
-                        fetch_mat_rgb_texture(mat_config, scene_global, "transmit", Some(0.25));
+                        fetch_rgb_texture(mat_config, scene_global, "transmit", Some(0.25));
                     let bump_map =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
-                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+                        fetch_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    let remap_roughness = read_bool(mat_config, "remap_roughness", false);
 
                     materials_map.insert(
                         material_name,
@@ -265,18 +362,17 @@ fn make_materials(
                     );
                 }
                 "MetalMaterial" => {
-                    let eta =
-                        fetch_mat_rgb_texture(mat_config, scene_global, "eta", Some(*COPPER_N));
-                    let k = fetch_mat_rgb_texture(mat_config, scene_global, "k", Some(*COPPER_K));
+                    let eta = fetch_rgb_texture(mat_config, scene_global, "eta", Some(*COPPER_N));
+                    let k = fetch_rgb_texture(mat_config, scene_global, "k", Some(*COPPER_K));
                     let roughness =
-                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.01));
+                        fetch_float_texture(mat_config, scene_global, "roughness", Some(0.01));
                     let u_roughness =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "u_roughness", None);
+                        fetch_float_texture_opt(mat_config, scene_global, "u_roughness", None);
                     let v_roughness =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "v_roughness", None);
+                        fetch_float_texture_opt(mat_config, scene_global, "v_roughness", None);
                     let bump_map =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
-                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+                        fetch_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    let remap_roughness = read_bool(mat_config, "remap_roughness", false);
                     materials_map.insert(
                         material_name,
                         Arc::new(MetalMaterial::new(
@@ -291,13 +387,13 @@ fn make_materials(
                     );
                 }
                 "PlasticMaterial" => {
-                    let kd = fetch_mat_rgb_texture(mat_config, scene_global, "kd", Some(0.25));
-                    let ks = fetch_mat_rgb_texture(mat_config, scene_global, "ks", Some(0.25));
+                    let kd = fetch_rgb_texture(mat_config, scene_global, "kd", Some(0.25));
+                    let ks = fetch_rgb_texture(mat_config, scene_global, "ks", Some(0.25));
                     let roughness =
-                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.1));
+                        fetch_float_texture(mat_config, scene_global, "roughness", Some(0.1));
                     let bump_map =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
-                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+                        fetch_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    let remap_roughness = read_bool(mat_config, "remap_roughness", false);
                     materials_map.insert(
                         material_name,
                         Arc::new(PlasticMaterial::new(
@@ -310,25 +406,25 @@ fn make_materials(
                     );
                 }
                 "MirrorMaterial" => {
-                    let kr = fetch_mat_rgb_texture(mat_config, scene_global, "kr", Some(0.9));
+                    let kr = fetch_rgb_texture(mat_config, scene_global, "kr", Some(0.9));
                     let bump_map =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                        fetch_float_texture_opt(mat_config, scene_global, "bump_map", None);
                     materials_map
                         .insert(material_name, Arc::new(MirrorMaterial::new(kr, bump_map)));
                 }
                 "GlassMaterial" => {
-                    let kr = fetch_mat_rgb_texture(mat_config, scene_global, "kr", Some(1.0));
-                    let kt = fetch_mat_rgb_texture(mat_config, scene_global, "kt", Some(1.0));
-                    let eta = fetch_mat_float_texture(mat_config, scene_global, "eta", Some(1.5));
+                    let kr = fetch_rgb_texture(mat_config, scene_global, "kr", Some(1.0));
+                    let kt = fetch_rgb_texture(mat_config, scene_global, "kt", Some(1.0));
+                    let eta = fetch_float_texture(mat_config, scene_global, "eta", Some(1.5));
 
                     let u_roughness =
-                        fetch_mat_float_texture(mat_config, scene_global, "u_roughness", Some(0.0));
+                        fetch_float_texture(mat_config, scene_global, "u_roughness", Some(0.0));
                     let v_roughness =
-                        fetch_mat_float_texture(mat_config, scene_global, "v_roughness", Some(0.0));
+                        fetch_float_texture(mat_config, scene_global, "v_roughness", Some(0.0));
 
                     let bump_map =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
-                    let remap_roughness = read_bool(mat_config, "remap_roughness");
+                        fetch_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                    let remap_roughness = read_bool(mat_config, "remap_roughness", false);
 
                     materials_map.insert(
                         material_name,
@@ -344,59 +440,45 @@ fn make_materials(
                     );
                 }
                 "MatteMaterial" => {
-                    let kd = fetch_mat_rgb_texture(mat_config, scene_global, "kd", Some(0.5));
-                    let sigma =
-                        fetch_mat_float_texture(mat_config, scene_global, "sigma", Some(0.0));
+                    let kd = fetch_rgb_texture(mat_config, scene_global, "kd", Some(0.5));
+                    let sigma = fetch_float_texture(mat_config, scene_global, "sigma", Some(0.0));
 
                     let bump_map =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                        fetch_float_texture_opt(mat_config, scene_global, "bump_map", None);
                     materials_map.insert(
                         material_name,
                         Arc::new(MatteMaterial::new(kd, sigma, bump_map)),
                     );
                 }
                 "DisneyMaterial" => {
-                    let color = fetch_mat_rgb_texture(mat_config, scene_global, "color", Some(0.5));
+                    let color = fetch_rgb_texture(mat_config, scene_global, "color", Some(0.5));
                     let metallic =
-                        fetch_mat_float_texture(mat_config, scene_global, "metallic", Some(0.0));
-                    let eta = fetch_mat_float_texture(mat_config, scene_global, "eta", Some(1.5));
+                        fetch_float_texture(mat_config, scene_global, "metallic", Some(0.0));
+                    let eta = fetch_float_texture(mat_config, scene_global, "eta", Some(1.5));
                     let roughness =
-                        fetch_mat_float_texture(mat_config, scene_global, "roughness", Some(0.5));
-                    let specular_tint = fetch_mat_float_texture(
-                        mat_config,
-                        scene_global,
-                        "specular_tint",
-                        Some(0.0),
-                    );
+                        fetch_float_texture(mat_config, scene_global, "roughness", Some(0.5));
+                    let specular_tint =
+                        fetch_float_texture(mat_config, scene_global, "specular_tint", Some(0.0));
                     let anisotropic =
-                        fetch_mat_float_texture(mat_config, scene_global, "anisotropic", Some(0.0));
-                    let sheen =
-                        fetch_mat_float_texture(mat_config, scene_global, "sheen", Some(0.0));
+                        fetch_float_texture(mat_config, scene_global, "anisotropic", Some(0.0));
+                    let sheen = fetch_float_texture(mat_config, scene_global, "sheen", Some(0.0));
                     let sheen_tint =
-                        fetch_mat_float_texture(mat_config, scene_global, "sheen_tint", Some(0.5));
+                        fetch_float_texture(mat_config, scene_global, "sheen_tint", Some(0.5));
                     let clearcoat =
-                        fetch_mat_float_texture(mat_config, scene_global, "clearcoat", Some(0.0));
-                    let clearcoat_gloss = fetch_mat_float_texture(
-                        mat_config,
-                        scene_global,
-                        "clearcoat_gloss",
-                        Some(1.0),
-                    );
+                        fetch_float_texture(mat_config, scene_global, "clearcoat", Some(0.0));
+                    let clearcoat_gloss =
+                        fetch_float_texture(mat_config, scene_global, "clearcoat_gloss", Some(1.0));
                     let spec_trans =
-                        fetch_mat_float_texture(mat_config, scene_global, "spec_trans", Some(0.0));
-                    let scatter_distance = fetch_mat_rgb_texture(
-                        mat_config,
-                        scene_global,
-                        "scatter_distance",
-                        Some(0.0),
-                    );
-                    let thin = read_bool(mat_config, "thin");
+                        fetch_float_texture(mat_config, scene_global, "spec_trans", Some(0.0));
+                    let scatter_distance =
+                        fetch_rgb_texture(mat_config, scene_global, "scatter_distance", Some(0.0));
+                    let thin = read_bool(mat_config, "thin", false);
                     let flatness =
-                        fetch_mat_float_texture(mat_config, scene_global, "flatness", Some(0.0));
+                        fetch_float_texture(mat_config, scene_global, "flatness", Some(0.0));
                     let diff_trans =
-                        fetch_mat_float_texture(mat_config, scene_global, "diff_trans", Some(1.0));
+                        fetch_float_texture(mat_config, scene_global, "diff_trans", Some(1.0));
                     let bump_map =
-                        fetch_mat_float_texture_opt(mat_config, scene_global, "bump_map", None);
+                        fetch_float_texture_opt(mat_config, scene_global, "bump_map", None);
                     materials_map.insert(
                         material_name,
                         Arc::new(DisneyMaterial::new(
@@ -473,20 +555,17 @@ fn make_all_lights(
 fn make_light(light_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Light> {
     assert!(light_config.is_object());
     if let Some(Value::String(light_type)) = light_config.get("light_type") {
-        let world_pos: Point3f = make_xyz(light_config.get("world_pos").unwrap()).unwrap();
+        let world_pos = fetch_point3f(light_config, "world_pos", Point3f::zero());
+
         let light_to_world = Transform::translate(&(Point3f::zero() - world_pos));
         let mut inside_medium = None;
         let mut outside_medium = None;
         if let Some(all_medium_config) = light_config.get("medium") {
             if let Some(inside_medium_config) = all_medium_config.get("inside") {
-                if let Ok(m) = make_medium(inside_medium_config) {
-                    inside_medium = Some(m);
-                }
+                inside_medium = make_medium(inside_medium_config).ok();
             }
             if let Some(inside_medium_config) = all_medium_config.get("outside") {
-                if let Ok(m) = make_medium(inside_medium_config) {
-                    outside_medium = Some(m);
-                }
+                outside_medium = make_medium(inside_medium_config).ok();
             }
         }
 
@@ -496,17 +575,17 @@ fn make_light(light_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn L
         };
         match light_type.as_str() {
             "point" => {
-                let i = make_spectrum(light_config.get("spectrum").unwrap());
+                let i = make_spectrum(light_config, "spectrum", 1.0);
                 let pl = PointLight::new(light_to_world, mi, Point3f::default(), i);
                 return Arc::new(pl);
             }
             "diffuse" => {
-                let lemit = make_spectrum(light_config.get("spectrum").unwrap());
-                let n_samples = read_i64(light_config, "n_samples") as usize;
-                let area = read_f64(light_config, "area");
+                let lemit = make_spectrum(light_config, "spectrum", 1.0);
+                let n_samples = read_i64(light_config, "n_samples", 1) as usize;
                 let s: Arc<dyn Shape>;
                 if let Some(shape_config) = light_config.get("light_shape") {
                     s = make_light_shape(shape_config, scene_global);
+                    let area = s.area();
                     return Arc::new(DiffuseAreaLight::new(
                         light_to_world,
                         mi,
@@ -527,28 +606,27 @@ fn make_light(light_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn L
     panic!("Failed to parse light {:?}", light_config)
 }
 
-fn make_spectrum(spectrum_config: &Value) -> Spectrum<SPECTRUM_N> {
-    if let Some(Value::String(spectrum_type)) = spectrum_config.get("spectrum_type") {
-        match spectrum_type.as_str() {
-            "RGB" => {
-                if let Some(rgb) = spectrum_config.get("values") {
-                    match read_num_array(rgb, 3) {
-                        Ok(rgb_value) => {
-                            return Spectrum::new([rgb_value[0], rgb_value[1], rgb_value[2]]);
-                        }
-                        Err(e) => {
-                            panic!(
-                                "Failed to parse Spectrum {:?} with error {}",
-                                spectrum_config, e
-                            )
-                        }
-                    }
+fn make_spectrum<T>(config: &Value, key: &str, default_value: T) -> Spectrum<SPECTRUM_N>
+where
+    T: Into<Spectrum<SPECTRUM_N>> + Copy + Clone,
+{
+    if let Some(spectrum_config) = config.get(key) {
+        if let Some(rgb) = spectrum_config.get("values") {
+            match read_num_array(rgb, 3) {
+                Ok(rgb_value) => {
+                    return Spectrum::new([rgb_value[0], rgb_value[1], rgb_value[2]]);
+                }
+                Err(e) => {
+                    panic!(
+                        "Failed to parse Spectrum {:?} with error {}",
+                        spectrum_config, e
+                    )
                 }
             }
-            _ => {}
         }
     }
-    panic!("Failed to parse Spectrum {:?}", spectrum_config)
+
+    default_value.into()
 }
 
 fn make_light_shape(shape_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Shape> {
@@ -558,9 +636,9 @@ fn make_light_shape(shape_config: &Value, scene_global: &SceneGlobalData) -> Arc
                 return Arc::new(make_sphere(shape_config));
             }
             "triangle" => {
-                let obj_name = shape_config.get("obj_name").unwrap().as_str().unwrap();
-                let mesh = scene_global.triangle_mesh[obj_name].clone();
-                let tri_num = read_i64(shape_config, "tri_num") as usize;
+                let obj_name = read_string(shape_config, "obj_name", "");
+                let mesh = scene_global.triangle_mesh[obj_name.as_str()].clone();
+                let tri_num = read_i64(shape_config, "tri_num", 0) as usize;
 
                 return mesh[tri_num].clone();
             }
@@ -571,33 +649,66 @@ fn make_light_shape(shape_config: &Value, scene_global: &SceneGlobalData) -> Arc
 }
 
 fn make_sphere(sphere_config: &Value) -> Sphere {
-    let world_pos: Point3f = make_xyz(sphere_config.get("world_pos").unwrap()).unwrap();
+    let world_pos = fetch_point3f(sphere_config, "world_pos", Point3f::zero());
     let to_world = Transform::translate(&(Point3f::zero() - world_pos));
     let to_local = Transform::inverse(&to_world);
 
-    let radius = read_f64(sphere_config, "radius");
-    let z_min = read_f64(sphere_config, "z_min");
-    let z_max = read_f64(sphere_config, "z_max");
-    let phi_max = read_f64(sphere_config, "phi_max");
+    let radius = read_f64(sphere_config, "radius", 1.0);
+    let z_min = read_f64(sphere_config, "z_min", -radius);
+    let z_max = read_f64(sphere_config, "z_max", radius);
+    let phi_max = read_f64(sphere_config, "phi_max", 360.0);
     Sphere::new(to_world, to_local, radius, z_min, z_max, phi_max)
+}
+
+pub fn get_medium_scattering_properties(
+    medium_config: &Value,
+) -> (Spectrum<SPECTRUM_N>, Spectrum<SPECTRUM_N>) {
+    let mut sigma_a = Spectrum::<SPECTRUM_N>::zero();
+    let mut sigma_prime_s = Spectrum::<SPECTRUM_N>::zero();
+
+    let mut found = false;
+    if let Some(Value::String(preset_name)) = medium_config.get("preset") {
+        for mss in SUBSURFACE_PARAMETER_TABLE.iter() {
+            if preset_name == mss.name {
+                sigma_a = Spectrum::from_rgb(mss.sigma_a, SpectrumType::Reflectance);
+                sigma_prime_s = Spectrum::from_rgb(mss.sigma_prime_s, SpectrumType::Reflectance);
+                found = true;
+            }
+        }
+    }
+
+    if !found {
+        let sig_a_rgb: [f64; 3] = [0.0011, 0.0024, 0.014];
+        let sig_s_rgb: [f64; 3] = [2.55, 3.21, 3.77];
+
+        sigma_a = Spectrum::from_rgb(sig_a_rgb, SpectrumType::Reflectance);
+        sigma_prime_s = Spectrum::from_rgb(sig_s_rgb, SpectrumType::Reflectance);
+    }
+    return (sigma_a, sigma_prime_s);
 }
 
 fn make_medium(medium_config: &Value) -> Result<Arc<dyn Medium + Send + Sync>, String> {
     let parse_err = "Failed to parse medium";
     if let Some(Value::String(medium_type)) = medium_config.get("medium_type") {
-        let world_pos: Point3f = make_xyz(medium_config.get("world_pos").ok_or(parse_err)?)?;
+        let world_pos = fetch_point3f(medium_config, "world_pos", Point3f::zero());
         let world_to_medium =
             Transform::inverse(&Transform::translate(&(Point3f::zero() - world_pos)));
+        let (sigma_a, sigma_s) = get_medium_scattering_properties(medium_config);
+        let g = read_f64(medium_config, "g", 0.0);
+
         match medium_type.as_str() {
             "GridDensity" => {
-                let g = read_f64(medium_config, "g");
-                let nx = read_i64(medium_config, "nx") as i32;
-                let ny = read_i64(medium_config, "nx") as i32;
-                let nz = read_i64(medium_config, "nx") as i32;
+                let nx = read_i64(medium_config, "nx", 1) as i32;
+                let ny = read_i64(medium_config, "nx", 1) as i32;
+                let nz = read_i64(medium_config, "nx", 1) as i32;
                 let den_len = (nx * ny * nz) as usize;
                 let d = read_num_array(medium_config.get("d").ok_or(parse_err)?, den_len)?;
-                let sigma_a = make_spectrum(medium_config.get("sigma_a").ok_or(parse_err)?);
-                let sigma_s = make_spectrum(medium_config.get("sigma_s").ok_or(parse_err)?);
+
+                let p0 = fetch_point3f(medium_config, "p0", Point3f::new(0.0, 0.0, 0.0));
+                let p1 = fetch_point3f(medium_config, "p0", Point3f::new(1.0, 1.0, 1.0));
+
+                let data2medium = Transform::translate(&p0.into())
+                    * Transform::scale(p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
                 return Ok(Arc::new(GridDensityMedium::new(
                     sigma_a,
                     sigma_s,
@@ -605,18 +716,12 @@ fn make_medium(medium_config: &Value) -> Result<Arc<dyn Medium + Send + Sync>, S
                     nx,
                     ny,
                     nz,
-                    world_to_medium,
+                    world_to_medium * data2medium,
                     &d,
                 )));
             }
             "Homogeneous" => {
-                let g = read_f64(medium_config, "g");
-                let sigma_a = make_spectrum(medium_config.get("sigma_a").ok_or(parse_err)?);
-                let sigma_s = make_spectrum(medium_config.get("sigma_s").ok_or(parse_err)?);
-                let sigma_t = make_spectrum(medium_config.get("sigma_t").ok_or(parse_err)?);
-                return Ok(Arc::new(HomogeneousMedium::new(
-                    sigma_a, sigma_s, sigma_t, g,
-                )));
+                return Ok(Arc::new(HomogeneousMedium::new(sigma_a, sigma_s, g)));
             }
             _ => return Err(format!("Unsupported medium type: {}", medium_type)),
         }

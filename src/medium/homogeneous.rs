@@ -20,16 +20,11 @@ pub struct HomogeneousMedium {
 }
 
 impl HomogeneousMedium {
-    pub fn new(
-        sigma_a: Spectrum<SPECTRUM_N>,
-        sigma_s: Spectrum<SPECTRUM_N>,
-        sigma_t: Spectrum<SPECTRUM_N>,
-        g: f64,
-    ) -> Self {
+    pub fn new(sigma_a: Spectrum<SPECTRUM_N>, sigma_s: Spectrum<SPECTRUM_N>, g: f64) -> Self {
         Self {
             sigma_a,
             sigma_s,
-            sigma_t,
+            sigma_t: sigma_a + sigma_s,
             g,
         }
     }
