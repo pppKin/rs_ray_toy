@@ -1,10 +1,10 @@
-use image::{ImageBuffer, ImageError, Rgba};
+use image::{io::Reader as ImageReader, DynamicImage, ImageBuffer, ImageError, Rgba};
 use serde_json::Value;
 
 use std::{collections::HashMap, fs, sync::Arc};
 
 use crate::{
-    geometry::{Bounds2i, Cxyz, Point3f, Vector3f},
+    geometry::{Bounds2i, Cxyz, Point2, Point3f, Vector3f},
     integrator::Integrator,
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
     material::{
@@ -22,14 +22,17 @@ use crate::{
         grid::GridDensityMedium, homogeneous::HomogeneousMedium, Medium, MediumInterface,
         SUBSURFACE_PARAMETER_TABLE,
     },
+    mipmap::{ImageWrap, MIPMap},
     misc::{clamp_t, gamma_correct},
     primitives::Primitive,
     scene::Scene,
     shape::{sphere::Sphere, triangle::Triangle, Shape},
     spectrum::{ISpectrum, Spectrum, SpectrumType},
     texture::{
-        uv::UVTexture, ConstantTexture, CylindricalMapping2D, PlanarMapping2D, SphericalMapping2D,
-        Texture, TextureMapping2D, TextureMapping3D, UVMapping2D,
+        imagemap::{ImageTexture, TexInfo},
+        uv::UVTexture,
+        ConstantTexture, CylindricalMapping2D, PlanarMapping2D, SphericalMapping2D, Texture,
+        TextureMapping2D, UVMapping2D,
     },
     transform::Transform,
     SPECTRUM_N,
@@ -207,6 +210,8 @@ fn make_textures(
     HashMap<String, Arc<dyn Texture<f64>>>,
     HashMap<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>,
 ) {
+    let mut images = HashMap::<TexInfo, Arc<MIPMap>>::new();
+
     let mut float_texture = HashMap::<String, Arc<dyn Texture<f64>>>::new();
     let mut rgb_texture = HashMap::<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>::new();
     if let Some(Value::Array(float_texture_configs)) = scene_config.get("float_texture") {
@@ -235,7 +240,18 @@ fn make_textures(
                 }
                 "ImageTexture" => {
                     let mapping = make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
-                    
+                    let tex_info = make_tex_info(texture_config);
+                    if images.contains_key(&tex_info) {
+                        let m = images[&tex_info].clone();
+                        rgb_texture.insert(texture_name, Arc::new(ImageTexture::new(mapping, m)));
+                    } else {
+                        if let Ok(loaded_m) = load_image(&tex_info) {
+                            rgb_texture.insert(
+                                texture_name,
+                                Arc::new(ImageTexture::new(mapping, loaded_m)),
+                            );
+                        }
+                    }
                 }
                 _ => {
                     eprintln!("Unsupported Texture Type {}", texture_type)
@@ -244,6 +260,57 @@ fn make_textures(
         }
     }
     (float_texture, rgb_texture)
+}
+
+fn make_tex_info(config: &Value) -> TexInfo {
+    let filename = read_string(config, "filename", "DefaultTexture");
+    let do_trilinear = read_bool(config, "do_trilinear", false);
+    let max_aniso = read_f64(config, "max_aniso", 8.0);
+    let wrap_mode = match read_string(config, "wrap", "repeat").as_str() {
+        "black" => ImageWrap::Black,
+        "clamp" => ImageWrap::Clamp,
+        _ => ImageWrap::Repeat,
+    };
+    let scale = read_f64(config, "scale", 1.0);
+    let gamma = read_bool(config, "gamma", filename.ends_with("png"));
+
+    TexInfo::new(filename, do_trilinear, max_aniso, wrap_mode, scale, gamma)
+}
+
+fn load_image(t: &TexInfo) -> Result<Arc<MIPMap>, String> {
+    match ImageReader::open(t.filename.as_str()) {
+        Ok(b) => match b.decode() {
+            Ok(dy_img) => match dy_img.as_rgb8() {
+                Some(img) => {
+                    let width = img.width();
+                    let height = img.height();
+                    let res = Point2::<usize>::new(width as usize, height as usize);
+                    let mut rgb_vec: Vec<Spectrum<SPECTRUM_N>> = Vec::with_capacity(res.x * res.y);
+                    for y in 0..height {
+                        for x in 0..width {
+                            let tmp_pixel = img.get_pixel(x, y);
+                            let tmp = [
+                                tmp_pixel[0] as f64 / 255.0,
+                                tmp_pixel[1] as f64 / 255.0,
+                                tmp_pixel[2] as f64 / 255.0,
+                            ];
+                            rgb_vec.push(Spectrum::from_rgb(tmp, SpectrumType::Reflectance));
+                        }
+                    }
+                    return Ok(Arc::new(MIPMap::create(
+                        res,
+                        &rgb_vec,
+                        t.do_trilinear,
+                        t.max_aniso,
+                        t.wrap_mode,
+                    )));
+                }
+                None => return Err(format!("Failed to load Image {}", t.filename)),
+            },
+            Err(e) => return Err(format!("Failed to load Image {} {:?}", t.filename, e)),
+        },
+        Err(e) => return Err(format!("Failed to load Image {} {:?}", t.filename, e)),
+    }
 }
 
 fn make_texture_mapping_2d(

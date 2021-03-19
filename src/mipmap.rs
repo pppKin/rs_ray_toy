@@ -47,7 +47,7 @@ fn resample_weights(old_res: usize, new_res: usize) -> Vec<ResampleWeight> {
     wt
 }
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Hash)]
 pub enum ImageWrap {
     Repeat,
     Black,
@@ -267,7 +267,7 @@ impl MIPMap {
         }
         sum / sum_wts
     }
-    fn create(
+    pub fn create(
         res: Point2<usize>,
         img: &[Spectrum<SPECTRUM_N>],
         do_trilinear: bool,
