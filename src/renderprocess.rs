@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::{collections::HashMap, fs, sync::Arc};
 
 use crate::{
-    geometry::{Bounds2i, Cxyz, Point3f},
+    geometry::{Bounds2i, Cxyz, Point3f, Vector3f},
     integrator::Integrator,
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
     material::{
@@ -27,7 +27,10 @@ use crate::{
     scene::Scene,
     shape::{sphere::Sphere, triangle::Triangle, Shape},
     spectrum::{ISpectrum, Spectrum, SpectrumType},
-    texture::{ConstantTexture, Texture, TextureMapping2D, TextureMapping3D},
+    texture::{
+        uv::UVTexture, ConstantTexture, CylindricalMapping2D, PlanarMapping2D, SphericalMapping2D,
+        Texture, TextureMapping2D, TextureMapping3D, UVMapping2D,
+    },
     transform::Transform,
     SPECTRUM_N,
 };
@@ -148,6 +151,16 @@ fn fetch_point3f(config: &Value, key: &str, default_value: Point3f) -> Point3f {
     default_value
 }
 
+fn fetch_vector3f(config: &Value, key: &str, default_value: Vector3f) -> Vector3f {
+    if let Some(values) = config.get(key) {
+        match make_xyz(values) {
+            Ok(p) => return p,
+            Err(_) => {}
+        }
+    }
+    default_value
+}
+
 /// create a transform
 fn make_transform<'a>(root: &'a Value) -> Result<Transform, String> {
     match read_num_array(root, 3) {
@@ -211,33 +224,18 @@ fn make_textures(
     }
     if let Some(Value::Array(rgb_texture_configs)) = scene_config.get("rgb_texture") {
         for texture_config in rgb_texture_configs {
+            let world_pos = fetch_point3f(texture_config, "world_pos", Point3f::zero());
+            let to_world = Transform::translate(&(Point3f::zero() - world_pos));
             let texture_type = read_string(texture_config, "texture_type", "");
             let texture_name = read_string(texture_config, "texture_name", "DefaultTextureName");
             match texture_type.as_str() {
                 "UVTexture" => {
-                    // Initialize 2D texture mapping _map_ from _tp_
-                    // std::unique_ptr<TextureMapping2D> map;
-                    // std::string type = tp.FindString("mapping", "uv");
-                    // if (type == "uv") {
-                    //     Float su = tp.FindFloat("uscale", 1.);
-                    //     Float sv = tp.FindFloat("vscale", 1.);
-                    //     Float du = tp.FindFloat("udelta", 0.);
-                    //     Float dv = tp.FindFloat("vdelta", 0.);
-                    //     map.reset(new UVMapping2D(su, sv, du, dv));
-                    // } else if (type == "spherical")
-                    //     map.reset(new SphericalMapping2D(Inverse(tex2world)));
-                    // else if (type == "cylindrical")
-                    //     map.reset(new CylindricalMapping2D(Inverse(tex2world)));
-                    // else if (type == "planar")
-                    //     map.reset(new PlanarMapping2D(tp.FindVector3f("v1", Vector3f(1, 0, 0)),
-                    //                                     tp.FindVector3f("v2", Vector3f(0, 1, 0)),
-                    //                                     tp.FindFloat("udelta", 0.f),
-                    //                                     tp.FindFloat("vdelta", 0.f)));
-                    // else {
-                    //     Error("2D texture mapping \"%s\" unknown", type.c_str());
-                    //     map.reset(new UVMapping2D);
-                    // }
-                    // return new UVTexture(std::move(map));
+                    let mapping = make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
+                    rgb_texture.insert(texture_name, Arc::new(UVTexture::new(mapping)));
+                }
+                "ImageTexture" => {
+                    let mapping = make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
+                    
                 }
                 _ => {
                     eprintln!("Unsupported Texture Type {}", texture_type)
@@ -248,12 +246,47 @@ fn make_textures(
     (float_texture, rgb_texture)
 }
 
-fn make_texture_mapping_2d(mapping_config: &Value) -> Box<dyn TextureMapping2D> {
-    todo!();
-}
-
-fn make_texture_mapping_3d(mapping_config: &Value) -> Box<dyn TextureMapping3D> {
-    todo!();
+fn make_texture_mapping_2d(
+    mapping_config_opt: Option<&Value>,
+    to_world: &Transform,
+) -> Box<dyn TextureMapping2D> {
+    match mapping_config_opt {
+        Some(mapping_config) => {
+            let mapping_type = read_string(mapping_config, "mapping", "uv");
+            match mapping_type.as_str() {
+                "uv" => {
+                    let su = read_f64(mapping_config, "su", 1.0);
+                    let sv = read_f64(mapping_config, "sv", 1.0);
+                    let du = read_f64(mapping_config, "du", 1.0);
+                    let dv = read_f64(mapping_config, "dv", 1.0);
+                    return Box::new(UVMapping2D::new(su, sv, du, dv));
+                }
+                "spherical" => {
+                    return Box::new(SphericalMapping2D::new(Transform::inverse(to_world)));
+                }
+                "cylindrical" => {
+                    return Box::new(CylindricalMapping2D::new(Transform::inverse(to_world)));
+                }
+                "planar" => {
+                    return Box::new(PlanarMapping2D::new(
+                        fetch_vector3f(mapping_config, "v1", Vector3f::new(1.0, 0.0, 0.0)),
+                        fetch_vector3f(mapping_config, "v2", Vector3f::new(0.0, 1.0, 0.0)),
+                        read_f64(mapping_config, "udelta", 0.0),
+                        read_f64(mapping_config, "vdelta", 0.0),
+                    ));
+                }
+                _ => {
+                    panic!(
+                        "Unsupported Mapping Type {}, {:?}",
+                        mapping_type, mapping_config
+                    )
+                }
+            }
+        }
+        None => {
+            return Box::new(UVMapping2D::new(1.0, 1.0, 0.0, 0.0));
+        }
+    }
 }
 
 fn fetch_float_texture(
