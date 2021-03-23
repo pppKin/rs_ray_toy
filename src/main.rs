@@ -21,6 +21,7 @@ mod memory;
 mod microfacet;
 mod mipmap;
 mod misc;
+mod objparser;
 mod primitives;
 mod reflection;
 mod renderprocess;

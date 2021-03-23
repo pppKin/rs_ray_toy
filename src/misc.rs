@@ -31,21 +31,8 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
-/// Use **unsafe**
-/// [std::mem::transmute_copy][transmute_copy]
-/// to convert *f64* to *u64*.
-///
-/// [transmute_copy]: https://doc.rust-lang.org/std/mem/fn.transmute_copy.html
 pub fn float_to_bits(f: f64) -> u64 {
-    // uint64_t ui;
-    // memcpy(&ui, &f, sizeof(double));
-    // return ui;
-    let rui: u64;
-    unsafe {
-        let ui: u64 = std::mem::transmute_copy(&f);
-        rui = ui;
-    }
-    rui
+    f.to_bits()
 }
 
 /// Error propagation.
@@ -69,21 +56,8 @@ pub fn radians(deg: f64) -> f64 {
     (PI / 180.0) * deg
 }
 
-/// Use **unsafe**
-/// [std::mem::transmute_copy][transmute_copy]
-/// to convert *u64* to *f64*.
-///
-/// [transmute_copy]: https://doc.rust-lang.org/std/mem/fn.transmute_copy.html
 pub fn bits_to_float(ui: u64) -> f64 {
-    // float f;
-    // memcpy(&f, &ui, sizeof(uint32_t));
-    // return f;
-    let rf: f64;
-    unsafe {
-        let f: f64 = std::mem::transmute_copy(&ui);
-        rf = f;
-    }
-    rf
+    f64::from_bits(ui)
 }
 
 /// Bump a floating-point value up to the next greater representable

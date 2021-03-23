@@ -24,9 +24,14 @@ use crate::{
     },
     mipmap::{ImageWrap, MIPMap},
     misc::{clamp_t, gamma_correct},
+    objparser::parse_obj,
     primitives::Primitive,
     scene::Scene,
-    shape::{sphere::Sphere, triangle::Triangle, Shape},
+    shape::{
+        sphere::Sphere,
+        triangle::{create_triangle_mesh, Triangle},
+        Shape,
+    },
     spectrum::{ISpectrum, Spectrum, SpectrumType},
     texture::{
         bilerp::BilerpTexture,
@@ -211,7 +216,7 @@ fn make_scene(scene_config: &Value) -> (Scene, SceneGlobalData) {
         infinite_lights: vec![],
     };
     scene_global_data.materials = make_materials(&scene_config, &scene_global_data);
-    scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config, &scene_global_data);
+    scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config);
 
     let (lights, infinite_lights) = make_all_lights(&scene_config, &scene_global_data);
     scene_global_data.lights = lights.clone();
@@ -805,11 +810,38 @@ fn make_materials(
     materials_map
 }
 
-fn make_triangle_mesh(
-    scene_config: &Value,
-    scene_global: &SceneGlobalData,
-) -> HashMap<String, Vec<Arc<Triangle>>> {
-    todo!();
+fn make_triangle_mesh(scene_config: &Value) -> HashMap<String, Vec<Arc<Triangle>>> {
+    let objs_config = search_object(scene_config, "objs");
+    let mut objs;
+    if let Ok(Value::Array(obj_l)) = objs_config {
+        objs = HashMap::with_capacity(obj_l.len());
+        for obj_config in obj_l {
+            let filename = read_string(obj_config, "filename", "DefaultObj");
+            let obj_name = read_string(obj_config, "obj_name", "DefaultObjName");
+            let world_pos = fetch_point3f(obj_config, "world_pos", Point3f::zero());
+            let to_world = Transform::translate(&(Point3f::zero() - world_pos));
+            let to_local = Transform::inverse(&to_world);
+            if let Ok(result) = parse_obj(&filename) {
+                objs.insert(
+                    obj_name,
+                    create_triangle_mesh(
+                        to_world,
+                        to_local,
+                        result.n_triangles,
+                        result.n_vertices,
+                        result.vertex_indices,
+                        result.p,
+                        result.n,
+                        result.s,
+                        result.uv,
+                    ),
+                );
+            }
+        }
+    } else {
+        objs = HashMap::new();
+    }
+    objs
 }
 
 fn make_all_lights(

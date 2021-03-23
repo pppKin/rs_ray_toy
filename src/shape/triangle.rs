@@ -14,10 +14,10 @@ use std::{f64::consts::PI, sync::Arc};
 
 #[derive(Debug)]
 pub struct TriangleMesh {
-    pub n_triangles: u32, // The total number of triangles in the mesh.
-    pub n_vertices: u32,  // The total number of vertices in the mesh.
+    pub n_triangles: usize, // The total number of triangles in the mesh.
+    pub n_vertices: usize,  // The total number of vertices in the mesh.
     // A pointer to an array of vertex indices. For the ith triangle, its three vertex positions are
-    pub vertex_indices: Vec<u32>,
+    pub vertex_indices: Vec<usize>,
     pub p: Vec<Point3f>,  // An array of n_vertices vertex positions.
     pub n: Vec<Normal3f>, // An optional array of normals
     pub s: Vec<Vector3f>, // An optional array of tangent vectors, one per vertex, used to compute shading tangents.
@@ -27,9 +27,9 @@ pub struct TriangleMesh {
 
 impl TriangleMesh {
     pub fn new(
-        n_triangles: u32,
-        n_vertices: u32,
-        vertex_indices: Vec<u32>,
+        n_triangles: usize,
+        n_vertices: usize,
+        vertex_indices: Vec<usize>,
         p: Vec<Point3f>,
         n: Vec<Normal3f>,
         s: Vec<Vector3f>,
@@ -94,9 +94,9 @@ impl Triangle {
 pub fn create_triangle_mesh(
     obj_to_world: Transform,
     world_to_obj: Transform,
-    n_triangles: u32,
-    n_vertices: u32,
-    vertex_indices: Vec<u32>,
+    n_triangles: usize,
+    n_vertices: usize,
+    vertex_indices: Vec<usize>,
     p: Vec<Point3f>,
     n: Vec<Normal3f>,
     s: Vec<Vector3f>,
@@ -123,9 +123,6 @@ pub fn create_triangle_mesh(
     tri
 }
 
-// pub fn create_triangle_mesh_shape() -> Vec<Triangle>{
-
-// }
 impl IntersectP for Triangle {
     fn intersect_p(&self, r: &Ray) -> bool {
         // Möller–Trumbore intersection algorithm
@@ -390,10 +387,6 @@ impl Shape for Triangle {
 
     fn solid_angle(&self, p: &Point3f, _n_samples: u32) -> f64 {
         // Project the vertices into the unit sphere around p.
-        // std::array<Vector3f, 3> pSphere = {
-        //     Normalize(mesh->p[v[0]] - p), Normalize(mesh->p[v[1]] - p),
-        //     Normalize(mesh->p[v[2]] - p)
-        // };
         let p0 = self.mesh.p[self.v[0]];
         let p1 = self.mesh.p[self.v[1]];
         let p2 = self.mesh.p[self.v[2]];
