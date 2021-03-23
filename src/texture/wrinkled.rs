@@ -9,6 +9,16 @@ pub struct WrinkledTexture {
     omega: f64,
 }
 
+impl WrinkledTexture {
+    pub fn new(mapping: Box<dyn TextureMapping3D>, octaves: u64, omega: f64) -> Self {
+        Self {
+            mapping,
+            octaves,
+            omega,
+        }
+    }
+}
+
 impl<T: From<f64> + Send + Sync> Texture<T> for WrinkledTexture {
     fn evaluate(&self, si: &crate::interaction::SurfaceInteraction) -> T {
         let mut dpdx = Vector3f::default();

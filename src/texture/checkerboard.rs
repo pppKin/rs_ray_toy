@@ -103,6 +103,20 @@ pub struct Checkerboard3DTexture<T: std::fmt::Debug> {
     tex2: Arc<dyn Texture<T>>,
 }
 
+impl<T: std::fmt::Debug> Checkerboard3DTexture<T> {
+    pub fn new(
+        mapping: Box<dyn TextureMapping3D>,
+        tex1: Arc<dyn Texture<T>>,
+        tex2: Arc<dyn Texture<T>>,
+    ) -> Self {
+        Self {
+            mapping,
+            tex1,
+            tex2,
+        }
+    }
+}
+
 impl<T: std::fmt::Debug + Send + Sync> Texture<T> for Checkerboard3DTexture<T> {
     fn evaluate(&self, si: &SurfaceInteraction) -> T {
         let mut dpdx = Vector3f::default();

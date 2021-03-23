@@ -15,6 +15,19 @@ where
     amount: Arc<dyn Texture<f64>>,
 }
 
+impl<T> MixTexture<T>
+where
+    T: Add<Output = T> + std::fmt::Debug,
+{
+    pub fn new(
+        t1: Arc<dyn Texture<T>>,
+        t2: Arc<dyn Texture<T>>,
+        amount: Arc<dyn Texture<f64>>,
+    ) -> Self {
+        Self { t1, t2, amount }
+    }
+}
+
 impl<T> Texture<T> for MixTexture<T>
 where
     T: std::fmt::Debug + Mul<f64, Output = T> + Add<Output = T> + Send + Sync,

@@ -1,7 +1,7 @@
-use image::{io::Reader as ImageReader, DynamicImage, ImageBuffer, ImageError, Rgba};
+use image::{io::Reader as ImageReader, ImageBuffer, ImageError, Rgba};
 use serde_json::Value;
 
-use std::{collections::HashMap, fs, sync::Arc};
+use std::{collections::HashMap, error::Error, fmt::Display, fs, sync::Arc};
 
 use crate::{
     geometry::{Bounds2i, Cxyz, Point2, Point3f, Vector3f},
@@ -29,14 +29,33 @@ use crate::{
     shape::{sphere::Sphere, triangle::Triangle, Shape},
     spectrum::{ISpectrum, Spectrum, SpectrumType},
     texture::{
+        bilerp::BilerpTexture,
+        checkerboard::{AAMethod, Checkerboard2DTexture, Checkerboard3DTexture},
         imagemap::{ImageTexture, TexInfo},
+        mix::MixTexture,
+        scale::ScaleTexture,
         uv::UVTexture,
-        ConstantTexture, CylindricalMapping2D, PlanarMapping2D, SphericalMapping2D, Texture,
-        TextureMapping2D, UVMapping2D,
+        windy::WindyTexture,
+        wrinkled::WrinkledTexture,
+        ConstantTexture, CylindricalMapping2D, IdentityMapping3D, PlanarMapping2D,
+        SphericalMapping2D, Texture, TextureMapping2D, UVMapping2D,
     },
     transform::Transform,
     SPECTRUM_N,
 };
+
+#[derive(Debug, Default)]
+struct RenderProcessError {
+    msg: String,
+}
+
+impl Display for RenderProcessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Error During Render Process {}", self.msg)
+    }
+}
+
+impl Error for RenderProcessError {}
 
 struct SceneGlobalData {
     float_texture: HashMap<String, Arc<dyn Texture<f64>>>,
@@ -204,6 +223,22 @@ fn make_scene(scene_config: &Value) -> (Scene, SceneGlobalData) {
     )
 }
 
+fn get_text_fallback<T: 'static>(
+    source: &HashMap<String, Arc<dyn Texture<T>>>,
+    tex_key: String,
+    default_value: T,
+) -> Arc<dyn Texture<T>>
+where
+    ConstantTexture<T>: Texture<T>,
+    T: Send + Sync + Copy,
+{
+    if source.contains_key(&tex_key) {
+        return source[&tex_key].clone();
+    } else {
+        return Arc::new(ConstantTexture::new(default_value));
+    }
+}
+
 fn make_textures(
     scene_config: &Value,
 ) -> (
@@ -221,6 +256,87 @@ fn make_textures(
             let texture_type = read_string(texture_config, "texture_type", "");
             let texture_name = read_string(texture_config, "texture_name", "DefaultTextureName");
             match texture_type.as_str() {
+                "MixTexture" => {
+                    let t1_name = read_string(texture_config, "t1", "ErrorTextureName");
+                    let t2_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let amount_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let t1 = get_text_fallback(&float_texture, t1_name, 0.0);
+                    let t2 = get_text_fallback(&float_texture, t2_name, 1.0);
+                    let amount = get_text_fallback(&float_texture, amount_name, 0.5);
+                    float_texture.insert(texture_name, Arc::new(MixTexture::new(t1, t2, amount)));
+                }
+                "BilerpTexture" => {
+                    let mapping = make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
+                    let v00 = read_f64(texture_config, "v00", 0.0);
+                    let v01 = read_f64(texture_config, "v01", 1.0);
+                    let v10 = read_f64(texture_config, "v01", 0.0);
+                    let v11 = read_f64(texture_config, "v01", 1.0);
+                    float_texture.insert(
+                        texture_name,
+                        Arc::new(BilerpTexture::new(mapping, v00, v01, v10, v11)),
+                    );
+                }
+                "CheckerBoardTexture" => {
+                    let dim = read_i64(texture_config, "dimension", 2);
+                    if dim != 2 && dim != 3 {
+                        eprintln!("{} dimensional checkerboard texture not supported", dim);
+                        continue;
+                    }
+                    let t1_name = read_string(texture_config, "t1", "ErrorTextureName");
+                    let t2_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let t1 = get_text_fallback(&float_texture, t1_name, 1.0);
+                    let t2 = get_text_fallback(&float_texture, t2_name, 0.0);
+
+                    if dim == 2 {
+                        let mapping =
+                            make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
+
+                        // Compute _aaMethod_ for _CheckerboardTexture_
+                        let aa = read_string(texture_config, "aamode", "closedform");
+                        let aa_method;
+                        match aa.as_str() {
+                            "none" => {
+                                aa_method = AAMethod::AANone;
+                            }
+                            _ => {
+                                aa_method = AAMethod::ClosedForm;
+                            }
+                        }
+                        float_texture.insert(
+                            texture_name,
+                            Arc::new(Checkerboard2DTexture::new(mapping, t1, t2, aa_method)),
+                        );
+                    } else {
+                        // Initialize 3D texture mapping _map_ from _tp_
+                        let mapping = IdentityMapping3D::new(to_world);
+                        //     return new Checkerboard3DTexture<Float>(std::move(map), tex1, tex2);
+                        float_texture.insert(
+                            texture_name,
+                            Arc::new(Checkerboard3DTexture::new(Box::new(mapping), t1, t2)),
+                        );
+                    }
+                }
+                "ScaleTexture" => {
+                    let t1_name = read_string(texture_config, "t1", "ErrorTextureName");
+                    let t2_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let t1 = get_text_fallback(&float_texture, t1_name, 1.0);
+                    let t2 = get_text_fallback(&float_texture, t2_name, 1.0);
+                    float_texture.insert(texture_name, Arc::new(ScaleTexture::new(t1, t2)));
+                }
+                "WindyTexture" => {
+                    let mapping = IdentityMapping3D::new(to_world);
+                    float_texture
+                        .insert(texture_name, Arc::new(WindyTexture::new(Box::new(mapping))));
+                }
+                "WrinkledTexture" => {
+                    let mapping = IdentityMapping3D::new(to_world);
+                    let octaves = read_i64(texture_config, "octaves", 8) as u64;
+                    let omega = read_f64(texture_config, "omega", 0.5);
+                    float_texture.insert(
+                        texture_name,
+                        Arc::new(WrinkledTexture::new(Box::new(mapping), octaves, omega)),
+                    );
+                }
                 _ => {
                     eprintln!("Unsupported Texture Type {}", texture_type)
                 }
@@ -234,6 +350,15 @@ fn make_textures(
             let texture_type = read_string(texture_config, "texture_type", "");
             let texture_name = read_string(texture_config, "texture_name", "DefaultTextureName");
             match texture_type.as_str() {
+                "MixTexture" => {
+                    let t1_name = read_string(texture_config, "t1", "ErrorTextureName");
+                    let t2_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let amount_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let t1 = get_text_fallback(&rgb_texture, t1_name, Spectrum::from(0.0));
+                    let t2 = get_text_fallback(&rgb_texture, t2_name, Spectrum::from(1.0));
+                    let amount = get_text_fallback(&float_texture, amount_name, 0.5);
+                    rgb_texture.insert(texture_name, Arc::new(MixTexture::new(t1, t2, amount)));
+                }
                 "UVTexture" => {
                     let mapping = make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
                     rgb_texture.insert(texture_name, Arc::new(UVTexture::new(mapping)));
@@ -246,12 +371,84 @@ fn make_textures(
                         rgb_texture.insert(texture_name, Arc::new(ImageTexture::new(mapping, m)));
                     } else {
                         if let Ok(loaded_m) = load_image(&tex_info) {
+                            images.insert(tex_info, loaded_m.clone());
                             rgb_texture.insert(
                                 texture_name,
                                 Arc::new(ImageTexture::new(mapping, loaded_m)),
                             );
                         }
                     }
+                }
+                "BilerpTexture" => {
+                    let mapping = make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
+                    let v00 = make_spectrum(texture_config, "v00", 0.0);
+                    let v01 = make_spectrum(texture_config, "v01", 1.0);
+                    let v10 = make_spectrum(texture_config, "v01", 0.0);
+                    let v11 = make_spectrum(texture_config, "v01", 1.0);
+                    rgb_texture.insert(
+                        texture_name,
+                        Arc::new(BilerpTexture::new(mapping, v00, v01, v10, v11)),
+                    );
+                }
+                "CheckerBoardTexture" => {
+                    let dim = read_i64(texture_config, "dimension", 2);
+                    if dim != 2 && dim != 3 {
+                        eprintln!("{} dimensional checkerboard texture not supported", dim);
+                        continue;
+                    }
+                    let t1_name = read_string(texture_config, "t1", "ErrorTextureName");
+                    let t2_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let t1 = get_text_fallback(&rgb_texture, t1_name, Spectrum::from(1.0));
+                    let t2 = get_text_fallback(&rgb_texture, t2_name, Spectrum::from(0.0));
+
+                    if dim == 2 {
+                        let mapping =
+                            make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
+
+                        // Compute _aaMethod_ for _CheckerboardTexture_
+                        let aa = read_string(texture_config, "aamode", "closedform");
+                        let aa_method;
+                        match aa.as_str() {
+                            "none" => {
+                                aa_method = AAMethod::AANone;
+                            }
+                            _ => {
+                                aa_method = AAMethod::ClosedForm;
+                            }
+                        }
+                        rgb_texture.insert(
+                            texture_name,
+                            Arc::new(Checkerboard2DTexture::new(mapping, t1, t2, aa_method)),
+                        );
+                    } else {
+                        // Initialize 3D texture mapping _map_ from _tp_
+                        let mapping = IdentityMapping3D::new(to_world);
+                        rgb_texture.insert(
+                            texture_name,
+                            Arc::new(Checkerboard3DTexture::new(Box::new(mapping), t1, t2)),
+                        );
+                    }
+                }
+                "ScaleTexture" => {
+                    let t1_name = read_string(texture_config, "t1", "ErrorTextureName");
+                    let t2_name = read_string(texture_config, "t2", "ErrorTextureName");
+                    let t1 = get_text_fallback(&rgb_texture, t1_name, Spectrum::from(1.0));
+                    let t2 = get_text_fallback(&rgb_texture, t2_name, Spectrum::from(1.0));
+                    rgb_texture.insert(texture_name, Arc::new(ScaleTexture::new(t1, t2)));
+                }
+                "WindyTexture" => {
+                    let mapping = IdentityMapping3D::new(to_world);
+                    rgb_texture
+                        .insert(texture_name, Arc::new(WindyTexture::new(Box::new(mapping))));
+                }
+                "WrinkledTexture" => {
+                    let mapping = IdentityMapping3D::new(to_world);
+                    let octaves = read_i64(texture_config, "octaves", 8) as u64;
+                    let omega = read_f64(texture_config, "omega", 0.5);
+                    rgb_texture.insert(
+                        texture_name,
+                        Arc::new(WrinkledTexture::new(Box::new(mapping), octaves, omega)),
+                    );
                 }
                 _ => {
                     eprintln!("Unsupported Texture Type {}", texture_type)
@@ -277,39 +474,37 @@ fn make_tex_info(config: &Value) -> TexInfo {
     TexInfo::new(filename, do_trilinear, max_aniso, wrap_mode, scale, gamma)
 }
 
-fn load_image(t: &TexInfo) -> Result<Arc<MIPMap>, String> {
-    match ImageReader::open(t.filename.as_str()) {
-        Ok(b) => match b.decode() {
-            Ok(dy_img) => match dy_img.as_rgb8() {
-                Some(img) => {
-                    let width = img.width();
-                    let height = img.height();
-                    let res = Point2::<usize>::new(width as usize, height as usize);
-                    let mut rgb_vec: Vec<Spectrum<SPECTRUM_N>> = Vec::with_capacity(res.x * res.y);
-                    for y in 0..height {
-                        for x in 0..width {
-                            let tmp_pixel = img.get_pixel(x, y);
-                            let tmp = [
-                                tmp_pixel[0] as f64 / 255.0,
-                                tmp_pixel[1] as f64 / 255.0,
-                                tmp_pixel[2] as f64 / 255.0,
-                            ];
-                            rgb_vec.push(Spectrum::from_rgb(tmp, SpectrumType::Reflectance));
-                        }
-                    }
-                    return Ok(Arc::new(MIPMap::create(
-                        res,
-                        &rgb_vec,
-                        t.do_trilinear,
-                        t.max_aniso,
-                        t.wrap_mode,
-                    )));
+fn load_image(t: &TexInfo) -> Result<Arc<MIPMap>, Box<dyn Error>> {
+    match ImageReader::open(t.filename.as_str())?.decode()?.as_rgb8() {
+        Some(img) => {
+            let width = img.width();
+            let height = img.height();
+            let res = Point2::<usize>::new(width as usize, height as usize);
+            let mut rgb_vec: Vec<Spectrum<SPECTRUM_N>> = Vec::with_capacity(res.x * res.y);
+            for y in 0..height {
+                for x in 0..width {
+                    let tmp_pixel = img.get_pixel(x, y);
+                    let tmp = [
+                        tmp_pixel[0] as f64 / 255.0,
+                        tmp_pixel[1] as f64 / 255.0,
+                        tmp_pixel[2] as f64 / 255.0,
+                    ];
+                    rgb_vec.push(Spectrum::from_rgb(tmp, SpectrumType::Reflectance));
                 }
-                None => return Err(format!("Failed to load Image {}", t.filename)),
-            },
-            Err(e) => return Err(format!("Failed to load Image {} {:?}", t.filename, e)),
-        },
-        Err(e) => return Err(format!("Failed to load Image {} {:?}", t.filename, e)),
+            }
+            return Ok(Arc::new(MIPMap::create(
+                res,
+                &rgb_vec,
+                t.do_trilinear,
+                t.max_aniso,
+                t.wrap_mode,
+            )));
+        }
+        None => {
+            return Err(Box::new(RenderProcessError {
+                msg: format!("{} can't be parsed as rgb8 image!", t.filename),
+            }))
+        }
     }
 }
 

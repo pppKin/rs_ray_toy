@@ -16,6 +16,18 @@ pub struct BilerpTexture<T: Debug> {
     v11: T,
 }
 
+impl<T: Debug> BilerpTexture<T> {
+    pub fn new(mapping: Box<dyn TextureMapping2D>, v00: T, v01: T, v10: T, v11: T) -> Self {
+        Self {
+            mapping,
+            v00,
+            v01,
+            v10,
+            v11,
+        }
+    }
+}
+
 impl<T> Texture<T> for BilerpTexture<T>
 where
     T: Debug + Copy + Mul<f64, Output = T> + Add<Output = T> + Send + Sync,

@@ -1,4 +1,4 @@
-use std::f64::consts::PI;
+use std::{f64::consts::PI, sync::Arc};
 
 use crate::{
     geometry::{dot3, spherical_phi, spherical_theta, Point2f, Point3f, Vector2f, Vector3f},
