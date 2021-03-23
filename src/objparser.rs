@@ -164,3 +164,34 @@ fn make_face(sp: &mut SplitWhitespace) -> Result<(usize, usize, usize), String> 
         .or_else(|e| return Err(e.to_string()))?;
     Ok((v1, v2, v3))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shape::triangle::create_triangle_mesh;
+    use crate::transform::Transform;
+    #[test]
+    fn test_parse_obj() {
+        let r = parse_obj("../example.obj");
+        match r {
+            Ok(result) => {
+                // println!("result : {} triangles", result.n_triangles);
+                let tm = create_triangle_mesh(
+                    Transform::default(),
+                    Transform::default(),
+                    result.n_triangles,
+                    result.n_vertices,
+                    result.vertex_indices,
+                    result.p,
+                    result.n,
+                    result.s,
+                    result.uv,
+                );
+                println!("result : {} triangles", tm.len());
+            }
+            Err(err) => {
+                panic!("{}", err.to_string())
+            }
+        }
+    }
+}
