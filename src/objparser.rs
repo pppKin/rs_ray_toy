@@ -74,7 +74,7 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
     let mut vertex_indices = vec![];
     let mut p = vec![];
     let mut n = vec![];
-    let mut s = vec![];
+    let s = vec![];
     let mut uv = vec![];
 
     for line_r in lines {

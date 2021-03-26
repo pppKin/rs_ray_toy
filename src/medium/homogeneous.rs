@@ -4,7 +4,7 @@ use crate::{
     geometry::{Normal3, Ray, Vector3f},
     interaction::{BaseInteraction, MediumInteraction},
     medium::{HenyeyGreenstein, Medium},
-    samplers::Sampler,
+    samplers::{ISampler, Sampler},
     spectrum::Spectrum,
     SPECTRUM_N,
 };
@@ -31,14 +31,14 @@ impl HomogeneousMedium {
 }
 
 impl Medium for HomogeneousMedium {
-    fn tr(&self, ray: &Ray, _sampler: &mut dyn Sampler) -> Spectrum<SPECTRUM_N> {
+    fn tr(&self, ray: &Ray, _sampler: &mut Sampler) -> Spectrum<SPECTRUM_N> {
         (-self.sigma_t * (ray.t_max * ray.d.length()).min(INFINITY)).exp()
     }
 
     fn sample(
         &self,
         ray: &Ray,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         mi: &mut MediumInteraction,
     ) -> Spectrum<SPECTRUM_N> {
         // Sample a channel and distance along the ray

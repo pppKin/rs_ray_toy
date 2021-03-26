@@ -4,7 +4,7 @@ use crate::{
     geometry::{cross, dot3, faceforward, IntersectP, RayDifferential, Vector3f},
     interaction::SurfaceInteraction,
     primitives::Primitive,
-    samplers::Sampler,
+    samplers::{ISampler, RoundCount, Sampler},
     sampling::{
         cosine_hemisphere_pdf, cosine_sample_hemisphere, uniform_hemisphere_pdf,
         uniform_sample_hemisphere,
@@ -17,21 +17,15 @@ use crate::{
 use super::{Integrator, SamplerIntegrator, SamplerIntegratorData};
 
 #[derive(Debug)]
-pub struct AOIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+pub struct AOIntegrator {
     cos_sample: bool,
     n_samples: u32,
 
-    i: Arc<SamplerIntegratorData<T>>,
+    i: Arc<SamplerIntegratorData>,
 }
 
-impl<T> AOIntegrator<T>
-where
-    T: Sampler + Clone,
-{
-    pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData<T>>) -> Self {
+impl AOIntegrator {
+    pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData>) -> Self {
         let mut s = (*i.sampler).clone();
         let n_samples = s.round_count(ns);
         if n_samples != ns {
@@ -46,20 +40,14 @@ where
     }
 }
 
-impl<T> Integrator for AOIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+impl Integrator for AOIntegrator {
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl<T> SamplerIntegrator<T> for AOIntegrator<T>
-where
-    T: Sampler + Clone,
-{
-    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
+impl SamplerIntegrator for AOIntegrator {
+    fn itgt(&self) -> Arc<SamplerIntegratorData> {
         Arc::clone(&self.i)
     }
 
@@ -67,7 +55,7 @@ where
         &self,
         r: &mut RayDifferential,
         scene: &Scene,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         _depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         let mut l = Spectrum::zero();

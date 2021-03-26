@@ -4,7 +4,7 @@ use crate::{
     geometry::RayDifferential,
     interaction::{Interaction, SurfaceInteraction},
     primitives::Primitive,
-    samplers::Sampler,
+    samplers::{ISampler, RoundCount, Sampler},
     scene::Scene,
     spectrum::Spectrum,
     SPECTRUM_N,
@@ -20,26 +20,20 @@ pub enum LightStrategy {
     UniformSampleOne,
 }
 
-pub struct DirectLightingIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+pub struct DirectLightingIntegrator {
     strategy: LightStrategy,
     max_depth: usize,
     n_light_samples: Vec<u32>,
 
-    i: Arc<SamplerIntegratorData<T>>,
+    i: Arc<SamplerIntegratorData>,
 }
 
-impl<T> DirectLightingIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+impl DirectLightingIntegrator {
     pub fn new(
         strategy: LightStrategy,
         max_depth: usize,
         n_light_samples: Vec<u32>,
-        i: Arc<SamplerIntegratorData<T>>,
+        i: Arc<SamplerIntegratorData>,
     ) -> Self {
         Self {
             strategy,
@@ -50,24 +44,18 @@ where
     }
 }
 
-impl<T> Integrator for DirectLightingIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+impl Integrator for DirectLightingIntegrator {
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl<T> SamplerIntegrator<T> for DirectLightingIntegrator<T>
-where
-    T: Sampler + Clone,
-{
-    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
+impl SamplerIntegrator for DirectLightingIntegrator {
+    fn itgt(&self) -> Arc<SamplerIntegratorData> {
         Arc::clone(&self.i)
     }
 
-    fn preprocess(&mut self, scene: &Scene, sampler: &mut T) {
+    fn preprocess(&mut self, scene: &Scene, sampler: &mut Sampler) {
         match self.strategy {
             LightStrategy::UniformSampleAll => {
                 // Compute number of samples to use for each light
@@ -91,7 +79,7 @@ where
         &self,
         ray: &mut RayDifferential,
         scene: &Scene,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         let mut l = Spectrum::zero();

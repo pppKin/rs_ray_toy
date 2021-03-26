@@ -7,7 +7,7 @@ use crate::{
     interaction::{BaseInteraction, MediumInteraction},
     medium::{HenyeyGreenstein, Medium},
     misc::lerp,
-    samplers::Sampler,
+    samplers::{ISampler, Sampler},
     spectrum::Spectrum,
     transform::Transform,
     SPECTRUM_N,
@@ -116,7 +116,7 @@ impl GridDensityMedium {
 }
 
 impl Medium for GridDensityMedium {
-    fn tr(&self, r_world: &Ray, sampler: &mut dyn Sampler) -> Spectrum<SPECTRUM_N> {
+    fn tr(&self, r_world: &Ray, sampler: &mut Sampler) -> Spectrum<SPECTRUM_N> {
         let ray = self.world_to_medium.t(&Ray::new(
             r_world.o,
             r_world.d.normalize(),
@@ -158,7 +158,7 @@ impl Medium for GridDensityMedium {
     fn sample(
         &self,
         r_world: &crate::geometry::Ray,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         mi: &mut MediumInteraction,
     ) -> Spectrum<SPECTRUM_N> {
         let ray = self.world_to_medium.t(&Ray::new(

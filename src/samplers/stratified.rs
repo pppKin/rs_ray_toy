@@ -121,7 +121,7 @@ fn stratified_sample2d(samp: &mut [Point2f], nx: u32, ny: u32, jitter: bool) {
     }
 }
 
-fn create_stratified(
+pub fn create_stratified(
     n_sampled_dimensions: u32,
     x_pixel_samples: u32,
     y_pixel_samples: u32,

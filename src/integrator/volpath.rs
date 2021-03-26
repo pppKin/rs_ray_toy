@@ -5,7 +5,7 @@ use crate::{
     interaction::{Interaction, MediumInteraction, SurfaceInteraction},
     primitives::Primitive,
     reflection::{BXDF_ALL, BXDF_SPECULAR, BXDF_TRANSMISSION},
-    samplers::Sampler,
+    samplers::{ISampler, Sampler},
     sampling::Distribution1D,
     scene::Scene,
     spectrum::{ISpectrum, Spectrum},
@@ -15,36 +15,27 @@ use crate::{
 use super::{uniform_sample_one_light, Integrator, SamplerIntegrator, SamplerIntegratorData};
 
 #[derive(Debug)]
-pub struct VolPathIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+pub struct VolPathIntegrator {
     max_depth: usize,
     rr_threshold: f64,
     //  we'll use UniformLightDistribution/PowerLightDistribution for now
     light_distr: Arc<Distribution1D>,
 
-    i: Arc<SamplerIntegratorData<T>>,
+    i: Arc<SamplerIntegratorData>,
 }
 
-impl<T> Integrator for VolPathIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+impl Integrator for VolPathIntegrator {
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl<T> SamplerIntegrator<T> for VolPathIntegrator<T>
-where
-    T: Sampler + Clone,
-{
-    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
+impl SamplerIntegrator for VolPathIntegrator {
+    fn itgt(&self) -> Arc<SamplerIntegratorData> {
         Arc::clone(&self.i)
     }
 
-    fn preprocess(&mut self, scene: &Scene, _sampler: &mut T) {
+    fn preprocess(&mut self, scene: &Scene, _sampler: &mut Sampler) {
         if scene.lights.len() == 0 {
             self.light_distr = Arc::new(Distribution1D::default());
         } else {
@@ -60,7 +51,7 @@ where
         &self,
         r: &mut RayDifferential,
         scene: &Scene,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         _depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         let mut l = Spectrum::zero();

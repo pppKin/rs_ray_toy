@@ -14,7 +14,7 @@ pub trait StartPixel {
     fn start_pixel(&mut self, p: Point2i);
 }
 
-pub trait Sampler: RoundCount + StartPixel + Debug + Send + Sync {
+pub trait ISampler: RoundCount + StartPixel + Debug + Send + Sync {
     fn start_next_sample(&mut self) -> bool;
     fn set_sample_number(&mut self, sample_num: u64) -> bool;
     fn request_1d_array(&mut self, n: u32);
@@ -192,7 +192,7 @@ where
     }
 }
 
-impl<T> Sampler for PixelSampler<T>
+impl<T> ISampler for PixelSampler<T>
 where
     T: PixelSamplerStartPixel + RoundCount + Debug + Send + Sync,
 {
@@ -363,7 +363,7 @@ where
     }
 }
 
-impl<T> Sampler for GlobalSampler<T>
+impl<T> ISampler for GlobalSampler<T>
 where
     T: IGlobalSampler + Debug,
 {
@@ -451,3 +451,86 @@ where
 
 pub mod halton;
 pub mod stratified;
+
+use self::{halton::HaltonSampler, stratified::StratifiedSampler};
+#[derive(Debug, Clone)]
+pub enum Sampler {
+    Halton(HaltonSampler),
+    Stratified(StratifiedSampler),
+}
+
+impl StartPixel for Sampler {
+    fn start_pixel(&mut self, p: Point2i) {
+        match self {
+            Sampler::Halton(s) => s.start_pixel(p),
+            Sampler::Stratified(s) => s.start_pixel(p),
+        }
+    }
+}
+
+impl RoundCount for Sampler {
+    fn round_count(&self, n: u32) -> u32 {
+        match self {
+            Sampler::Halton(s) => s.round_count(n),
+            Sampler::Stratified(s) => s.round_count(n),
+        }
+    }
+}
+
+impl ISampler for Sampler {
+    fn start_next_sample(&mut self) -> bool {
+        match self {
+            Sampler::Halton(s) => s.start_next_sample(),
+            Sampler::Stratified(s) => s.start_next_sample(),
+        }
+    }
+
+    fn set_sample_number(&mut self, sample_num: u64) -> bool {
+        match self {
+            Sampler::Halton(s) => s.set_sample_number(sample_num),
+            Sampler::Stratified(s) => s.set_sample_number(sample_num),
+        }
+    }
+
+    fn request_1d_array(&mut self, n: u32) {
+        match self {
+            Sampler::Halton(s) => s.request_1d_array(n),
+            Sampler::Stratified(s) => s.request_1d_array(n),
+        }
+    }
+
+    fn request_2d_array(&mut self, n: u32) {
+        match self {
+            Sampler::Halton(s) => s.request_2d_array(n),
+            Sampler::Stratified(s) => s.request_2d_array(n),
+        }
+    }
+
+    fn get_1d_array(&mut self, n: u32) -> &[f64] {
+        match self {
+            Sampler::Halton(s) => s.get_1d_array(n),
+            Sampler::Stratified(s) => s.get_1d_array(n),
+        }
+    }
+
+    fn get_2d_array(&mut self, n: u32) -> &[Point2f] {
+        match self {
+            Sampler::Halton(s) => s.get_2d_array(n),
+            Sampler::Stratified(s) => s.get_2d_array(n),
+        }
+    }
+
+    fn samples_per_pixel(&self) -> u64 {
+        match self {
+            Sampler::Halton(s) => s.samples_per_pixel(),
+            Sampler::Stratified(s) => s.samples_per_pixel(),
+        }
+    }
+
+    fn current_sample_number(&self) -> u64 {
+        match self {
+            Sampler::Halton(s) => s.current_sample_number(),
+            Sampler::Stratified(s) => s.current_sample_number(),
+        }
+    }
+}

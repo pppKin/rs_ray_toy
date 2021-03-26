@@ -149,7 +149,7 @@ fn multiplicative_inverse(a: u64, n: u64) -> u64 {
     mod_t(x as u64, n)
 }
 
-fn create_halton(
+pub fn create_halton(
     samples_per_pixel: u64,
     sample_bounds: &Bounds2i,
     sample_at_pixel_center: bool,
@@ -160,23 +160,23 @@ fn create_halton(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
     // use crate::geometry::*;
     // use rand::prelude::*;
-    #[test]
-    fn test_halton() {
-        let mut h: Box<dyn Sampler> = Box::new(create_halton(
-            4,
-            &Bounds2i::new(Point2i::new(-5, -5), Point2i::new(5, 5)),
-            false,
-        ));
-        h.start_pixel(Point2i::new(1, 2));
-        for _i in 0..4 {
-            // let oneds = h.get_1d();
-            // let twods = h.get_2d();
-            // println!("{}, {:?}", oneds, twods);
-            let cs = h.get_camerasample(&Point2i::new(1, 2));
-            println!("{:?}", cs);
-        }
-    }
+    // #[test]
+    // fn test_halton() {
+    //     let mut h: Box<Sampler> = Box::new(create_halton(
+    //         4,
+    //         &Bounds2i::new(Point2i::new(-5, -5), Point2i::new(5, 5)),
+    //         false,
+    //     ));
+    //     h.start_pixel(Point2i::new(1, 2));
+    //     for _i in 0..4 {
+    //         // let oneds = h.get_1d();
+    //         // let twods = h.get_2d();
+    //         // println!("{}, {:?}", oneds, twods);
+    //         let cs = h.get_camerasample(&Point2i::new(1, 2));
+    //         println!("{:?}", cs);
+    //     }
+    // }
 }

@@ -36,7 +36,7 @@ impl Scene {
     pub fn intersect_tr(
         &self,
         ray: &mut Ray,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         isect: &mut SurfaceInteraction,
         transmittance: &mut Spectrum<SPECTRUM_N>,
     ) -> bool {

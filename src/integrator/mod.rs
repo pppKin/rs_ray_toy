@@ -9,7 +9,7 @@ use crate::{
     lights::{is_delta_light, Light, VisibilityTester},
     primitives::Primitive,
     reflection::{BXDF_ALL, BXDF_NONE, BXDF_REFLECTION, BXDF_SPECULAR, BXDF_TRANSMISSION},
-    samplers::Sampler,
+    samplers::{ISampler, Sampler, StartPixel},
     sampling::{power_heuristic, Distribution1D},
     scene::Scene,
     spectrum::{ISpectrum, Spectrum},
@@ -21,20 +21,14 @@ pub trait Integrator: Send + Sync {
 }
 
 #[derive(Debug, Clone)]
-pub struct SamplerIntegratorData<T>
-where
-    T: Sampler + Clone,
-{
+pub struct SamplerIntegratorData {
     pub cam: Arc<RealisticCamera>,
-    pub sampler: Arc<T>,
+    pub sampler: Arc<Sampler>,
     pub pixel_bounds: Bounds2i,
 }
 
-trait SamplerIntegrator<T>: Send + Sync
-where
-    T: Sampler + Clone,
-{
-    fn itgt(&self) -> Arc<SamplerIntegratorData<T>>;
+trait SamplerIntegrator: Send + Sync {
+    fn itgt(&self) -> Arc<SamplerIntegratorData>;
     fn si_render(&mut self, scene: &Scene) {
         let itgt = self.itgt();
         let mut pre_sampler = (*itgt.sampler).clone();
@@ -122,14 +116,14 @@ where
             });
         });
     }
-    fn preprocess(&mut self, _scene: &Scene, _sampler: &mut T) {
+    fn preprocess(&mut self, _scene: &Scene, _sampler: &mut Sampler) {
         // do absolutely nothing at all
     }
     fn li(
         &self,
         ray: &mut RayDifferential,
         scene: &Scene,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         depth: usize,
     ) -> Spectrum<SPECTRUM_N>;
     fn specular_reflect(
@@ -137,7 +131,7 @@ where
         ray: &RayDifferential,
         isect: &SurfaceInteraction,
         scene: &Scene,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         // Compute specular reflection direction _wi_ and BSDF value
@@ -194,7 +188,7 @@ where
         ray: &RayDifferential,
         isect: &SurfaceInteraction,
         scene: &Scene,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         let wo = isect.ist.wo;
@@ -289,7 +283,7 @@ where
 pub fn uniform_sample_all_lights(
     it: &Interaction,
     scene: &Scene,
-    sampler: &mut dyn Sampler,
+    sampler: &mut Sampler,
     n_light_samples: &[u32],
     handle_media: bool,
 ) -> Spectrum<SPECTRUM_N> {
@@ -344,7 +338,7 @@ pub fn uniform_sample_all_lights(
 pub fn uniform_sample_one_light(
     it: &Interaction,
     scene: &Scene,
-    sampler: &mut dyn Sampler,
+    sampler: &mut Sampler,
     handle_media: bool,
     light_distrib: Option<Arc<Distribution1D>>,
 ) -> Spectrum<SPECTRUM_N> {
@@ -391,7 +385,7 @@ pub fn estimate_direct(
     light: Arc<dyn Light>,
     u_light: &Point2f,
     scene: &Scene,
-    sampler: &mut dyn Sampler,
+    sampler: &mut Sampler,
     handle_media: bool,
     specular: bool,
 ) -> Spectrum<SPECTRUM_N> {

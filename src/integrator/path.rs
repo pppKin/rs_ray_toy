@@ -5,7 +5,7 @@ use crate::{
     interaction::{Interaction, SurfaceInteraction},
     primitives::Primitive,
     reflection::{BXDF_ALL, BXDF_SPECULAR, BXDF_TRANSMISSION},
-    samplers::Sampler,
+    samplers::{ISampler, Sampler},
     sampling::Distribution1D,
     scene::Scene,
     spectrum::{ISpectrum, Spectrum},
@@ -14,27 +14,21 @@ use crate::{
 
 use super::{uniform_sample_one_light, Integrator, SamplerIntegrator, SamplerIntegratorData};
 
-pub struct PathIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+pub struct PathIntegrator {
     max_depth: usize,
     rr_threshold: f64,
     //  we'll use UniformLightDistribution/PowerLightDistribution for now
     light_distrib: Arc<Distribution1D>,
 
-    i: Arc<SamplerIntegratorData<T>>,
+    i: Arc<SamplerIntegratorData>,
 }
 
-impl<T> PathIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+impl PathIntegrator {
     pub fn new(
         max_depth: usize,
         rr_threshold: f64,
         light_distrib: Arc<Distribution1D>,
-        i: Arc<SamplerIntegratorData<T>>,
+        i: Arc<SamplerIntegratorData>,
     ) -> Self {
         Self {
             max_depth,
@@ -45,24 +39,18 @@ where
     }
 }
 
-impl<T> Integrator for PathIntegrator<T>
-where
-    T: Sampler + Clone,
-{
+impl Integrator for PathIntegrator {
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)
     }
 }
 
-impl<T> SamplerIntegrator<T> for PathIntegrator<T>
-where
-    T: Sampler + Clone,
-{
-    fn itgt(&self) -> Arc<SamplerIntegratorData<T>> {
+impl SamplerIntegrator for PathIntegrator {
+    fn itgt(&self) -> Arc<SamplerIntegratorData> {
         Arc::clone(&self.i)
     }
 
-    fn preprocess(&mut self, scene: &Scene, _sampler: &mut T) {
+    fn preprocess(&mut self, scene: &Scene, _sampler: &mut Sampler) {
         self.light_distrib = Arc::new(Distribution1D::new(vec![1.0; scene.lights.len()]));
     }
 
@@ -70,7 +58,7 @@ where
         &self,
         r: &mut RayDifferential,
         scene: &Scene,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         _depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
         let mut l = Spectrum::zero();

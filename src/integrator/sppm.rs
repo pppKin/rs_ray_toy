@@ -119,7 +119,7 @@ impl Integrator for SPPMIntegrator {
             (0..n_tiles_x).into_par_iter().for_each(|tile_x| {
                 (0..n_tiles_y).into_par_iter().for_each(|tile_y| {
                     // Follow camera paths for _tile_ in image for SPPM
-                    let mut ht_sampler = (*halton_sampler).clone();
+                    let mut ht_sampler = halton_sampler.as_ref().clone();
 
                     // Compute _tileBounds_ for SPPM tile
                     let x0 = pixel_bounds.p_min.x + tile_x as i64 * tile_size;
@@ -182,7 +182,7 @@ impl Integrator for SPPMIntegrator {
                                 * uniform_sample_one_light(
                                     &Interaction::Surface(isect.clone()),
                                     scene,
-                                    &mut ht_sampler,
+                                    &mut Sampler::Halton(ht_sampler.clone()),
                                     false,
                                     None,
                                 );

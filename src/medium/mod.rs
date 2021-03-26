@@ -57,11 +57,11 @@ impl PhaseFunction for HenyeyGreenstein {
 }
 
 pub trait Medium: Debug {
-    fn tr(&self, ray: &Ray, sampler: &mut dyn Sampler) -> Spectrum<SPECTRUM_N>;
+    fn tr(&self, ray: &Ray, sampler: &mut Sampler) -> Spectrum<SPECTRUM_N>;
     fn sample(
         &self,
         ray: &Ray,
-        sampler: &mut dyn Sampler,
+        sampler: &mut Sampler,
         mi: &mut MediumInteraction,
     ) -> Spectrum<SPECTRUM_N>;
 }
