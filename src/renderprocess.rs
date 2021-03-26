@@ -4,6 +4,7 @@ use serde_json::Value;
 use std::{collections::HashMap, error::Error, fmt::Display, fs, sync::Arc};
 
 use crate::{
+    bvh::{BVHAccel, BVHSplitMethod},
     geometry::{Bounds2i, Cxyz, Point2, Point3f, Vector3f},
     integrator::Integrator,
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
@@ -25,7 +26,7 @@ use crate::{
     mipmap::{ImageWrap, MIPMap},
     misc::{clamp_t, gamma_correct},
     objparser::parse_obj,
-    primitives::Primitive,
+    primitives::{GeometricPrimitive, Primitive, TransformedPrimitive},
     scene::Scene,
     shape::{
         sphere::Sphere,
@@ -204,6 +205,15 @@ fn make_transform<'a>(root: &'a Value) -> Result<Transform, String> {
     }
 }
 
+fn make_to_world(root: &Value) -> Transform {
+    let world_pos = fetch_point3f(root, "world_pos", Point3f::zero());
+    let rotation_axis = fetch_vector3f(root, "rotation_axis", Vector3f::new(1.0, 0.0, 0.0));
+    let rotation_angle = read_f64(root, "rotation_angle", 0.0);
+    let to_world = Transform::translate(&(Point3f::zero() - world_pos))
+        * Transform::rotate(rotation_angle, &rotation_axis);
+    to_world
+}
+
 fn make_scene(scene_config: &Value) -> (Scene, SceneGlobalData) {
     // material and triangle mesh is used globally so we create them first and passed them around
     let (float_texture, rgb_texture) = make_textures(scene_config);
@@ -256,8 +266,7 @@ fn make_textures(
     let mut rgb_texture = HashMap::<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>::new();
     if let Some(Value::Array(float_texture_configs)) = scene_config.get("float_texture") {
         for texture_config in float_texture_configs {
-            let world_pos = fetch_point3f(texture_config, "world_pos", Point3f::zero());
-            let to_world = Transform::translate(&(Point3f::zero() - world_pos));
+            let to_world = make_to_world(texture_config);
             let texture_type = read_string(texture_config, "texture_type", "");
             let texture_name = read_string(texture_config, "texture_name", "DefaultTextureName");
             match texture_type.as_str() {
@@ -350,8 +359,7 @@ fn make_textures(
     }
     if let Some(Value::Array(rgb_texture_configs)) = scene_config.get("rgb_texture") {
         for texture_config in rgb_texture_configs {
-            let world_pos = fetch_point3f(texture_config, "world_pos", Point3f::zero());
-            let to_world = Transform::translate(&(Point3f::zero() - world_pos));
+            let to_world = make_to_world(texture_config);
             let texture_type = read_string(texture_config, "texture_type", "");
             let texture_name = read_string(texture_config, "texture_name", "DefaultTextureName");
             match texture_type.as_str() {
@@ -818,8 +826,8 @@ fn make_triangle_mesh(scene_config: &Value) -> HashMap<String, Vec<Arc<Triangle>
         for obj_config in obj_l {
             let filename = read_string(obj_config, "filename", "DefaultObj");
             let obj_name = read_string(obj_config, "obj_name", "DefaultObjName");
-            let world_pos = fetch_point3f(obj_config, "world_pos", Point3f::zero());
-            let to_world = Transform::translate(&(Point3f::zero() - world_pos));
+            let to_world = make_to_world(obj_config);
+
             let to_local = Transform::inverse(&to_world);
             if let Ok(result) = parse_obj(&filename) {
                 objs.insert(
@@ -882,17 +890,16 @@ fn make_all_lights(
 fn make_light(light_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Light> {
     assert!(light_config.is_object());
     if let Some(Value::String(light_type)) = light_config.get("light_type") {
-        let world_pos = fetch_point3f(light_config, "world_pos", Point3f::zero());
+        let light_to_world = make_to_world(light_config);
 
-        let light_to_world = Transform::translate(&(Point3f::zero() - world_pos));
         let mut inside_medium = None;
         let mut outside_medium = None;
-        if let Some(all_medium_config) = light_config.get("medium") {
+        if let Some(all_medium_config) = light_config.get("medium_interface") {
             if let Some(inside_medium_config) = all_medium_config.get("inside") {
                 inside_medium = make_medium(inside_medium_config).ok();
             }
-            if let Some(inside_medium_config) = all_medium_config.get("outside") {
-                outside_medium = make_medium(inside_medium_config).ok();
+            if let Some(outside_medium_config) = all_medium_config.get("outside") {
+                outside_medium = make_medium(outside_medium_config).ok();
             }
         }
 
@@ -976,8 +983,8 @@ fn make_light_shape(shape_config: &Value, scene_global: &SceneGlobalData) -> Arc
 }
 
 fn make_sphere(sphere_config: &Value) -> Sphere {
-    let world_pos = fetch_point3f(sphere_config, "world_pos", Point3f::zero());
-    let to_world = Transform::translate(&(Point3f::zero() - world_pos));
+    let to_world = make_to_world(sphere_config);
+
     let to_local = Transform::inverse(&to_world);
 
     let radius = read_f64(sphere_config, "radius", 1.0);
@@ -1017,9 +1024,9 @@ pub fn get_medium_scattering_properties(
 fn make_medium(medium_config: &Value) -> Result<Arc<dyn Medium + Send + Sync>, String> {
     let parse_err = "Failed to parse medium";
     if let Some(Value::String(medium_type)) = medium_config.get("medium_type") {
-        let world_pos = fetch_point3f(medium_config, "world_pos", Point3f::zero());
-        let world_to_medium =
-            Transform::inverse(&Transform::translate(&(Point3f::zero() - world_pos)));
+        let to_world = make_to_world(medium_config);
+
+        let world_to_medium = Transform::inverse(&to_world);
         let (sigma_a, sigma_s) = get_medium_scattering_properties(medium_config);
         let g = read_f64(medium_config, "g", 0.0);
 
@@ -1058,7 +1065,120 @@ fn make_medium(medium_config: &Value) -> Result<Arc<dyn Medium + Send + Sync>, S
 }
 
 fn make_aggregate(scene_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Primitive> {
-    todo!();
+    let mut primitives: Vec<Arc<dyn Primitive>>;
+    let aggregate_config =
+        search_object(scene_config, "aggregate_config").expect("No Aggregate Config Defined");
+    let max_prims_in_node = read_i64(aggregate_config, "max_prims_in_node", 4) as u32;
+    if let Some(Value::Array(primitives_vec)) = aggregate_config.get("primitives") {
+        primitives = Vec::with_capacity(primitives_vec.len());
+        for primitive_config in primitives_vec {
+            match read_string(primitive_config, "primitive_type", "").as_str() {
+                "sphere" => {
+                    let shape = make_sphere(primitive_config);
+                    let material_name =
+                        read_string(primitive_config, "material_name", "DefaultMaterialName");
+                    if let Some(material) = scene_global.materials.get(material_name.as_str()) {
+                        // let p_area_light; we'll figure out emissive primitive later?
+                        let mut inside_medium = None;
+                        let mut outside_medium = None;
+                        if let Some(all_medium_config) = primitive_config.get("medium_interface") {
+                            if let Some(inside_medium_config) = all_medium_config.get("inside") {
+                                inside_medium = make_medium(inside_medium_config).ok();
+                            }
+                            if let Some(inside_medium_config) = all_medium_config.get("outside") {
+                                outside_medium = make_medium(inside_medium_config).ok();
+                            }
+                        }
+
+                        let mi = MediumInterface {
+                            inside: inside_medium,
+                            outside: outside_medium,
+                        };
+                        let g = Arc::new(GeometricPrimitive::new(
+                            Arc::new(shape),
+                            material.clone(),
+                            None,
+                            mi,
+                        ));
+                        if let Some(Value::Array(instances_vec)) = primitive_config.get("instances")
+                        {
+                            primitives.reserve(instances_vec.len());
+                            for instance_config in instances_vec {
+                                let to_world = make_to_world(instance_config);
+
+                                primitives
+                                    .push(Arc::new(TransformedPrimitive::new(g.clone(), to_world)));
+                            }
+                        }
+                    }
+                }
+                "triangle" => {
+                    let obj_name = read_string(primitive_config, "obj_name", "DefaultObjName");
+                    let obj_opt = scene_global.triangle_mesh.get(&obj_name);
+                    let material_name =
+                        read_string(primitive_config, "material_name", "DefaultMaterialName");
+                    let material_opt = scene_global.materials.get(material_name.as_str());
+                    if let (Some(obj), Some(material)) = (obj_opt, material_opt) {
+                        let mut inside_medium = None;
+                        let mut outside_medium = None;
+                        if let Some(medium_interface_config) =
+                            primitive_config.get("medium_interface")
+                        {
+                            if let Some(inside_medium_config) =
+                                medium_interface_config.get("inside")
+                            {
+                                inside_medium = make_medium(inside_medium_config).ok();
+                            }
+                            if let Some(outside_medium_config) =
+                                medium_interface_config.get("outside")
+                            {
+                                outside_medium = make_medium(outside_medium_config).ok();
+                            }
+                        }
+
+                        let mi = MediumInterface {
+                            inside: inside_medium,
+                            outside: outside_medium,
+                        };
+                        let mut gs = Vec::with_capacity(obj.len());
+                        for tri in obj {
+                            gs.push(Arc::new(GeometricPrimitive::new(
+                                tri.clone(),
+                                material.clone(),
+                                None,
+                                mi.clone(),
+                            )))
+                        }
+
+                        if let Some(Value::Array(instances_vec)) = primitive_config.get("instances")
+                        {
+                            primitives.reserve(instances_vec.len());
+                            for instance_config in instances_vec {
+                                let to_world = make_to_world(instance_config);
+                                for g in &gs {
+                                    primitives.push(Arc::new(TransformedPrimitive::new(
+                                        g.clone(),
+                                        to_world,
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                }
+                unknown => {
+                    eprintln!("Unsupported primitive_type! {}", unknown)
+                }
+            }
+        }
+    } else {
+        eprintln!("Found 0 primitives! You're rendering nothing!");
+        primitives = vec![];
+    }
+    Arc::new(BVHAccel::new(
+        primitives,
+        max_prims_in_node,
+        BVHSplitMethod::HLBVH,
+    ))
 }
 
 fn make_integrator(

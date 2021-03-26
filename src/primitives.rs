@@ -29,6 +29,15 @@ pub struct TransformedPrimitive {
     primitive_to_world: Transform,
 }
 
+impl TransformedPrimitive {
+    pub fn new(primitive: Arc<dyn Primitive>, primitive_to_world: Transform) -> Self {
+        Self {
+            primitive,
+            primitive_to_world,
+        }
+    }
+}
+
 impl IntersectP for GeometricPrimitive {
     fn intersect_p(&self, r: &Ray) -> bool {
         self.shape.intersect_p(r)

@@ -300,7 +300,7 @@ fn radix_sort(v: &mut Vec<MortonPrimitive>) {
 }
 
 impl BVHAccel {
-    fn new(
+    pub fn new(
         p: Vec<Arc<dyn Primitive>>,
         max_prims_in_node: u32,
         split_method: BVHSplitMethod,
