@@ -1,11 +1,17 @@
 use image::{io::Reader as ImageReader, ImageBuffer, ImageError, Rgba};
 use serde_json::Value;
 
-use std::{collections::HashMap, error::Error, fmt::Display, fs, sync::Arc};
+use std::{collections::HashMap, error::Error, f64::INFINITY, fmt::Display, fs, sync::Arc};
 
 use crate::{
     bvh::{BVHAccel, BVHSplitMethod},
-    geometry::{Bounds2i, Cxyz, Point2, Point3f, Vector3f},
+    camera::RealisticCamera,
+    film::Film,
+    filters::{
+        boxfilter::create_box_filter, gaussian::create_gaussian_filter,
+        trianglefilter::create_triangle_filter, Filter,
+    },
+    geometry::{Bounds2f, Bounds2i, Cxyz, Point2, Point2f, Point2i, Point3f, Vector2f, Vector3f},
     integrator::Integrator,
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
     material::{
@@ -185,6 +191,15 @@ fn fetch_vector3f(config: &Value, key: &str, default_value: Vector3f) -> Vector3
         match make_xyz(values) {
             Ok(p) => return p,
             Err(_) => {}
+        }
+    }
+    default_value
+}
+
+fn fetch_vector2f(config: &Value, key: &str, default_value: Vector2f) -> Vector2f {
+    if let Some(root) = config.get(key) {
+        if let Ok(nums) = read_num_array(root, 2) {
+            return Vector2f::new(nums[0], nums[1]);
         }
     }
     default_value
@@ -1207,6 +1222,49 @@ fn make_sampler(sampler_config: &Value, sample_bounds: &Bounds2i) -> Arc<Sampler
             panic!("Unsupported Sampler type: {:?}", sampler_config);
         }
     }
+}
+
+fn make_film(film_config: &Value, save_to: &str) -> Film {
+    let xres = read_i64(film_config, "xres", 1280);
+    let yres = read_i64(film_config, "yres", 720);
+
+    let crop = Bounds2f::new(Point2f::new(0.0, 0.0), Point2f::new(1.0, 1.0));
+    let scale = read_f64(film_config, "scale", 1.0);
+    let diagonal = read_f64(film_config, "diagonal", 35.0); // by default we use 35mm film
+    let max_sample_luminance = read_f64(film_config, "max_sample_luminance", INFINITY);
+    if let Ok(filter_config) = search_object(film_config, "filter_config") {
+        let fltr: Filter;
+        match read_string(filter_config, "filter_type", "BoxFilter").as_str() {
+            "TriangleFilter" => {
+                let radius = fetch_vector2f(filter_config, "radius", Vector2f::new(2.0, 2.0));
+                fltr = create_triangle_filter(radius);
+            }
+            "GaussianFilter" => {
+                let radius = fetch_vector2f(filter_config, "radius", Vector2f::new(2.0, 2.0));
+                let alpha = read_f64(filter_config, "alpha", 2.0);
+                fltr = create_gaussian_filter(radius, alpha);
+            }
+            _ => {
+                let radius = fetch_vector2f(filter_config, "radius", Vector2f::new(0.5, 0.5));
+                // by default create a box filter
+                fltr = create_box_filter(radius);
+            }
+        }
+        return Film::new(
+            Point2i::new(xres, yres),
+            diagonal,
+            fltr,
+            save_to.to_string(),
+            crop,
+            scale,
+            max_sample_luminance,
+        );
+    }
+    panic!("Failed to create Film")
+}
+
+fn make_camera(scene_config: &Value, film: Film) -> RealisticCamera {
+    todo!();
 }
 
 fn make_integrator(

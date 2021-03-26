@@ -20,8 +20,6 @@ impl Gaussian {
     }
 }
 
-pub type GaussianFilter = Filter<Gaussian>;
-
 impl IFilter for Gaussian {
     fn if_evaluate(&self, p: &Point2f, _r: &FilterRadius) -> f64 {
         // Gaussian(p.x, expX) * Gaussian(p.y, expY)
@@ -29,8 +27,8 @@ impl IFilter for Gaussian {
     }
 }
 
-pub fn create_gaussian_filter(radius: Vector2f, alpha: f64) -> GaussianFilter {
-    GaussianFilter::new(
+pub fn create_gaussian_filter(radius: Vector2f, alpha: f64) -> Filter {
+    Filter::new(
         Arc::new(Gaussian::new(
             alpha,
             f64::exp(-alpha * radius.x * radius.x),

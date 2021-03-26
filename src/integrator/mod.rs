@@ -3,7 +3,7 @@ use std::sync::Arc;
 use rayon::prelude::*;
 
 use crate::{
-    camera::{ICamera, RealisticCamera},
+    camera::RealisticCamera,
     geometry::{abs_dot3, dot3, Bounds2i, Normal3f, Point2f, Point2i, RayDifferential, Vector3f},
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
@@ -34,7 +34,7 @@ trait SamplerIntegrator: Send + Sync {
         let mut pre_sampler = (*itgt.sampler).clone();
         self.preprocess(scene, &mut pre_sampler);
 
-        let sample_bounds = self.itgt().cam.camera.film.get_sample_bounds();
+        let sample_bounds = self.itgt().cam.film.get_sample_bounds();
         let sample_extent = sample_bounds.diagonal();
         let tile_size = 16;
         let n_tiles_x = (sample_extent.x + tile_size - 1) / tile_size;
@@ -50,7 +50,7 @@ trait SamplerIntegrator: Send + Sync {
                 let tile_bounds = Bounds2i::new(Point2i::new(x0, y0), Point2i::new(x1, y1));
 
                 let mut tile_sampler = (*itgt.sampler).clone();
-                let mut film_tile = itgt.cam.camera.film.get_film_tile(&tile_bounds);
+                let mut film_tile = itgt.cam.film.get_film_tile(&tile_bounds);
                 // Loop over pixels in tile to render them
                 for pixel in tile_bounds.into_iter() {
                     tile_sampler.start_pixel(pixel);
@@ -112,7 +112,7 @@ trait SamplerIntegrator: Send + Sync {
                 // TODO: LOG(INFO) << "Finished image tile " << tileBounds;
 
                 // Merge image tile into _Film_
-                itgt.cam.camera.film.merge_film_tile(&mut film_tile);
+                itgt.cam.film.merge_film_tile(&mut film_tile);
             });
         });
     }

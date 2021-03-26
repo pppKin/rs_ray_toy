@@ -2,62 +2,16 @@ use std::{f64::INFINITY, fmt::Debug, sync::Arc};
 
 use crate::{
     film::Film,
-    geometry::{
-        faceforward, Bounds2f, Normal3f, Point2f, Point2i, Point3f, Ray, RayDifferential, Vector3f,
-    },
+    geometry::{faceforward, Bounds2f, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f},
     interaction::Interaction,
     lowdiscrepancy::radical_inverse,
     medium::MediumOpArc,
     misc::{copy_option_arc, lerp, quadratic},
     reflection::refract,
-    sampling::concentric_sample_disk,
     spectrum::Spectrum,
     transform::{ToWorld, Transform},
     SPECTRUM_N,
 };
-
-#[derive(Debug)]
-pub struct CameraData {
-    camera_to_world: Transform,
-    pub shutter_open: f64,
-    pub shutter_close: f64,
-
-    pub film: Arc<Film>,
-    pub medium: MediumOpArc,
-}
-
-impl CameraData {
-    pub fn new(
-        camera_to_world: Transform,
-        shutter_open: f64,
-        shutter_close: f64,
-        film: Arc<Film>,
-        medium: MediumOpArc,
-    ) -> Self {
-        Self {
-            camera_to_world,
-            shutter_open,
-            shutter_close,
-            film,
-            medium,
-        }
-    }
-}
-
-pub struct PerspectiveCamera {
-    pub camera_to_world: Transform,
-    pub resolution: Point2i,
-    pub shutter_open: f64,
-    pub shutter_close: f64,
-    pub raster_to_camera: Transform,
-    pub lens_radius: f64,
-    pub focal_distance: f64,
-
-    pub dx_camera: Vector3f,
-    pub dy_camera: Vector3f,
-
-    pub a: f64,
-}
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct CameraSample {
@@ -150,7 +104,12 @@ pub struct LensElementInterface {
 
 #[derive(Debug)]
 pub struct RealisticCamera {
-    pub camera: CameraData,
+    camera_to_world: Transform,
+    pub shutter_open: f64,
+    pub shutter_close: f64,
+
+    pub film: Arc<Film>,
+    pub medium: MediumOpArc,
 
     element_interfaces: Vec<LensElementInterface>,
     exit_pupil_bounds: Vec<Bounds2f>,
@@ -158,19 +117,6 @@ pub struct RealisticCamera {
 }
 
 impl RealisticCamera {
-    pub fn new(
-        camera: CameraData,
-        element_interfaces: Vec<LensElementInterface>,
-        exit_pupil_bounds: Vec<Bounds2f>,
-        simple_weighting: bool,
-    ) -> Self {
-        Self {
-            camera,
-            element_interfaces,
-            exit_pupil_bounds,
-            simple_weighting,
-        }
-    }
     fn lens_rear_z(&self) -> f64 {
         self.element_interfaces
             .last()
@@ -367,7 +313,7 @@ impl RealisticCamera {
     }
     fn compute_thick_lens_approximation(&self) -> ([f64; 2], [f64; 2]) {
         // Find height $x$ from optical axis for parallel rays
-        let x = 0.001 * self.camera.film.diagonal;
+        let x = 0.001 * self.film.diagonal;
         // Compute cardinal points for film side of lens system
         let r_scene = Ray::new_od(
             Point3f::new(x, 0.0, self.lens_front_z() + 1.0),
@@ -441,7 +387,7 @@ impl RealisticCamera {
     }
     fn focus_distance(&self, film_dist: f64) -> f64 {
         // Find offset ray from film center through lens
-        let bounds = self.bound_exit_pupil(0.0, 0.001 * self.camera.film.diagonal);
+        let bounds = self.bound_exit_pupil(0.0, 0.001 * self.film.diagonal);
         let scale_factors = [0.1, 0.01, 0.001];
         let mut lu = 0.0;
         let mut ray: Option<Ray> = None;
@@ -530,7 +476,7 @@ impl RealisticCamera {
         // Find exit pupil bound for sample distance from film center
         let r_film = (p_film.x * p_film.x + p_film.y * p_film.y).sqrt();
         let mut r_index =
-            (r_film / (self.camera.film.diagonal / 2.0)) as usize * self.exit_pupil_bounds.len();
+            (r_film / (self.film.diagonal / 2.0)) as usize * self.exit_pupil_bounds.len();
         r_index = r_index.min(self.exit_pupil_bounds.len() - 1);
         let pupil_bounds = self.exit_pupil_bounds[r_index];
 
@@ -563,19 +509,19 @@ impl RealisticCamera {
 
 impl ToWorld for RealisticCamera {
     fn to_world(&self) -> &Transform {
-        &self.camera.camera_to_world
+        &self.camera_to_world
     }
 }
 
-impl ICamera for RealisticCamera {
+impl RealisticCamera {
     fn generate_ray(&self, sample: &CameraSample, ray: &mut Ray) -> f64 {
         // Find point on film, _pFilm_, corresponding to _sample.pFilm_
         let s = Point2f::new(
-            sample.p_film.x / self.camera.film.full_resolution.x as f64,
-            sample.p_film.y / self.camera.film.full_resolution.y as f64,
+            sample.p_film.x / self.film.full_resolution.x as f64,
+            sample.p_film.y / self.film.full_resolution.y as f64,
         );
 
-        let p_film2 = self.camera.film.get_physical_extent().lerp(&s);
+        let p_film2 = self.film.get_physical_extent().lerp(&s);
         let p_film = Point3f::new(-p_film2.x, p_film2.y, 0.0);
 
         // Trace ray from _pFilm_ through lens system
@@ -585,11 +531,7 @@ impl ICamera for RealisticCamera {
             p_film,
             p_rear - p_film,
             f64::INFINITY,
-            lerp(
-                sample.time,
-                self.camera.shutter_open,
-                self.camera.shutter_close,
-            ),
+            lerp(sample.time, self.shutter_open, self.shutter_close),
             None,
         );
 
@@ -605,7 +547,7 @@ impl ICamera for RealisticCamera {
         // Finish initialization of _RealisticCamera_ ray
         *ray = self.to_world().t(ray);
         ray.d = ray.d.normalize();
-        ray.medium = copy_option_arc(&self.camera.medium);
+        ray.medium = copy_option_arc(&self.medium);
 
         // Return weighting for _RealisticCamera_ ray
         let cos_theta = r_film.d.normalize().z;
@@ -613,182 +555,57 @@ impl ICamera for RealisticCamera {
         if self.simple_weighting {
             return cos4_theta * exit_pupil_bounds_area / self.exit_pupil_bounds[0].area();
         } else {
-            return (self.camera.shutter_close - self.camera.shutter_open)
+            return (self.shutter_close - self.shutter_open)
                 * (cos4_theta * exit_pupil_bounds_area)
                 / self.lens_rear_z()
                 * self.lens_rear_z();
         }
     }
-}
 
-impl PerspectiveCamera {
-    pub fn new(
-        camera_to_world: Transform,
-        screen_window: Bounds2f,
-        resolution: Point2i,
-        fov: f64,
-        shutter_open: f64,
-        shutter_close: f64,
-        lens_radius: f64,
-        focal_distance: f64,
-    ) -> Self {
-        let camera_to_screen: Transform = Transform::perspective(fov, 1e-2, 1000.0);
-
-        // compute projective camera screen transformations
-        let scale1 = Transform::scale(resolution.x as f64, resolution.y as f64, 1.0);
-        let scale2 = Transform::scale(
-            1.0 / (screen_window.p_max.x - screen_window.p_min.x),
-            1.0 / (screen_window.p_min.y - screen_window.p_max.y),
-            1.0,
-        );
-        let translate = Transform::translate(&Vector3f {
-            x: -screen_window.p_min.x,
-            y: -screen_window.p_max.y,
-            z: 0.0,
-        });
-        let screen_to_raster = scale1 * scale2 * translate;
-        let raster_to_screen = Transform::inverse(&screen_to_raster);
-        let raster_to_camera = Transform::inverse(&camera_to_screen) * raster_to_screen;
-        // see perspective.cpp
-        // compute differential changes in origin for perspective camera rays
-        let dx_camera: Vector3f = raster_to_camera.t(&Point3f {
-            x: 1.0,
-            y: 0.0,
-            z: 0.0,
-        }) - raster_to_camera.t(&Point3f {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        });
-        let dy_camera: Vector3f = raster_to_camera.t(&Point3f {
-            x: 0.0,
-            y: 1.0,
-            z: 0.0,
-        }) - raster_to_camera.t(&Point3f {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        });
-        // compute image plane bounds at $z=1$ for _PerspectiveCamera_
-        let mut p_min: Point3f = raster_to_camera.t(&Point3f {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        });
-        // Point3f p_max = RasterToCamera(Point3f(res.x, res.y, 0));
-        let mut p_max: Point3f = raster_to_camera.t(&Point3f {
-            x: resolution.x as f64,
-            y: resolution.y as f64,
-            z: 0.0,
-        });
-        p_min /= p_min.z;
-        p_max /= p_max.z;
-        let a: f64 = ((p_max.x - p_min.x) * (p_max.y - p_min.y)).abs();
-
-        PerspectiveCamera {
-            camera_to_world,
-            resolution,
-            shutter_open,
-            shutter_close,
-            raster_to_camera,
-            lens_radius,
-            focal_distance,
-            dx_camera,
-            dy_camera,
-            a,
+    pub fn generate_ray_differential(
+        &self,
+        sample: &CameraSample,
+        rd: &mut RayDifferential,
+    ) -> f64 {
+        let wt = self.generate_ray(sample, &mut rd.ray);
+        if wt == 0.0 {
+            return 0.0;
         }
-    }
-    pub fn create(
-        cam2world: Transform,
-        resolution: Point2i,
-        fov: f64,
-        shutteropen: f64,
-        shutterclose: f64,
-        lensradius: f64,
-        focaldistance: f64,
-    ) -> PerspectiveCamera {
-        assert!(shutterclose >= shutteropen);
-        let frame = resolution.x as f64 / resolution.y as f64;
-
-        let mut screen: Bounds2f = Bounds2f::default();
-        if frame > 1.0 {
-            screen.p_min.x = -frame;
-            screen.p_max.x = frame;
-            screen.p_min.y = -1.0;
-            screen.p_max.y = 1.0;
-        } else {
-            screen.p_min.x = -1.0;
-            screen.p_max.x = 1.0;
-            screen.p_min.y = -1.0 / frame;
-            screen.p_max.y = 1.0 / frame;
+        // Find camera ray after shifting a fraction of a pixel in the $x$ direction
+        let mut wtx = 0_f64;
+        for eps in [0.05, -0.05].iter() {
+            let mut sshift = *sample;
+            sshift.p_film.x += eps;
+            let mut rx = Ray::default();
+            wtx = self.generate_ray(&sshift, &mut rx);
+            rd.rx_origin = rd.ray.o + (rx.o - rd.ray.o) / (*eps);
+            rd.rx_direction = rd.ray.d + (rx.d - rd.ray.d) / (*eps);
+            if wtx != 0_f64 {
+                break;
+            }
+        }
+        if wtx == 0_f64 {
+            return 0_f64;
         }
 
-        PerspectiveCamera::new(
-            cam2world,
-            screen,
-            resolution,
-            fov,
-            shutteropen,
-            shutterclose,
-            lensradius,
-            focaldistance,
-        )
-    }
-
-    // Camera
-    pub fn generate_ray(&self, sample: &CameraSample, ray: &mut Ray) -> f64 {
-        // We will use a simplified version here
-        let p_film: Point3f = Point3f {
-            x: sample.p_film.x,
-            y: sample.p_film.y,
-            z: 0.0,
-        };
-        let p_camera = self.raster_to_camera.t(&p_film);
-        ray.d = Vector3f::from(p_camera).normalize();
-        // 1/z` - 1/z = 1/f where z is object depth in scene; z` is focusing film distance from lens; f is focal distance
-        if self.lens_radius > 0.0 {
-            // sample point on lens
-            let p_lens: Point2f = concentric_sample_disk(sample.p_lens) * self.lens_radius;
-            // // compute point on plane of focus
-            let ft = self.focal_distance / ray.d.z;
-            let p_focus: Point3f = ray.position(ft);
-
-            // // update ray for effect of lens
-            ray.o = Point3f {
-                x: p_lens.x,
-                y: p_lens.y,
-                z: 0.0,
-            };
-            ray.d = (p_focus - ray.o).normalize();
+        // Find camera ray after shifting a fraction of a pixel in the $y$ direction
+        let mut wty = 0_f64;
+        for eps in [0.05, -0.05].iter() {
+            let mut sshift = *sample;
+            sshift.p_film.y += eps;
+            let mut ry = Ray::default();
+            wty = self.generate_ray(&sshift, &mut ry);
+            rd.ry_origin = rd.ray.o + (ry.o - rd.ray.o) / (*eps);
+            rd.ry_direction = rd.ray.d + (ry.d - rd.ray.d) / (*eps);
+            if wty != 0_f64 {
+                break;
+            }
+        }
+        if wty == 0_f64 {
+            return 0_f64;
         }
 
-        *ray = self.camera_to_world.t(&ray);
-        1.0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_perspective() {
-        let t: Transform = Transform::look_at(
-            &Point3f::new(0.0, 0.0, 0.0),
-            &Point3f::new(0.0, 0.0, 1.0),
-            &Vector3f::new(0.0, 1.0, 0.0),
-        );
-
-        let it: Transform = Transform {
-            m: t.m_inv.clone(),
-            m_inv: t.m.clone(),
-        };
-        let cam = PerspectiveCamera::create(it, Point2i::new(640, 640), 75.0, 0.0, 0.0, 0.05, 5.0);
-        let mut r = Ray::default();
-        cam.generate_ray(
-            &CameraSample::new(Point2f::new(0.0, 1.0), Point2f::new(0.0, 0.01), 0.0),
-            &mut r,
-        );
-        println!("{:?}", r);
+        rd.has_differentials = true;
+        wt
     }
 }

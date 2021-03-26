@@ -83,7 +83,7 @@ fn hash(p: &Point3f, hash_size: usize) -> usize {
 impl Integrator for SPPMIntegrator {
     fn render(&mut self, scene: &Scene) {
         // Initialize _pixelBounds_ and _pixels_ array for SPPM
-        let pixel_bounds = self.cam.camera.film.cropped_pixel_bounds;
+        let pixel_bounds = self.cam.film.cropped_pixel_bounds;
         let n_pixels = pixel_bounds.area();
         let mut tmp_pixels = vec![];
         for _pidx in 0..n_pixels as usize {
@@ -349,8 +349,8 @@ impl Integrator for SPPMIntegrator {
                     );
                     let u_light_time = lerp(
                         radical_inverse(halton_dim + 2, halton_index),
-                        self.cam.camera.shutter_open,
-                        self.cam.camera.shutter_close,
+                        self.cam.shutter_open,
+                        self.cam.shutter_close,
                     );
                     halton_dim += 5;
 
@@ -529,8 +529,8 @@ impl Integrator for SPPMIntegrator {
                         image.push(l);
                     }
                 }
-                self.cam.camera.film.set_image(&image);
-                self.cam.camera.film.write_image(1.0);
+                self.cam.film.set_image(&image);
+                self.cam.film.write_image(1.0);
             }
         }
     }

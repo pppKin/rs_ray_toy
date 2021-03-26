@@ -3,7 +3,6 @@ use super::*;
 pub struct BoxFltr {
     // not to be confused with Box
 }
-pub type BoxFilter = Filter<BoxFltr>;
 
 impl IFilter for BoxFltr {
     fn if_evaluate(&self, _p: &Point2f, _r: &FilterRadius) -> f64 {
@@ -11,8 +10,8 @@ impl IFilter for BoxFltr {
     }
 }
 
-pub fn create_box_filter(radius: Vector2f) -> BoxFilter {
-    BoxFilter::new(Arc::new(BoxFltr::default()), FilterRadius::new(radius))
+pub fn create_box_filter(radius: Vector2f) -> Filter {
+    Filter::new(Arc::new(BoxFltr::default()), FilterRadius::new(radius))
 }
 
 #[cfg(test)]

@@ -3,16 +3,14 @@ use super::*;
 #[derive(Default, Debug, Copy, Clone)]
 pub struct TriangleFltr {}
 
-pub type TriangleFilter = Filter<TriangleFltr>;
-
 impl IFilter for TriangleFltr {
     fn if_evaluate(&self, p: &Point2f, r: &FilterRadius) -> f64 {
         f64::max(0_f64, r.radius.x - p.x.abs()) * f64::max(0_f64, r.radius.y - p.y.abs())
     }
 }
 
-pub fn create_triangle_filter(radius: Vector2f) -> TriangleFilter {
-    TriangleFilter::new(Arc::new(TriangleFltr::default()), FilterRadius::new(radius))
+pub fn create_triangle_filter(radius: Vector2f) -> Filter {
+    Filter::new(Arc::new(TriangleFltr::default()), FilterRadius::new(radius))
 }
 
 #[cfg(test)]

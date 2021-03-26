@@ -21,17 +21,14 @@ impl FilterRadius {
     }
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct Filter<T: IFilter + ?Sized> {
-    f: Arc<T>,
+#[derive(Debug, Clone)]
+pub struct Filter {
+    f: Arc<dyn IFilter>,
     pub r: FilterRadius,
 }
 
-impl<T> Filter<T>
-where
-    T: IFilter + ?Sized,
-{
-    pub fn new(f: Arc<T>, r: FilterRadius) -> Self {
+impl Filter {
+    pub fn new(f: Arc<dyn IFilter>, r: FilterRadius) -> Self {
         Self { f, r }
     }
 

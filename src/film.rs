@@ -1,5 +1,5 @@
 use crate::{
-    filters::{Filter, IFilter},
+    filters::Filter,
     geometry::{
         bnd2_intersect_bnd2, pnt2_ceil, pnt2_floor, pnt2_max_pnt2, pnt2_min_pnt2, Bounds2f,
         Bounds2i, Point2f, Point2i, Vector2f,
@@ -31,8 +31,8 @@ pub struct Film {
     // Film Public Data
     pub full_resolution: Point2i,
     pub diagonal: f64,
-    pub filter: Filter<dyn IFilter>,
-    pub filename: String,
+    pub filter: Filter,
+    pub save_path: String,
     pub cropped_pixel_bounds: Bounds2i,
 
     // Film Private Data
@@ -143,8 +143,8 @@ impl Film {
     pub fn new(
         full_resolution: Point2i,
         diagonal: f64,
-        filter: Filter<dyn IFilter>,
-        filename: String,
+        filter: Filter,
+        save_path: String,
         cropped_window: Bounds2f,
         scale: f64,
         max_sample_luminance: f64,
@@ -177,9 +177,9 @@ impl Film {
 
         Self {
             full_resolution,
-            diagonal,
+            diagonal: diagonal * 0.001,
             filter,
-            filename,
+            save_path,
             cropped_pixel_bounds,
             pixels,
             filter_table,
@@ -372,7 +372,7 @@ impl Film {
         }
 
         // Write RGB image
-        write_image(&self.filename, &rgb, self.cropped_pixel_bounds)
+        write_image(&self.save_path, &rgb, self.cropped_pixel_bounds)
             .expect("FAILED writing to image!");
     }
 }
