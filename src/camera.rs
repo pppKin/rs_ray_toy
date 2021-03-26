@@ -1,4 +1,10 @@
-use std::{f64::INFINITY, fmt::Debug, sync::Arc};
+use std::{
+    f64::INFINITY,
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
+
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
     film::Film,
@@ -102,6 +108,17 @@ pub struct LensElementInterface {
     aperture_radius: f64,
 }
 
+impl LensElementInterface {
+    pub fn new(curvature_radius: f64, thickness: f64, eta: f64, aperture_radius: f64) -> Self {
+        Self {
+            curvature_radius,
+            thickness,
+            eta,
+            aperture_radius,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct RealisticCamera {
     camera_to_world: Transform,
@@ -117,6 +134,70 @@ pub struct RealisticCamera {
 }
 
 impl RealisticCamera {
+    pub fn new(
+        camera_to_world: Transform,
+        shutter_open: f64,
+        shutter_close: f64,
+        aperture_diameter: f64,
+        focus_distance: f64,
+        film: Arc<Film>,
+        medium: MediumOpArc,
+        lens_data: &[f64],
+        simple_weighting: bool,
+    ) -> Self {
+        assert!(lens_data.len() % 4 == 0);
+        let mut element_interfaces = Vec::with_capacity(lens_data.len() / 4);
+        for idx in 0..lens_data.len() / 4 {
+            let i = idx * 4;
+            let mut aperture_radius = lens_data[i + 3];
+            if lens_data[i] == 0.0 {
+                if aperture_diameter > lens_data[i + 3] {
+                    // Warning(
+                    //     "Specified aperture diameter %f is greater than maximum "
+                    //     "possible %f.  Clamping it.",
+                    //     apertureDiameter, lensData[i + 3]);
+                } else {
+                    aperture_radius = aperture_diameter;
+                }
+            }
+            element_interfaces.push(LensElementInterface::new(
+                lens_data[i] * 0.001,
+                lens_data[i + 1] * 0.001,
+                lens_data[i + 2],
+                aperture_radius * 0.001 / 2.0,
+            ));
+        }
+        let mut cam = Self {
+            camera_to_world,
+            shutter_open,
+            shutter_close,
+            film,
+            medium,
+            element_interfaces,
+            exit_pupil_bounds: vec![],
+            simple_weighting,
+        };
+        // Compute lens--film distance for given focus distance
+        let tmp_thickness = cam.focus_thick_lens(focus_distance);
+        if let Some(e) = cam.element_interfaces.last_mut() {
+            e.thickness = tmp_thickness;
+        }
+
+        let n_samples = 64_usize;
+        let exbs = Arc::new(Mutex::new(Vec::with_capacity(n_samples)));
+        (0..n_samples).into_par_iter().for_each(|i| {
+            let r0 = i as f64 / n_samples as f64 * cam.film.diagonal / 2.0;
+            let r1 = (i + 1) as f64 / n_samples as f64 * cam.film.diagonal / 2.0;
+            let b = cam.bound_exit_pupil(r0, r1);
+            exbs.lock().unwrap().push(b);
+        });
+        cam.exit_pupil_bounds.reserve(n_samples);
+        for b in exbs.lock().unwrap().to_owned() {
+            cam.exit_pupil_bounds.push(b);
+        }
+        return cam;
+    }
+
     fn lens_rear_z(&self) -> f64 {
         self.element_interfaces
             .last()

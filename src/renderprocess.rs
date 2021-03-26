@@ -139,8 +139,13 @@ where
     default_value.into()
 }
 
-fn read_num_array(v: &Value, length: usize) -> Result<Vec<f64>, String> {
+fn read_num_array(v: &Value, desired_length: usize) -> Result<Vec<f64>, String> {
     if let Value::Array(ary) = v {
+        let length = if desired_length == 0 {
+            ary.len()
+        } else {
+            desired_length
+        };
         if ary.len() != length {
             return Err(format!(
                 "Failed to parse Transform from {:?}, expected and array of {} numbers",
@@ -1263,8 +1268,31 @@ fn make_film(film_config: &Value, save_to: &str) -> Film {
     panic!("Failed to create Film")
 }
 
-fn make_camera(scene_config: &Value, film: Film) -> RealisticCamera {
-    todo!();
+fn make_camera(camera_config: &Value, film: Film) -> RealisticCamera {
+    let to_world = make_to_world(camera_config);
+    let shutter_open = read_f64(camera_config, "shutter_open", 0.0);
+    let shutter_close = read_f64(camera_config, "shutter_close", 1.0);
+    let aperture_diameter = read_f64(camera_config, "aperture_diameter", 1.0);
+    let focus_distance = read_f64(camera_config, "focus_distance", 10.0);
+    let simple_weighting = read_bool(camera_config, "simple_weighting", true);
+    let lens_data = read_num_array(camera_config.get("lens_data").unwrap(), 0).unwrap();
+    let mut m = None;
+    if let Some(medium_config) = camera_config.get("medium") {
+        if let Ok(medium) = make_medium(medium_config) {
+            m = Some(medium);
+        }
+    }
+    RealisticCamera::new(
+        to_world,
+        shutter_open,
+        shutter_close,
+        aperture_diameter,
+        focus_distance,
+        Arc::new(film),
+        m,
+        &lens_data,
+        simple_weighting,
+    )
 }
 
 fn make_integrator(
