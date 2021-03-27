@@ -1,7 +1,6 @@
 use std::{fmt::Debug, usize};
 
 use crate::{
-    color::Color,
     geometry::{IntersectP, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f},
     interaction::{BaseInteraction, SurfaceInteraction},
     medium::MediumInterface,
@@ -12,13 +11,6 @@ use crate::{
     transform::ToWorld,
     SPECTRUM_N,
 };
-
-#[derive(Debug, Default, Clone)]
-pub struct DeprecatedLight {
-    pub position: Point3f,
-    pub color: Color,
-    pub kind: String,
-}
 
 pub const LIGHT_DELTAPOSITION: u8 = 1 << 0;
 pub const LIGHT_DELTADIRECTION: u8 = 1 << 1;

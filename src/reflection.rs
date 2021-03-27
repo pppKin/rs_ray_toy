@@ -366,7 +366,7 @@ impl Bsdf {
             *pdf /= matching_comps as f64;
         }
         // Compute value of BSDF for sampled direction
-        if !bxdf_is_spec(bxdf.bxdf_type()) {
+        if !bxdf.is_spec() {
             let reflect = dot3(wi_world, &self.ng) * dot3(wo_world, &self.ng) > 0.0;
             let mut f = Spectrum::zero();
             for bx in &self.bxdfs {
@@ -421,26 +421,6 @@ pub const BXDF_ALL: u8 =
     BXDF_REFLECTION | BXDF_TRANSMISSION | BXDF_DIFFUSE | BXDF_GLOSSY | BXDF_SPECULAR;
 pub const BXDF_NONE: u8 = 0;
 pub type BxDFType = u8;
-
-pub fn bxdf_is_refl(t: u8) -> bool {
-    t & BXDF_REFLECTION > 0
-}
-
-pub fn bxdf_is_trans(t: u8) -> bool {
-    t & BXDF_TRANSMISSION > 0
-}
-
-pub fn bxdf_is_diff(t: u8) -> bool {
-    t & BXDF_DIFFUSE > 0
-}
-
-pub fn bxdf_is_glos(t: u8) -> bool {
-    t & BXDF_GLOSSY > 0
-}
-
-pub fn bxdf_is_spec(t: u8) -> bool {
-    t & BXDF_SPECULAR > 0
-}
 
 pub trait BxDF: std::fmt::Debug + Send + Sync {
     // BxDF Interface

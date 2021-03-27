@@ -45,12 +45,6 @@ impl BaseInteraction {
             mi,
         }
     }
-    pub fn is_surface_interaction(&self) -> bool {
-        &(self.n) != &Normal3f::default()
-    }
-    pub fn is_medium_interaction(&self) -> bool {
-        !self.is_surface_interaction()
-    }
     pub fn get_medium(&self, w: &Vector3f) -> MediumOpArc {
         match &self.mi {
             Some(mif) => {

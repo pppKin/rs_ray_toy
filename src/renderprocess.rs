@@ -78,9 +78,6 @@ struct SceneGlobalData {
 
     materials: HashMap<String, Arc<dyn Material>>,
     triangle_mesh: HashMap<String, Vec<Arc<Triangle>>>,
-
-    lights: Vec<Arc<dyn Light>>,
-    infinite_lights: Vec<Arc<dyn Light>>,
 }
 
 /// read scene config file (json), create required resources, and start rendering
@@ -212,22 +209,6 @@ fn fetch_vector2f(config: &Value, key: &str, default_value: Vector2f) -> Vector2
     default_value
 }
 
-/// create a transform
-fn make_transform<'a>(root: &'a Value) -> Result<Transform, String> {
-    match read_num_array(root, 3) {
-        Ok(m) => {
-            return Ok(Transform::new(
-                m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12],
-                m[13], m[14], m[15],
-            ));
-        }
-        Err(e) => Err(format!(
-            "Failed to parse Transform from {:?}, with error: {}",
-            root, e
-        )),
-    }
-}
-
 fn make_to_world(root: &Value) -> Transform {
     let world_pos = fetch_point3f(root, "world_pos", Point3f::zero());
     let rotation_axis = fetch_vector3f(root, "rotation_axis", Vector3f::new(1.0, 0.0, 0.0));
@@ -245,15 +226,11 @@ fn make_scene(scene_config: &Value) -> Scene {
         rgb_texture,
         materials: HashMap::new(),
         triangle_mesh: HashMap::new(),
-        lights: vec![],
-        infinite_lights: vec![],
     };
     scene_global_data.materials = make_materials(&scene_config, &scene_global_data);
     scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config);
 
     let (lights, infinite_lights) = make_all_lights(&scene_config, &scene_global_data);
-    scene_global_data.lights = lights.clone();
-    scene_global_data.infinite_lights = infinite_lights.clone();
     let aggregate = make_aggregate(&scene_config, &scene_global_data);
 
     Scene::new(lights, infinite_lights, aggregate)

@@ -6,7 +6,6 @@
 mod bssrdf;
 mod bvh;
 mod camera;
-mod color;
 mod film;
 mod filters;
 mod geometry;
