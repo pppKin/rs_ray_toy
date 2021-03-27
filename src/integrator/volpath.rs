@@ -24,6 +24,17 @@ pub struct VolPathIntegrator {
     i: Arc<SamplerIntegratorData>,
 }
 
+impl VolPathIntegrator {
+    pub fn new(max_depth: usize, rr_threshold: f64, i: Arc<SamplerIntegratorData>) -> Self {
+        Self {
+            max_depth,
+            rr_threshold,
+            light_distr: Arc::new(Distribution1D::default()),
+            i,
+        }
+    }
+}
+
 impl Integrator for VolPathIntegrator {
     fn render(&mut self, scene: &Scene) {
         self.si_render(scene)

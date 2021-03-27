@@ -24,16 +24,11 @@ pub struct PathIntegrator {
 }
 
 impl PathIntegrator {
-    pub fn new(
-        max_depth: usize,
-        rr_threshold: f64,
-        light_distrib: Arc<Distribution1D>,
-        i: Arc<SamplerIntegratorData>,
-    ) -> Self {
+    pub fn new(max_depth: usize, rr_threshold: f64, i: Arc<SamplerIntegratorData>) -> Self {
         Self {
             max_depth,
             rr_threshold,
-            light_distrib,
+            light_distrib: Arc::new(Distribution1D::default()),
             i,
         }
     }

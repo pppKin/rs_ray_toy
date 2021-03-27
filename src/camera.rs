@@ -1,10 +1,6 @@
-use std::{
-    f64::INFINITY,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::{f64::INFINITY, fmt::Debug, sync::Arc};
 
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use crate::{
     film::Film,
@@ -184,17 +180,16 @@ impl RealisticCamera {
         }
 
         let n_samples = 64_usize;
-        let exbs = Arc::new(Mutex::new(Vec::with_capacity(n_samples)));
-        (0..n_samples).into_par_iter().for_each(|i| {
-            let r0 = i as f64 / n_samples as f64 * cam.film.diagonal / 2.0;
-            let r1 = (i + 1) as f64 / n_samples as f64 * cam.film.diagonal / 2.0;
-            let b = cam.bound_exit_pupil(r0, r1);
-            exbs.lock().unwrap().push(b);
-        });
-        cam.exit_pupil_bounds.reserve(n_samples);
-        for b in exbs.lock().unwrap().to_owned() {
-            cam.exit_pupil_bounds.push(b);
-        }
+        let mut exbs = Vec::with_capacity(n_samples);
+        (0..n_samples)
+            .into_par_iter()
+            .map(|i| {
+                let r0 = i as f64 / n_samples as f64 * cam.film.diagonal / 2.0;
+                let r1 = (i + 1) as f64 / n_samples as f64 * cam.film.diagonal / 2.0;
+                cam.bound_exit_pupil(r0, r1)
+            })
+            .collect_into_vec(&mut exbs);
+        cam.exit_pupil_bounds = exbs;
         return cam;
     }
 

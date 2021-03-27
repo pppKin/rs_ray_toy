@@ -12,7 +12,9 @@ use crate::{
         trianglefilter::create_triangle_filter, Filter,
     },
     geometry::{Bounds2f, Bounds2i, Cxyz, Point2, Point2f, Point2i, Point3f, Vector2f, Vector3f},
-    integrator::Integrator,
+    integrator::{
+        ao::*, directlighting::*, path::*, sppm::*, volpath::*, Integrator, SamplerIntegratorData,
+    },
     lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
     material::{
         disney::DisneyMaterial,
@@ -85,8 +87,8 @@ struct SceneGlobalData {
 pub fn deploy_render(filepath: &str, save_to: &str) {
     let scene_config_str = fs::read_to_string(filepath).unwrap();
     let scene_config: Value = serde_json::from_str(&scene_config_str).unwrap();
-    let (scene, scene_global) = make_scene(&scene_config);
-    let mut inte = make_integrator(&scene_config, &scene_global, save_to);
+    let scene = make_scene(&scene_config);
+    let mut inte = make_integrator(&scene_config, save_to);
     inte.render(&scene);
 }
 
@@ -235,7 +237,7 @@ fn make_to_world(root: &Value) -> Transform {
     to_world
 }
 
-fn make_scene(scene_config: &Value) -> (Scene, SceneGlobalData) {
+fn make_scene(scene_config: &Value) -> Scene {
     // material and triangle mesh is used globally so we create them first and passed them around
     let (float_texture, rgb_texture) = make_textures(scene_config);
     let mut scene_global_data = SceneGlobalData {
@@ -253,10 +255,8 @@ fn make_scene(scene_config: &Value) -> (Scene, SceneGlobalData) {
     scene_global_data.lights = lights.clone();
     scene_global_data.infinite_lights = infinite_lights.clone();
     let aggregate = make_aggregate(&scene_config, &scene_global_data);
-    (
-        Scene::new(lights, infinite_lights, aggregate),
-        scene_global_data,
-    )
+
+    Scene::new(lights, infinite_lights, aggregate)
 }
 
 fn get_text_fallback<T: 'static>(
@@ -1295,13 +1295,94 @@ fn make_camera(camera_config: &Value, film: Film) -> RealisticCamera {
     )
 }
 
-fn make_integrator(
-    scene_config: &Value,
-    scene_global: &SceneGlobalData,
-    save_to: &str,
-) -> Box<dyn Integrator> {
-    // let integrator_config = search_object(scene_config, "integrator_config");
-    todo!();
+fn make_integrator(scene_config: &Value, save_to: &str) -> Box<dyn Integrator> {
+    if let (Ok(integrator_config), Ok(sampler_config), Ok(film_config), Ok(camera_config)) = (
+        search_object(scene_config, "Integrator"),
+        search_object(scene_config, "Sampler"),
+        search_object(scene_config, "Film"),
+        search_object(scene_config, "Camera"),
+    ) {
+        let film = make_film(film_config, save_to);
+        let cam = make_camera(camera_config, film);
+        let sampler = make_sampler(sampler_config, &cam.film.cropped_pixel_bounds);
+
+        let pixel_bounds = Bounds2i::new(Point2i::default(), cam.film.full_resolution);
+        match read_string(integrator_config, "integrator_type", "AO").as_str() {
+            "DirectLighting" => {
+                let strategy =
+                    match read_string(integrator_config, "light_strategy", "one").as_str() {
+                        "all" => LightStrategy::UniformSampleAll,
+                        _ => LightStrategy::UniformSampleOne,
+                    };
+                let max_depth = read_i64(integrator_config, "max_depth", 5) as usize;
+
+                return Box::new(DirectLightingIntegrator::new(
+                    strategy,
+                    max_depth,
+                    Arc::new(SamplerIntegratorData::new(
+                        Arc::new(cam),
+                        sampler,
+                        pixel_bounds,
+                    )),
+                ));
+            }
+            "Path" => {
+                let max_depth = read_i64(integrator_config, "max_depth", 5) as usize;
+                let rr_threshold = read_f64(integrator_config, "rr_threshold", 1.0);
+                return Box::new(PathIntegrator::new(
+                    max_depth,
+                    rr_threshold,
+                    Arc::new(SamplerIntegratorData::new(
+                        Arc::new(cam),
+                        sampler,
+                        pixel_bounds,
+                    )),
+                ));
+            }
+            "Volpath" => {
+                let max_depth = read_i64(integrator_config, "max_depth", 5) as usize;
+                let rr_threshold = read_f64(integrator_config, "rr_threshold", 1.0);
+                return Box::new(VolPathIntegrator::new(
+                    max_depth,
+                    rr_threshold,
+                    Arc::new(SamplerIntegratorData::new(
+                        Arc::new(cam),
+                        sampler,
+                        pixel_bounds,
+                    )),
+                ));
+            }
+            "SPPM" => {
+                let radius = read_f64(integrator_config, "radius", 1.0);
+                let n_iters = read_i64(integrator_config, "n_iters", 5) as usize;
+                let max_depth = read_i64(integrator_config, "max_depth", 5) as usize;
+                let photons_per_iter = read_i64(integrator_config, "photons_per_iter", 1) as usize;
+                let write_freq = read_i64(integrator_config, "write_freq", 1 << 31) as usize;
+                return Box::new(SPPMIntegrator::new(
+                    Arc::new(cam),
+                    radius,
+                    n_iters,
+                    max_depth,
+                    photons_per_iter,
+                    write_freq,
+                ));
+            }
+            _ => {
+                let cos_sample = read_bool(integrator_config, "cos_sample", true);
+                let n_samples = read_i64(integrator_config, "n_samples", 64) as u32;
+                return Box::new(AOIntegrator::new(
+                    cos_sample,
+                    n_samples,
+                    Arc::new(SamplerIntegratorData::new(
+                        Arc::new(cam),
+                        sampler,
+                        pixel_bounds,
+                    )),
+                ));
+            }
+        }
+    }
+    panic!("Failed to create Integrator")
 }
 
 pub fn write_image(filename: &str, rgb: &[f64], output_bounds: Bounds2i) -> Result<(), ImageError> {

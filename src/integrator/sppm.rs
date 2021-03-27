@@ -26,6 +26,27 @@ pub struct SPPMIntegrator {
     light_distr: Arc<Distribution1D>,
 }
 
+impl SPPMIntegrator {
+    pub fn new(
+        cam: Arc<RealisticCamera>,
+        init_search_radius: f64,
+        n_iters: usize,
+        max_depth: usize,
+        photons_per_iter: usize,
+        write_freq: usize,
+    ) -> Self {
+        Self {
+            cam,
+            init_search_radius,
+            n_iters,
+            max_depth,
+            photons_per_iter,
+            write_freq,
+            light_distr: Arc::new(Distribution1D::default()),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct VisiblePoint {
     pub p: Point3f,

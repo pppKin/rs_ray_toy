@@ -27,6 +27,16 @@ pub struct SamplerIntegratorData {
     pub pixel_bounds: Bounds2i,
 }
 
+impl SamplerIntegratorData {
+    pub fn new(cam: Arc<RealisticCamera>, sampler: Arc<Sampler>, pixel_bounds: Bounds2i) -> Self {
+        Self {
+            cam,
+            sampler,
+            pixel_bounds,
+        }
+    }
+}
+
 trait SamplerIntegrator: Send + Sync {
     fn itgt(&self) -> Arc<SamplerIntegratorData>;
     fn si_render(&mut self, scene: &Scene) {

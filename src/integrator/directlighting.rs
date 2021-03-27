@@ -29,16 +29,11 @@ pub struct DirectLightingIntegrator {
 }
 
 impl DirectLightingIntegrator {
-    pub fn new(
-        strategy: LightStrategy,
-        max_depth: usize,
-        n_light_samples: Vec<u32>,
-        i: Arc<SamplerIntegratorData>,
-    ) -> Self {
+    pub fn new(strategy: LightStrategy, max_depth: usize, i: Arc<SamplerIntegratorData>) -> Self {
         Self {
             strategy,
             max_depth,
-            n_light_samples,
+            n_light_samples: vec![],
             i,
         }
     }
