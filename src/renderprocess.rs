@@ -1065,7 +1065,7 @@ fn make_medium(medium_config: &Value) -> Result<Arc<dyn Medium + Send + Sync>, S
 fn make_aggregate(scene_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Primitive> {
     let mut primitives: Vec<Arc<dyn Primitive>>;
     let aggregate_config =
-        search_object(scene_config, "aggregate_config").expect("No Aggregate Config Defined");
+        search_object(scene_config, "Aggregate").expect("No Aggregate Config Defined");
     let max_prims_in_node = read_i64(aggregate_config, "max_prims_in_node", 4) as u32;
     if let Some(Value::Array(primitives_vec)) = aggregate_config.get("primitives") {
         primitives = Vec::with_capacity(primitives_vec.len());
@@ -1246,7 +1246,10 @@ fn make_film(film_config: &Value, save_to: &str) -> Film {
 }
 
 fn make_camera(camera_config: &Value, film: Film) -> RealisticCamera {
-    let to_world = make_to_world(camera_config);
+    let world_pos = fetch_point3f(camera_config, "world_pos", Point3f::zero());
+    let cam_look = fetch_point3f(camera_config, "look", Point3f::new(1.0, 1.0, 1.0));
+    let cam_up = fetch_vector3f(camera_config, "up", Vector3f::new(0.0, 1.0, 0.0));
+    let to_world = Transform::look_at(&world_pos, &cam_look, &cam_up);
     let shutter_open = read_f64(camera_config, "shutter_open", 0.0);
     let shutter_close = read_f64(camera_config, "shutter_close", 1.0);
     let aperture_diameter = read_f64(camera_config, "aperture_diameter", 1.0);

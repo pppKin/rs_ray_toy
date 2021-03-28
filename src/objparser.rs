@@ -155,14 +155,29 @@ fn make_uv(sp: &mut SplitWhitespace) -> Result<Point2f, String> {
     Ok(Point2f::new(u, v))
 }
 
+fn parse_face_element(f_str: &str) -> (usize, usize, usize) {
+    let mut tmp = vec![];
+    for idx in f_str.split("/") {
+        if let Ok(i) = usize::from_str(idx) {
+            tmp.push(i);
+        }
+    }
+    tmp.resize(3, 1);
+    (tmp[0], tmp[1], tmp[2])
+}
+
 fn make_face(sp: &mut SplitWhitespace) -> Result<(usize, usize, usize), String> {
-    let v1 = usize::from_str(sp.next().ok_or("Failed to get v1")?)
-        .or_else(|e| return Err(e.to_string()))?;
-    let v2 = usize::from_str(sp.next().ok_or("Failed to get v2")?)
-        .or_else(|e| return Err(e.to_string()))?;
-    let v3 = usize::from_str(sp.next().ok_or("Failed to get v3")?)
-        .or_else(|e| return Err(e.to_string()))?;
-    Ok((v1, v2, v3))
+    let v1_f = sp.next();
+    let v2_f = sp.next();
+    let v3_f = sp.next();
+    if let (Some(v1), Some(v2), Some(v3)) = (v1_f, v2_f, v3_f) {
+        let v1_element = parse_face_element(v1);
+        let v2_element = parse_face_element(v2);
+        let v3_element = parse_face_element(v3);
+        return Ok((v1_element.0, v2_element.0, v3_element.0));
+    }else {
+        return Err("Failed to get face element".to_string())
+    }
 }
 
 #[cfg(test)]
