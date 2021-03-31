@@ -39,9 +39,9 @@
         {
             "light_type": "point",
             "world_pos": [
-                1,
-                5,
-                5
+                2,
+                2,
+                2
             ]
         }
     ],
@@ -84,8 +84,8 @@
         "sampler_type": "StratifiedSampler"
     },
     "Film": {
-        "xres": 320,
-        "yres": 320,
+        "xres": 96,
+        "yres": 96,
         "Filter": {}
     },
     "Camera": {

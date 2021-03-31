@@ -123,16 +123,16 @@ impl<'a> FilmTile<'a> {
 
                 // Update pixel values with filtered sample contribution
                 let pixel = self.get_pixel(&Point2i::new(x, y));
-                pixel[0].contrib_sum += (*l * sample_weight) * filter_weight;
-                pixel[0].filter_weight_sum += filter_weight;
+                pixel.contrib_sum += (*l * sample_weight) * filter_weight;
+                pixel.filter_weight_sum += filter_weight;
             }
         }
     }
-    pub fn get_pixel(&mut self, p: &Point2i) -> &mut [FilmTilePixel] {
+    pub fn get_pixel(&mut self, p: &Point2i) -> &mut FilmTilePixel {
         assert!(Bounds2i::inside_exclusive(p, &self.pixel_bounds));
         let width = self.pixel_bounds.p_max.x - self.pixel_bounds.p_min.x;
         let offset = (p.x - self.pixel_bounds.p_min.x) + (p.y - self.pixel_bounds.p_min.y) * width;
-        &mut self.pixels[offset as usize..]
+        &mut self.pixels[offset as usize]
     }
     pub fn get_pixel_bounds(&self) -> Bounds2i {
         self.pixel_bounds
@@ -250,14 +250,14 @@ impl Film {
             // Merge _pixel_ into _Film::pixels_
             let tile_pixels = tile.get_pixel(&p);
             let merge_pixels_offset = self.get_pixel_offset(&p);
-            let xyz = tile_pixels[0].contrib_sum.to_xyz();
+            let xyz = tile_pixels.contrib_sum.to_xyz();
             let mut pixels = self
                 .pixels
                 .write()
                 .expect("Error preparing pixels for writing");
             for i in 0..3 {
                 pixels[merge_pixels_offset].xyz[i] += xyz[i];
-                pixels[merge_pixels_offset].filter_weight_sum += tile_pixels[0].filter_weight_sum;
+                pixels[merge_pixels_offset].filter_weight_sum += tile_pixels.filter_weight_sum;
             }
         }
     }

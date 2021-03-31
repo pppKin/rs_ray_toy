@@ -1303,7 +1303,7 @@ fn make_film(film_config: &Value, save_to: &str) -> Film {
 fn make_camera(camera_config: &Value, film: Film) -> RealisticCamera {
     let world_pos = fetch_point3f(camera_config, "world_pos", Point3f::zero());
     let cam_look = fetch_point3f(camera_config, "look", Point3f::new(1.0, 1.0, 1.0));
-    let cam_up = fetch_vector3f(camera_config, "up", Vector3f::new(0.0, 1.0, 0.0));
+    let cam_up = fetch_vector3f(camera_config, "up", Vector3f::new(0.0, 0.0, 1.0));
     let to_world = Transform::look_at(&world_pos, &cam_look, &cam_up);
     let shutter_open = read_f64(camera_config, "shutter_open", 0.0);
     let shutter_close = read_f64(camera_config, "shutter_close", 1.0);
