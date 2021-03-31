@@ -125,6 +125,8 @@ trait SamplerIntegrator: Send + Sync {
                 itgt.cam.film.merge_film_tile(&mut film_tile);
             });
         });
+
+        self.itgt().cam.film.write_image(1.0)
     }
     fn preprocess(&mut self, _scene: &Scene, _sampler: &mut Sampler) {
         // do absolutely nothing at all

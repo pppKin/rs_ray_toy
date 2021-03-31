@@ -230,7 +230,7 @@ where
 /// Find solution(s) of the quadratic equation at<sup>2</sup> + bt + c = 0.
 pub fn quadratic(a: f64, b: f64, c: f64, t0: &mut f64, t1: &mut f64) -> bool {
     // find quadratic discriminant
-    let discrim: f64 = (b as f64) * (b as f64) - 4.0 * (a as f64) * (c as f64);
+    let discrim: f64 = (b) * (b) - 4.0 * (a) * (c);
     if discrim < 0.0 {
         false
     } else {

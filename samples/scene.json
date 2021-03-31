@@ -14,10 +14,10 @@
         {
             "texture_name": "s_01",
             "texture_type": "ImageTexture",
-            "filename": "./s_01.png"
+            "filename": "s_01.png"
         }
     ],
-    "material": [
+    "materials": [
         {
             "material_type": "MetalMaterial",
             "material_name": "mat_metal"
@@ -31,7 +31,7 @@
     ],
     "objs": [
         {
-            "filename": "./cude.obj",
+            "filename": "cube.obj",
             "obj_name": "cube_01"
         }
     ],
@@ -85,7 +85,8 @@
     },
     "Film": {
         "xres": 320,
-        "yres": 320
+        "yres": 320,
+        "Filter": {}
     },
     "Camera": {
         "lens_data": [

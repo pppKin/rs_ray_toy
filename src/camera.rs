@@ -316,7 +316,7 @@ impl RealisticCamera {
         let camera_to_lens = Transform::scale(1.0, 1.0, -1.0);
         let mut r_lens = camera_to_lens.t(r_camera);
 
-        for i in (0..(self.element_interfaces.len())).rev() {
+        for i in 0..(self.element_interfaces.len()) {
             let element = self.element_interfaces[i];
             // Compute intersection of ray with lens element
             let mut t: f64 = 0_f64;

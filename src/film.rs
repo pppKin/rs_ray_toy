@@ -63,7 +63,7 @@ impl<'a> FilmTile<'a> {
         max_sample_luminance: f64,
     ) -> Self {
         let inv_filter_radius = Vector2f::new(1.0 / filter_radius.x, 1.0 / filter_radius.y);
-        let pixels = Vec::<FilmTilePixel>::with_capacity(0_usize.max(pixel_bounds.area() as usize));
+        let pixels = vec![FilmTilePixel::default(); 0_usize.max(pixel_bounds.area() as usize)];
         Self {
             pixel_bounds,
             filter_radius,
@@ -92,7 +92,7 @@ impl<'a> FilmTile<'a> {
 
         // Loop over filter support and add sample to pixel arrays
         // Precompute $x$ and $y$ filter table offsets
-        let mut ifx = vec![0_i64; (p1.x - p1.x) as usize];
+        let mut ifx = vec![0_i64; (p1.x - p0.x) as usize];
         for x in p0.x..p1.x {
             let fx = f64::abs(
                 (x as f64 - p_film_discrete.x)
@@ -103,15 +103,15 @@ impl<'a> FilmTile<'a> {
                 i64::min(fx.floor() as i64, (self.filter_table_size - 1) as i64);
         }
 
-        let mut ify = vec![0_i64; (p1.x - p1.x) as usize];
+        let mut ify = vec![0_i64; (p1.y - p0.y) as usize];
         for y in p0.y..p1.y {
-            let fx = f64::abs(
+            let fy = f64::abs(
                 (y as f64 - p_film_discrete.y)
                     * self.inv_filter_radius.y
                     * self.filter_table_size as f64,
             );
             ify[(y - p0.y) as usize] =
-                i64::min(fx.floor() as i64, (self.filter_table_size - 1) as i64);
+                i64::min(fy.floor() as i64, (self.filter_table_size - 1) as i64);
         }
 
         for y in p0.y..p1.y {
@@ -159,9 +159,7 @@ impl Film {
                 f64::ceil(full_resolution.y as f64 * cropped_window.p_max.y) as i64,
             ),
         );
-        let pixels = RwLock::new(Vec::<Pixel>::with_capacity(
-            cropped_pixel_bounds.area() as usize
-        ));
+        let pixels = RwLock::new(vec![Pixel::default(); cropped_pixel_bounds.area() as usize]);
         // Precompute filter weight table
         let mut offset = 0;
         let mut filter_table = [0_f64; FILTER_TABLE_WIDTH * FILTER_TABLE_WIDTH];
@@ -189,24 +187,15 @@ impl Film {
     }
     pub fn get_sample_bounds(&self) -> Bounds2i {
         let p1 = pnt2_floor(
-            Point2f::new(
-                self.cropped_pixel_bounds.p_min.x as f64,
-                self.cropped_pixel_bounds.p_min.y as f64,
-            ) + Vector2f::new(0.5, 0.5)
+            Point2f::from(self.cropped_pixel_bounds.p_min) + Vector2f::new(0.5, 0.5)
                 - self.filter.r.radius,
         );
         let p2 = pnt2_ceil(
-            Point2f::new(
-                self.cropped_pixel_bounds.p_max.x as f64,
-                self.cropped_pixel_bounds.p_max.y as f64,
-            ) - Vector2f::new(0.5, 0.5)
+            Point2f::from(self.cropped_pixel_bounds.p_max) - Vector2f::new(0.5, 0.5)
                 + self.filter.r.radius,
         );
 
-        Bounds2i::new(
-            Point2i::new(p1.x as i64, p2.y as i64),
-            Point2i::new(p2.x as i64, p2.y as i64),
-        )
+        Bounds2i::new(Point2i::from(p1), Point2i::from(p2))
     }
     pub fn get_physical_extent(&self) -> Bounds2f {
         let aspect = self.full_resolution.y as f64 / self.full_resolution.x as f64;

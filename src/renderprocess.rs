@@ -73,6 +73,7 @@ impl Display for RenderProcessError {
 impl Error for RenderProcessError {}
 
 struct SceneGlobalData {
+    scene_config_root: String,
     float_texture: HashMap<String, Arc<dyn Texture<f64>>>,
     rgb_texture: HashMap<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>,
 
@@ -82,11 +83,33 @@ struct SceneGlobalData {
 
 /// read scene config file (json), create required resources, and start rendering
 pub fn deploy_render(filepath: &str, save_to: &str) {
-    let scene_config_str = fs::read_to_string(filepath).unwrap();
+    let scene_config_root;
+    let realpath = fs::canonicalize(filepath).unwrap();
+    if let Some(root_path) = realpath.parent() {
+        scene_config_root = String::from(root_path.to_str().unwrap());
+    } else {
+        scene_config_root = "./".to_string();
+    }
+    let scene_config_str = fs::read_to_string(realpath).unwrap();
     let scene_config: Value = serde_json::from_str(&scene_config_str).unwrap();
-    let scene = make_scene(&scene_config);
+    let scene = make_scene(&scene_config, &scene_config_root);
     let mut inte = make_integrator(&scene_config, save_to);
     inte.render(&scene);
+}
+
+#[cfg(target_os = "windows")]
+fn preprocess_filepath(root: &str, passedin: &str) -> String {
+    let trimmed_passedin;
+    trimmed_passedin = passedin.trim_start_matches("./").replace("/", "\\");
+    format!("{}\\{}", root, trimmed_passedin)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn preprocess_filepath(root: &str, passedin: &str) -> String {
+    let trimmed_passedin;
+    // #[cfg(target_os = "windows")]
+    trimmed_passedin = passedin.trim_start_matches("./").replace("\\", "/");
+    format!("{}/{}", root, trimmed_passedin)
 }
 
 /// Search first level of value for a key
@@ -153,7 +176,7 @@ fn read_num_array(v: &Value, desired_length: usize) -> Result<Vec<f64>, String> 
         }
         let mut a = Vec::with_capacity(length);
         for num in ary {
-            if num.is_f64() {
+            if num.is_number() {
                 a.push(num.as_f64().unwrap());
             } else {
                 return Err(format!("Failed to parse into a f64: {:?}", num));
@@ -218,17 +241,18 @@ fn make_to_world(root: &Value) -> Transform {
     to_world
 }
 
-fn make_scene(scene_config: &Value) -> Scene {
+fn make_scene(scene_config: &Value, scene_config_root: &str) -> Scene {
     // material and triangle mesh is used globally so we create them first and passed them around
-    let (float_texture, rgb_texture) = make_textures(scene_config);
+    let (float_texture, rgb_texture) = make_textures(scene_config, scene_config_root);
     let mut scene_global_data = SceneGlobalData {
+        scene_config_root: scene_config_root.to_string(),
         float_texture,
         rgb_texture,
         materials: HashMap::new(),
         triangle_mesh: HashMap::new(),
     };
     scene_global_data.materials = make_materials(&scene_config, &scene_global_data);
-    scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config);
+    scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config, &scene_global_data);
 
     let (lights, infinite_lights) = make_all_lights(&scene_config, &scene_global_data);
     let aggregate = make_aggregate(&scene_config, &scene_global_data);
@@ -254,6 +278,7 @@ where
 
 fn make_textures(
     scene_config: &Value,
+    scene_config_root: &str,
 ) -> (
     HashMap<String, Arc<dyn Texture<f64>>>,
     HashMap<String, Arc<dyn Texture<Spectrum<SPECTRUM_N>>>>,
@@ -376,7 +401,7 @@ fn make_textures(
                 }
                 "ImageTexture" => {
                     let mapping = make_texture_mapping_2d(texture_config.get("mapping"), &to_world);
-                    let tex_info = make_tex_info(texture_config);
+                    let tex_info = make_tex_info(texture_config, scene_config_root);
                     if images.contains_key(&tex_info) {
                         let m = images[&tex_info].clone();
                         rgb_texture.insert(texture_name, Arc::new(ImageTexture::new(mapping, m)));
@@ -470,8 +495,11 @@ fn make_textures(
     (float_texture, rgb_texture)
 }
 
-fn make_tex_info(config: &Value) -> TexInfo {
-    let filename = read_string(config, "filename", "DefaultTexture");
+fn make_tex_info(config: &Value, scene_config_root: &str) -> TexInfo {
+    let filename = preprocess_filepath(
+        scene_config_root,
+        &read_string(config, "filename", "DefaultTexture"),
+    );
     let do_trilinear = read_bool(config, "do_trilinear", false);
     let max_aniso = read_f64(config, "max_aniso", 8.0);
     let wrap_mode = match read_string(config, "wrap", "repeat").as_str() {
@@ -601,13 +629,15 @@ fn fetch_rgb_texture<T>(
 where
     T: Into<Spectrum<SPECTRUM_N>> + Copy + Clone,
 {
-    return if let Some(Value::String(tex_name)) = mat_config.get(tex_key) {
-        scene_global.rgb_texture[tex_name].clone()
-    } else if let Some(d) = default_value {
-        Arc::new(ConstantTexture::new(d.into()))
-    } else {
-        panic!("Failed to fetch Texture: {}", tex_key)
-    };
+    if let Some(Value::String(tex_name)) = mat_config.get(tex_key) {
+        if scene_global.rgb_texture.contains_key(tex_name) {
+            return scene_global.rgb_texture[tex_name].clone();
+        }
+    }
+    if let Some(d) = default_value {
+        return Arc::new(ConstantTexture::new(d.into()));
+    }
+    panic!("Failed to fetch Texture: {}", tex_key)
 }
 
 fn make_materials(
@@ -816,7 +846,10 @@ fn make_materials(
     materials_map
 }
 
-fn make_triangle_mesh(scene_config: &Value) -> HashMap<String, Vec<Arc<Triangle>>> {
+fn make_triangle_mesh(
+    scene_config: &Value,
+    scene_global: &SceneGlobalData,
+) -> HashMap<String, Vec<Arc<Triangle>>> {
     let objs_config = search_object(scene_config, "objs");
     let mut objs;
     if let Ok(Value::Array(obj_l)) = objs_config {
@@ -827,21 +860,30 @@ fn make_triangle_mesh(scene_config: &Value) -> HashMap<String, Vec<Arc<Triangle>
             let to_world = make_to_world(obj_config);
 
             let to_local = Transform::inverse(&to_world);
-            if let Ok(result) = parse_obj(&filename) {
-                objs.insert(
-                    obj_name,
-                    create_triangle_mesh(
-                        to_world,
-                        to_local,
-                        result.n_triangles,
-                        result.n_vertices,
-                        result.vertex_indices,
-                        result.p,
-                        result.n,
-                        result.s,
-                        result.uv,
-                    ),
-                );
+            match parse_obj(&(preprocess_filepath(&scene_global.scene_config_root, &filename))) {
+                Ok(result) => {
+                    objs.insert(
+                        obj_name,
+                        create_triangle_mesh(
+                            to_world,
+                            to_local,
+                            result.n_triangles,
+                            result.n_vertices,
+                            result.vertex_indices,
+                            result.p,
+                            result.n,
+                            result.s,
+                            result.uv,
+                        ),
+                    );
+                }
+                Err(err) => {
+                    eprintln!(
+                        "parse_result {} :: {:?}",
+                        preprocess_filepath(&scene_global.scene_config_root, &filename),
+                        err
+                    );
+                }
             }
         }
     } else {
@@ -1107,6 +1149,8 @@ fn make_aggregate(scene_config: &Value, scene_global: &SceneGlobalData) -> Arc<d
                                 primitives
                                     .push(Arc::new(TransformedPrimitive::new(g.clone(), to_world)));
                             }
+                        } else {
+                            primitives.push(g);
                         }
                     }
                 }
@@ -1160,7 +1204,16 @@ fn make_aggregate(scene_config: &Value, scene_global: &SceneGlobalData) -> Arc<d
                                     )));
                                 }
                             }
+                        } else {
+                            for g in &gs {
+                                primitives.push(g.clone());
+                            }
                         }
+                    } else {
+                        eprintln!(
+                            "Error creating triangle instances {}:{}",
+                            obj_name, material_name
+                        )
                     }
                 }
                 unknown => {
@@ -1214,7 +1267,7 @@ fn make_film(film_config: &Value, save_to: &str) -> Film {
     let scale = read_f64(film_config, "scale", 1.0);
     let diagonal = read_f64(film_config, "diagonal", 35.0); // by default we use 35mm film
     let max_sample_luminance = read_f64(film_config, "max_sample_luminance", INFINITY);
-    if let Ok(filter_config) = search_object(film_config, "filter_config") {
+    if let Ok(filter_config) = search_object(film_config, "Filter") {
         let fltr: Filter;
         match read_string(filter_config, "filter_type", "BoxFilter").as_str() {
             "TriangleFilter" => {
@@ -1241,6 +1294,8 @@ fn make_film(film_config: &Value, save_to: &str) -> Film {
             scale,
             max_sample_luminance,
         );
+    } else {
+        eprintln!("filter_config not found!")
     }
     panic!("Failed to create Film")
 }

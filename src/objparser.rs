@@ -130,8 +130,11 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
                     }
                 }
             }
+            Some("#") => {
+                // comment line
+            }
             unknown => {
-                eprintln!("Unsupported Element {:?}", unknown)
+                eprintln!("ParseObjError: unsupported Element {:?}", unknown)
             }
         }
     }
@@ -139,17 +142,17 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
 }
 
 fn make_vertex(sp: &mut SplitWhitespace) -> Result<Point3f, String> {
-    let v1 = f64::from_str(sp.next().ok_or("Failed to get v1")?)
+    let v1 = f64::from_str(sp.next().ok_or("ParseObjError: Failed to get v1")?)
         .or_else(|e| return Err(e.to_string()))?;
-    let v2 = f64::from_str(sp.next().ok_or("Failed to get v2")?)
+    let v2 = f64::from_str(sp.next().ok_or("ParseObjError: Failed to get v2")?)
         .or_else(|e| return Err(e.to_string()))?;
-    let v3 = f64::from_str(sp.next().ok_or("Failed to get v3")?)
+    let v3 = f64::from_str(sp.next().ok_or("ParseObjError: Failed to get v3")?)
         .or_else(|e| return Err(e.to_string()))?;
     Ok(Point3f::new(v1, v2, v3))
 }
 
 fn make_uv(sp: &mut SplitWhitespace) -> Result<Point2f, String> {
-    let u = f64::from_str(sp.next().ok_or("Failed to get v1")?)
+    let u = f64::from_str(sp.next().ok_or("ParseObjError: Failed to get v1")?)
         .or_else(|e| return Err(e.to_string()))?;
     let v = f64::from_str(sp.next().unwrap_or_default()).or_else(|e| return Err(e.to_string()))?;
     Ok(Point2f::new(u, v))
@@ -163,20 +166,17 @@ fn parse_face_element(f_str: &str) -> (usize, usize, usize) {
         }
     }
     tmp.resize(3, 1);
-    (tmp[0], tmp[1], tmp[2])
+    (tmp[0] - 1, tmp[1] - 1, tmp[2] - 1)
 }
 
 fn make_face(sp: &mut SplitWhitespace) -> Result<(usize, usize, usize), String> {
-    let v1_f = sp.next();
-    let v2_f = sp.next();
-    let v3_f = sp.next();
-    if let (Some(v1), Some(v2), Some(v3)) = (v1_f, v2_f, v3_f) {
+    if let (Some(v1), Some(v2), Some(v3)) = (sp.next(), sp.next(), sp.next()) {
         let v1_element = parse_face_element(v1);
         let v2_element = parse_face_element(v2);
         let v3_element = parse_face_element(v3);
         return Ok((v1_element.0, v2_element.0, v3_element.0));
-    }else {
-        return Err("Failed to get face element".to_string())
+    } else {
+        return Err("ParseObjError: Failed to get face element".to_string());
     }
 }
 
