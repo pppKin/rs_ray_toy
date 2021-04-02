@@ -284,7 +284,7 @@ impl MIPMap {
             resampled_image.resize(res_pow2[0] * res_pow2[1], Spectrum::default());
             // Apply _sWeights_ to zoom in $s$ direction
             // TODO: ParallelFor -> rayon
-            for t in 0..res[0] {
+            for t in 0..res[1] {
                 for s in 0..res_pow2[0] {
                     // Compute texel $(s,t)$ in $s$-zoomed image
                     let tmp_idx = t * res_pow2[0] + s;
@@ -361,6 +361,9 @@ impl MIPMap {
             // Initialize $i$th MIPMap level from $i-1$st level
             let s_res = (mipmap.pyramid[i - 1].u_size() / 2).max(1);
             let t_res = (mipmap.pyramid[i - 1].v_size() / 2).max(1);
+            if s_res.min(t_res) < 64 {
+                break;
+            }
             let mut tmp = BlockedArray::new(None, s_res, t_res);
             // Filter four texels from finer level of pyramid
             // TODO: ParallelFor

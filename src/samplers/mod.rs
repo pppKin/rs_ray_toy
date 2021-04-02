@@ -32,8 +32,8 @@ pub trait ISampler: RoundCount + StartPixel + Debug + Send + Sync {
     fn get_camerasample(&mut self, p_raster: &Point2i) -> CameraSample {
         CameraSample {
             p_film: Point2f::new(p_raster.x as f64, p_raster.y as f64) + self.get_2d(),
-            p_lens: self.get_2d(),
-            time: self.get_1d(),
+            p_lens: self.get_2d() + Point2f::new(0.5, 0.5),
+            time: self.get_1d() + 0.5,
         }
     }
 

@@ -2,7 +2,6 @@ use std::f64::{consts::PI, INFINITY};
 
 use crate::{
     geometry::{vec3_coordinate_system, Bounds3f},
-    primitives::Primitive,
     sampling::concentric_sample_disk,
     transform::Transform,
 };
@@ -27,15 +26,19 @@ impl DistantLight {
         medium_interface: MediumInterface,
         l: Spectrum<SPECTRUM_N>,
         w_light: Vector3f,
+        scene_world_bound: Bounds3f,
     ) -> Self {
         let w_light = light_to_world.t(&w_light).normalize();
+        let mut world_center = Point3f::default();
+        let mut world_radius = 0.0;
+        Bounds3f::bounding_sphere(&scene_world_bound, &mut world_center, &mut world_radius);
         Self {
             light_to_world,
             medium_interface,
             l,
             w_light,
-            world_center: Point3f::default(),
-            world_radius: 0.0,
+            world_center,
+            world_radius,
         }
     }
 }
@@ -86,13 +89,6 @@ impl Light for DistantLight {
         self.l
     }
 
-    fn preprocess(&mut self, scene: &Scene) {
-        Bounds3f::bounding_sphere(
-            &scene.world_bound(),
-            &mut self.world_center,
-            &mut self.world_radius,
-        );
-    }
     fn power(&self) -> Spectrum<SPECTRUM_N> {
         self.l * PI * self.world_radius * self.world_radius
     }

@@ -11,11 +11,16 @@ use crate::{
         boxfilter::create_box_filter, gaussian::create_gaussian_filter,
         trianglefilter::create_triangle_filter, Filter,
     },
-    geometry::{Bounds2f, Bounds2i, Cxyz, Point2, Point2f, Point2i, Point3f, Vector2f, Vector3f},
+    geometry::{
+        Bounds2f, Bounds2i, Bounds3f, Cxyz, Point2, Point2f, Point2i, Point3f, Vector2f, Vector3f,
+    },
     integrator::{
         ao::*, directlighting::*, path::*, sppm::*, volpath::*, Integrator, SamplerIntegratorData,
     },
-    lights::{diffuse::DiffuseAreaLight, point::PointLight, Light},
+    lights::{
+        diffuse::DiffuseAreaLight, distant::DistantLight, infinite::InfiniteAreaLight,
+        point::PointLight, Light,
+    },
     material::{
         disney::DisneyMaterial,
         glass::GlassMaterial,
@@ -254,8 +259,13 @@ fn make_scene(scene_config: &Value, scene_config_root: &str) -> Scene {
     scene_global_data.materials = make_materials(&scene_config, &scene_global_data);
     scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config, &scene_global_data);
 
-    let (lights, infinite_lights) = make_all_lights(&scene_config, &scene_global_data);
     let aggregate = make_aggregate(&scene_config, &scene_global_data);
+    let (lights, infinite_lights) = make_all_lights(
+        &scene_config,
+        &scene_global_data,
+        scene_config_root,
+        aggregate.world_bound(),
+    );
 
     Scene::new(lights, infinite_lights, aggregate)
 }
@@ -514,37 +524,39 @@ fn make_tex_info(config: &Value, scene_config_root: &str) -> TexInfo {
 }
 
 fn load_image(t: &TexInfo) -> Result<Arc<MIPMap>, Box<dyn Error>> {
-    match ImageReader::open(t.filename.as_str())?.decode()?.as_rgb8() {
-        Some(img) => {
-            let width = img.width();
-            let height = img.height();
-            let res = Point2::<usize>::new(width as usize, height as usize);
-            let mut rgb_vec: Vec<Spectrum<SPECTRUM_N>> = Vec::with_capacity(res.x * res.y);
-            for y in 0..height {
-                for x in 0..width {
-                    let tmp_pixel = img.get_pixel(x, y);
-                    let tmp = [
-                        tmp_pixel[0] as f64 / 255.0,
-                        tmp_pixel[1] as f64 / 255.0,
-                        tmp_pixel[2] as f64 / 255.0,
-                    ];
-                    rgb_vec.push(Spectrum::from_rgb(tmp, SpectrumType::Reflectance));
-                }
-            }
-            return Ok(Arc::new(MIPMap::create(
-                res,
-                &rgb_vec,
-                t.do_trilinear,
-                t.max_aniso,
-                t.wrap_mode,
-            )));
-        }
-        None => {
-            return Err(Box::new(RenderProcessError {
-                msg: format!("{} can't be parsed as rgb8 image!", t.filename),
-            }))
+    let img = ImageReader::open(t.filename.as_str())?
+        .decode()?
+        .into_rgb8();
+
+    let width = img.width();
+    let height = img.height();
+    let res = Point2::<usize>::new(width as usize, height as usize);
+    let mut rgb_vec: Vec<Spectrum<SPECTRUM_N>> = Vec::with_capacity(res.x * res.y);
+    for y in 0..height {
+        for x in 0..width {
+            let tmp_pixel = img.get_pixel(x, y);
+            let tmp = [
+                tmp_pixel[0] as f64 / 255.0,
+                tmp_pixel[1] as f64 / 255.0,
+                tmp_pixel[2] as f64 / 255.0,
+            ];
+            rgb_vec.push(Spectrum::from_rgb(tmp, SpectrumType::Reflectance));
         }
     }
+    for y in 0..res.y / 2 {
+        for x in 0..res.x {
+            let o1 = (y * res.x + x) as usize;
+            let o2 = ((res.y - 1 - y) * res.x + x) as usize;
+            rgb_vec.swap(o1, o2);
+        }
+    }
+    return Ok(Arc::new(MIPMap::create(
+        res,
+        &rgb_vec,
+        t.do_trilinear,
+        t.max_aniso,
+        t.wrap_mode,
+    )));
 }
 
 fn make_texture_mapping_2d(
@@ -895,6 +907,8 @@ fn make_triangle_mesh(
 fn make_all_lights(
     scene_config: &Value,
     scene_global: &SceneGlobalData,
+    scene_config_root: &str,
+    world_bound: Bounds3f,
 ) -> (Vec<Arc<dyn Light>>, Vec<Arc<dyn Light>>) {
     let lights_config = search_object(scene_config, "lights");
     let mut lights_len = 0;
@@ -904,7 +918,12 @@ fn make_all_lights(
         lights_len = a_l.len();
         lights = Vec::with_capacity(lights_len);
         for light_config in a_l {
-            lights.push(make_light(light_config, scene_global));
+            lights.push(make_light(
+                light_config,
+                scene_global,
+                scene_config_root,
+                world_bound,
+            ));
         }
     } else {
         lights = vec![];
@@ -915,7 +934,12 @@ fn make_all_lights(
         inf_lights_len = a_l.len();
         infinite_lights = Vec::with_capacity(inf_lights_len);
         for light_config in a_l {
-            infinite_lights.push(make_light(light_config, scene_global));
+            infinite_lights.push(make_light(
+                light_config,
+                scene_global,
+                scene_config_root,
+                world_bound,
+            ));
         }
     } else {
         infinite_lights = vec![];
@@ -927,7 +951,12 @@ fn make_all_lights(
     return (lights, infinite_lights);
 }
 
-fn make_light(light_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn Light> {
+fn make_light(
+    light_config: &Value,
+    scene_global: &SceneGlobalData,
+    scene_config_root: &str,
+    world_bound: Bounds3f,
+) -> Arc<dyn Light> {
     assert!(light_config.is_object());
     if let Some(Value::String(light_type)) = light_config.get("light_type") {
         let light_to_world = make_to_world(light_config);
@@ -971,6 +1000,35 @@ fn make_light(light_config: &Value, scene_global: &SceneGlobalData) -> Arc<dyn L
                 } else {
                     panic!("Shape Required for a DiffuseLight! {:?}", light_config)
                 }
+            }
+            "distant" => {
+                let l = make_spectrum(light_config, "l", 1.0);
+                let sc = make_spectrum(light_config, "scale", 1.0);
+                let from = fetch_point3f(light_config, "from", Point3f::default());
+                let to = fetch_point3f(light_config, "to", Point3f::new(0.0, 0.0, 1.0));
+                let dir = from - to;
+                return Arc::new(DistantLight::new(
+                    light_to_world,
+                    mi,
+                    l * sc,
+                    dir,
+                    world_bound,
+                ));
+            }
+            "infinite" => {
+                let l = make_spectrum(light_config, "l", 1.0);
+                let sc = make_spectrum(light_config, "scale", 1.0);
+                let texmap = read_string(light_config, "mapname", "");
+
+                let n_samples = read_i64(light_config, "n_samples", 1) as usize;
+                return Arc::new(InfiniteAreaLight::new(
+                    light_to_world,
+                    l * sc,
+                    &preprocess_filepath(scene_config_root, &texmap),
+                    n_samples,
+                    mi,
+                    world_bound,
+                ));
             }
             _ => {
                 panic!("Failed to parse light {:?}", light_type);

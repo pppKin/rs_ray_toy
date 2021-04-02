@@ -45,6 +45,72 @@
             ]
         }
     ],
+    "infinite_lights": [
+        {
+            "light_type": "infinite",
+            "world_pos": [
+                3,
+                3,
+                3
+            ],
+            "spectrum": {
+                "value": [
+                    0.83,
+                    0.0,
+                    0.0
+                ]
+            },
+            "mapname": "inf_l_01.png"
+        },
+        {
+            "light_type": "infinite",
+            "world_pos": [
+                0,
+                1,
+                1
+            ],
+            "spectrum": {
+                "value": [
+                    1,
+                    1,
+                    1
+                ]
+            },
+            "mapname": "inf_l_01.png"
+        },
+        {
+            "light_type": "infinite",
+            "world_pos": [
+                2,
+                0,
+                2
+            ],
+            "spectrum": {
+                "value": [
+                    1,
+                    1,
+                    1
+                ]
+            },
+            "mapname": "inf_l_01.png"
+        },
+        {
+            "light_type": "infinite",
+            "world_pos": [
+                -2,
+                1,
+                -2
+            ],
+            "spectrum": {
+                "value": [
+                    1,
+                    1,
+                    1
+                ]
+            },
+            "mapname": "inf_l_01.png"
+        }
+    ],
     "Aggregate": {
         "max_prims_in_node": 6,
         "primitives": [
@@ -84,8 +150,8 @@
         "sampler_type": "StratifiedSampler"
     },
     "Film": {
-        "xres": 96,
-        "yres": 96,
+        "xres": 1280,
+        "yres": 720,
         "Filter": {}
     },
     "Camera": {
@@ -142,6 +208,7 @@
             0,
             1,
             17.996
-        ]
+        ],
+        "focus_distance": 15
     }
 }

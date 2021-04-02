@@ -5,14 +5,11 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterato
 use crate::{
     film::Film,
     geometry::{faceforward, Bounds2f, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f},
-    interaction::Interaction,
     lowdiscrepancy::radical_inverse,
     medium::MediumOpArc,
     misc::{copy_option_arc, lerp, quadratic},
     reflection::refract,
-    spectrum::Spectrum,
     transform::{ToWorld, Transform},
-    SPECTRUM_N,
 };
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -29,70 +26,6 @@ impl CameraSample {
             p_lens,
             time,
         }
-    }
-}
-
-pub trait ICamera: ToWorld + Debug {
-    fn generate_ray(&self, sample: &CameraSample, ray: &mut Ray) -> f64;
-    fn generate_ray_differential(&self, sample: &CameraSample, rd: &mut RayDifferential) -> f64 {
-        // Float wt = GenerateRay(sample, rd);
-        let wt = self.generate_ray(sample, &mut rd.ray);
-        // if (wt == 0) return 0;
-        if wt == 0.0 {
-            return 0.0;
-        }
-        // Find camera ray after shifting a fraction of a pixel in the $x$ direction
-        let mut wtx = 0_f64;
-        for eps in [0.05, -0.05].iter() {
-            let mut sshift = *sample;
-            sshift.p_film.x += eps;
-            let mut rx = Ray::default();
-            wtx = self.generate_ray(&sshift, &mut rx);
-            rd.rx_origin = rd.ray.o + (rx.o - rd.ray.o) / (*eps);
-            rd.rx_direction = rd.ray.d + (rx.d - rd.ray.d) / (*eps);
-            if wtx != 0_f64 {
-                break;
-            }
-        }
-        if wtx == 0_f64 {
-            return 0_f64;
-        }
-
-        // Find camera ray after shifting a fraction of a pixel in the $y$ direction
-        let mut wty = 0_f64;
-        for eps in [0.05, -0.05].iter() {
-            let mut sshift = *sample;
-            sshift.p_film.y += eps;
-            let mut ry = Ray::default();
-            wty = self.generate_ray(&sshift, &mut ry);
-            rd.ry_origin = rd.ray.o + (ry.o - rd.ray.o) / (*eps);
-            rd.ry_direction = rd.ray.d + (ry.d - rd.ray.d) / (*eps);
-            if wty != 0_f64 {
-                break;
-            }
-        }
-        if wty == 0_f64 {
-            return 0_f64;
-        }
-
-        rd.has_differentials = true;
-        wt
-    }
-    fn we(&self, _ray: &Ray, _p_raster2: &Point2f) -> Spectrum<SPECTRUM_N> {
-        unimplemented!()
-    }
-    fn pdf_we(&self, _ray: &Ray, _pdf_pos: &mut f64, _pdf_dir: &mut f64) {
-        unimplemented!()
-    }
-    fn sample_wi(
-        &self,
-        _ref_int: &Interaction,
-        _u: &Point2f,
-        _wi: &Vector3f,
-        _pdf: f64,
-        _p_raster: Point2f,
-    ) -> Spectrum<SPECTRUM_N> {
-        unimplemented!()
     }
 }
 
@@ -173,10 +106,18 @@ impl RealisticCamera {
             exit_pupil_bounds: vec![],
             simple_weighting,
         };
+
         // Compute lens--film distance for given focus distance
+        let fb = cam.focus_binary_search(focus_distance);
+        eprintln!("Binary search focus: {} -> {}", fb, cam.focus_distance(fb));
         let tmp_thickness = cam.focus_thick_lens(focus_distance);
         if let Some(e) = cam.element_interfaces.last_mut() {
             e.thickness = tmp_thickness;
+            eprintln!(
+                "Thick lens focus: {} -> {}",
+                tmp_thickness,
+                cam.focus_distance(tmp_thickness)
+            );
         }
 
         let n_samples = 64_usize;
@@ -263,7 +204,7 @@ impl RealisticCamera {
                 } else {
                     1.0
                 };
-                if !refract(&-r_lens.d.normalize(), &n, eta_i / eta_t, &mut w) {
+                if !refract(&((-r_lens.d).normalize()), &n, eta_i / eta_t, &mut w) {
                     return None;
                 }
                 r_lens.d = w;
@@ -508,7 +449,7 @@ impl RealisticCamera {
         let rear_radius = self.rear_element_radius();
         let proj_rear_bounds = Bounds2f::new(
             Point2f::new(-1.5 * rear_radius, -1.5 * rear_radius),
-            Point2f::new(-1.5 * rear_radius, -1.5 * rear_radius),
+            Point2f::new(1.5 * rear_radius, 1.5 * rear_radius),
         );
 
         for i in 0..n_samples {
@@ -521,8 +462,8 @@ impl RealisticCamera {
             let u = [radical_inverse(0, i), radical_inverse(1, i)];
 
             let p_rear = Point3f::new(
-                lerp(u[0], proj_rear_bounds.p_min.x, proj_rear_bounds.p_min.x),
-                lerp(u[1], proj_rear_bounds.p_min.y, proj_rear_bounds.p_min.y),
+                lerp(u[0], proj_rear_bounds.p_min.x, proj_rear_bounds.p_max.x),
+                lerp(u[1], proj_rear_bounds.p_min.y, proj_rear_bounds.p_max.y),
                 self.lens_rear_z(),
             );
             // Expand pupil bounds if ray makes it through the lens system
@@ -682,6 +623,79 @@ impl RealisticCamera {
         }
 
         rd.has_differentials = true;
+        assert!(wt >= 0.0);
         wt
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        filters::boxfilter::create_box_filter,
+        geometry::{Point2i, Vector2f},
+    };
+
+    #[test]
+    fn test_realistic_camera() {
+        let world_pos = Point3f::zero();
+        let cam_look = Point3f::new(1.0, 1.0, 1.0);
+        let cam_up = Vector3f::new(0.0, 0.0, 1.0);
+        let to_world = Transform::look_at(&world_pos, &cam_look, &cam_up);
+
+        let shutter_open = 0.0;
+        let shutter_close = 1.0;
+        let aperture_diameter = 1.0;
+        let focus_distance = 10.0;
+        let simple_weighting = true;
+
+        let lens_data = vec![
+            35.98738, 1.21638, 1.54, 23.716, 11.69718, 9.9957, 1.0, 17.996, 13.08714, 5.12622,
+            1.772, 12.364, -22.63294, 1.76924, 1.617, 9.812, 71.05802, 0.8184, 1.0, 9.152, 0.0,
+            2.27766, 0.0, 8.756, -9.58584, 2.43254, 1.617, 8.184, -11.28864, 0.11506, 1.0, 9.152,
+            -166.7765, 3.09606, 1.713, 10.648, -7.5911, 1.32682, 1.805, 11.44, -16.7662, 3.98068,
+            1.0, 12.276, -7.70286, 1.21638, 1.617, 13.42, -11.97328, 0.0, 1.0, 17.996,
+        ];
+
+        let m = None;
+
+        let film = Film::new(
+            Point2i::new(1280 / 4, 720 / 4),
+            35.0,
+            create_box_filter(Vector2f::new(2.0, 2.0)),
+            "../test_save_to.png".to_string(),
+            Bounds2f::new(Point2f::new(0.0, 0.0), Point2f::new(1.0, 1.0)),
+            1.0,
+            INFINITY,
+        );
+        let cam = RealisticCamera::new(
+            to_world,
+            shutter_open,
+            shutter_close,
+            aperture_diameter,
+            focus_distance,
+            Arc::new(film),
+            m,
+            &lens_data,
+            simple_weighting,
+        );
+
+        let bs = cam.film.get_sample_bounds();
+        let mut total_weight = 0.0;
+        let mut pixel_count = 0;
+        for pixel in bs.into_iter() {
+            let mut ray = RayDifferential::default();
+            let mut cam_sample = CameraSample::default();
+            cam_sample.p_film = Point2f::new(pixel.x as f64, pixel.y as f64);
+            cam_sample.p_lens = Point2f::new(0.5, 0.5);
+            let ray_weight = cam.generate_ray_differential(&cam_sample, &mut ray);
+            total_weight += ray_weight;
+            pixel_count += 1_usize;
+        }
+        println!(
+            "total pixels {}:: total_weight {}",
+            pixel_count, total_weight
+        );
+        assert!(total_weight > 0.0);
     }
 }

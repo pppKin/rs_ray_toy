@@ -276,6 +276,20 @@ impl<T> IndexMut<u8> for Point2<T> {
     }
 }
 
+impl<T> Div<T> for Point2<T>
+where
+    T: Div<T, Output = T> + Copy,
+{
+    type Output = Point2<T>;
+
+    fn div(self, rhs: T) -> Self::Output {
+        Point2::<T> {
+            x: self.x / rhs,
+            y: self.y / rhs,
+        }
+    }
+}
+
 /// Apply floor operation component-wise.
 pub fn pnt2_floor(p: Point2<f64>) -> Point2<f64> {
     Point2 {
@@ -577,26 +591,28 @@ where
     }
 }
 
-impl Div<f64> for Point3<f64> {
-    type Output = Point3<f64>;
-    fn div(self, rhs: f64) -> Point3<f64> {
-        assert_ne!(rhs, 0.0 as f64);
-        let inv: f64 = 1.0 as f64 / rhs;
-        Point3::<f64> {
-            x: self.x * inv,
-            y: self.y * inv,
-            z: self.z * inv,
+impl<T> Div<T> for Point3<T>
+where
+    T: Div<T, Output = T> + Copy + Default,
+{
+    type Output = Point3<T>;
+    fn div(self, rhs: T) -> Point3<T> {
+        Point3::<T> {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            z: self.z / rhs,
         }
     }
 }
 
-impl DivAssign<f64> for Point3<f64> {
-    fn div_assign(&mut self, rhs: f64) {
-        assert_ne!(rhs, 0.0 as f64);
-        let inv: f64 = 1.0 as f64 / rhs;
-        self.x *= inv;
-        self.y *= inv;
-        self.z *= inv;
+impl<T> DivAssign<T> for Point3<T>
+where
+    T: DivAssign<T> + Copy + Default,
+{
+    fn div_assign(&mut self, rhs: T) {
+        self.x /= rhs;
+        self.y /= rhs;
+        self.z /= rhs;
     }
 }
 
@@ -831,24 +847,26 @@ impl MulAssign<f64> for Vector2<f64> {
     }
 }
 
-impl Div<f64> for Vector2<f64> {
-    type Output = Vector2<f64>;
-    fn div(self, rhs: f64) -> Vector2<f64> {
-        assert_ne!(rhs, 0.0);
-        let inv: f64 = 1.0 / rhs;
-        Vector2::<f64> {
-            x: self.x * inv,
-            y: self.y * inv,
+impl<T> Div<T> for Vector2<T>
+where
+    T: Div<T, Output = T> + Copy + Default,
+{
+    type Output = Vector2<T>;
+    fn div(self, rhs: T) -> Vector2<T> {
+        Vector2::<T> {
+            x: self.x / rhs,
+            y: self.y / rhs,
         }
     }
 }
 
-impl DivAssign<f64> for Vector2<f64> {
-    fn div_assign(&mut self, rhs: f64) {
-        assert_ne!(rhs, 0.0);
-        let inv: f64 = 1.0 / rhs;
-        self.x *= inv;
-        self.y *= inv;
+impl<T> DivAssign<T> for Vector2<T>
+where
+    T: DivAssign<T> + Copy + Default,
+{
+    fn div_assign(&mut self, rhs: T) {
+        self.x /= rhs;
+        self.y /= rhs;
     }
 }
 
@@ -986,26 +1004,28 @@ impl MulAssign<f64> for Vector3<f64> {
     }
 }
 
-impl Div<f64> for Vector3<f64> {
-    type Output = Vector3<f64>;
-    fn div(self, rhs: f64) -> Vector3<f64> {
-        assert_ne!(rhs, 0.0 as f64);
-        let inv: f64 = 1.0 as f64 / rhs;
-        Vector3::<f64> {
-            x: self.x * inv,
-            y: self.y * inv,
-            z: self.z * inv,
+impl<T> Div<T> for Vector3<T>
+where
+    T: Div<T, Output = T> + Copy + Default,
+{
+    type Output = Vector3<T>;
+    fn div(self, rhs: T) -> Vector3<T> {
+        Vector3::<T> {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            z: self.z / rhs,
         }
     }
 }
 
-impl DivAssign<f64> for Vector3<f64> {
-    fn div_assign(&mut self, rhs: f64) {
-        assert_ne!(rhs, 0.0 as f64);
-        let inv: f64 = 1.0 as f64 / rhs;
-        self.x *= inv;
-        self.y *= inv;
-        self.z *= inv;
+impl<T> DivAssign<T> for Vector3<T>
+where
+    T: DivAssign<T> + Copy + Default,
+{
+    fn div_assign(&mut self, rhs: T) {
+        self.x /= rhs;
+        self.y /= rhs;
+        self.z /= rhs;
     }
 }
 
@@ -1323,15 +1343,16 @@ impl PartialEq for Normal3f {
 
 // work around bug
 // https://github.com/rust-lang/rust/issues/40395
-impl Div<f64> for Normal3<f64> {
-    type Output = Normal3<f64>;
-    fn div(self, rhs: f64) -> Normal3<f64> {
-        assert_ne!(rhs, 0.0 as f64);
-        let inv: f64 = 1.0 as f64 / rhs;
-        Normal3::<f64> {
-            x: self.x * inv,
-            y: self.y * inv,
-            z: self.z * inv,
+impl<T> Div<T> for Normal3<T>
+where
+    T: Div<T, Output = T> + Copy + Default,
+{
+    type Output = Normal3<T>;
+    fn div(self, rhs: T) -> Normal3<T> {
+        Normal3::<T> {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            z: self.z / rhs,
         }
     }
 }
@@ -1947,5 +1968,14 @@ mod tests {
         assert!(&bs_c == &Point3f::new(-5.0, 5.0, 7.5));
 
         nearly_equal(&a.p_min, &a.p_max);
+    }
+
+    #[test]
+    fn test_bnd2() {
+        let b = Bounds2i::new(Point2i::new(48, 0), Point2i::new(64, 16));
+        for p in b.into_iter() {
+            println!("p in b.into_iter {:?}", p);
+            assert!(Bounds2i::inside(&p, &b));
+        }
     }
 }

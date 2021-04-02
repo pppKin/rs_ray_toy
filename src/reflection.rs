@@ -121,14 +121,14 @@ pub fn reflect(wo: &Vector3f, n: &Vector3f) -> Vector3f {
 /// and transmitted).
 pub fn refract(wi: &Vector3f, n: &Normal3f, eta: f64, wt: &mut Vector3f) -> bool {
     // compute $\cos \theta_\roman{t}$ using Snell's law
-    let cos_theta_i: f64 = dot3(n, wi);
-    let sin2_theta_i: f64 = (0.0 as f64).max(1.0 as f64 - cos_theta_i * cos_theta_i);
-    let sin2_theta_t: f64 = eta * eta * sin2_theta_i;
+    let cos_theta_i = dot3(n, wi);
+    let sin2_theta_i = (0_f64).max(1.0 - cos_theta_i * cos_theta_i);
+    let sin2_theta_t = eta * eta * sin2_theta_i;
     // handle total internal reflection for transmission
-    if sin2_theta_t >= 1.0 as f64 {
+    if sin2_theta_t >= 1.0 {
         return false;
     }
-    let cos_theta_t: f64 = (1.0 as f64 - sin2_theta_t).sqrt();
+    let cos_theta_t: f64 = (1.0 - sin2_theta_t).sqrt();
     *wt = -(*wi) * eta + Vector3f::from(*n) * (eta * cos_theta_i - cos_theta_t);
     true
 }

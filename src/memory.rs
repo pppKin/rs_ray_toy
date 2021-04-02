@@ -29,13 +29,6 @@ pub struct BlockedArray<T: Clone + Copy + From<f64>> {
 }
 
 impl<T: Clone + From<f64> + Copy> BlockedArray<T> {
-    // let mut ba = Self::new(u_res, v_res);
-    // for u in 0..u_res {
-    //     for v in 0..v_res {
-    //         ba[(u, v)] = d[v * u_res + u].clone();
-    //     }
-    // }
-    // ba
     pub fn new(data: Option<Vec<T>>, u_res: usize, v_res: usize) -> Self {
         let u_blocks = ba_round_up(u_res) >> LOG_BLOCK_SIZE;
         let tmp_v = vec![T::from(0.0); ba_round_up(u_res) * ba_round_up(v_res)];
@@ -99,8 +92,7 @@ impl<T: Clone + From<f64> + Copy> IndexMut<(usize, usize)> for BlockedArray<T> {
         let bv = ba_block(v);
         let ou = ba_offset(u);
         let ov = ba_offset(v);
-        let mut offset = BLOCK_SIZE * BLOCK_SIZE * (self.u_blocks * bv + bu);
-        offset += BLOCK_SIZE * ov + ou;
+        let offset = BLOCK_SIZE * BLOCK_SIZE * (self.u_blocks * bv + bu) + BLOCK_SIZE * ov + ou;
         &mut self.data[offset]
     }
 }

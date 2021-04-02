@@ -35,8 +35,6 @@ pub trait Light: Debug + ToWorld + Send + Sync {
         vis: &mut VisibilityTester,
     ) -> Spectrum<SPECTRUM_N>;
     fn power(&self) -> Spectrum<SPECTRUM_N>;
-    /// by default this does absolutely nothing at all
-    fn preprocess(&mut self, _scene: &Scene) {}
     fn le(&self, _r: &RayDifferential) -> Spectrum<SPECTRUM_N> {
         Spectrum::zero()
     }
@@ -112,4 +110,5 @@ pub trait AreaLight: Light {
 
 pub mod diffuse;
 pub mod distant;
+pub mod infinite;
 pub mod point;

@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use rayon::prelude::*;
 
@@ -50,6 +53,11 @@ trait SamplerIntegrator: Send + Sync {
         let n_tiles_x = (sample_extent.x + tile_size - 1) / tile_size;
         let n_tiles_y = (sample_extent.y + tile_size - 1) / tile_size;
 
+        eprintln!(
+            "Rendering {}x{} tiles for a {}x{} image!",
+            n_tiles_x, n_tiles_y, sample_extent.x, sample_extent.y
+        );
+        let total_pixel_count = AtomicU64::new(0);
         (0..n_tiles_x).into_par_iter().for_each(|tile_x| {
             (0..n_tiles_y).into_par_iter().for_each(|tile_y| {
                 // Compute sample bounds for tile
@@ -71,6 +79,7 @@ trait SamplerIntegrator: Send + Sync {
                     if !Bounds2i::inside_exclusive(&pixel, &itgt.pixel_bounds) {
                         continue;
                     }
+                    total_pixel_count.fetch_add(1, Ordering::Relaxed);
 
                     while tile_sampler.start_next_sample() {
                         // Initialize _CameraSample_ for current sample
@@ -126,6 +135,10 @@ trait SamplerIntegrator: Send + Sync {
             });
         });
 
+        eprintln!(
+            "{} pixels processed",
+            total_pixel_count.load(Ordering::Relaxed),
+        );
         self.itgt().cam.film.write_image(1.0)
     }
     fn preprocess(&mut self, _scene: &Scene, _sampler: &mut Sampler) {
