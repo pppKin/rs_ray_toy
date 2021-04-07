@@ -11,7 +11,6 @@ use crate::{
     material::{Material, TransportMode},
     medium::phase_hg,
     misc::{clamp_t, INV_4_PI},
-    primitives::Primitive,
     reflection::{cos_theta, fr_dielectric, Bsdf, BxDF, BXDF_DIFFUSE, BXDF_REFLECTION},
     scene::Scene,
     spectrum::Spectrum,

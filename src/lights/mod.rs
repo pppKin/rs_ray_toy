@@ -4,7 +4,6 @@ use crate::{
     geometry::{IntersectP, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f},
     interaction::{BaseInteraction, SurfaceInteraction},
     medium::MediumInterface,
-    primitives::Primitive,
     samplers::Sampler,
     scene::Scene,
     spectrum::*,

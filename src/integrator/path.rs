@@ -3,7 +3,6 @@ use std::sync::Arc;
 use crate::{
     geometry::{abs_dot3, dot3, RayDifferential, Vector3f},
     interaction::{Interaction, SurfaceInteraction},
-    primitives::Primitive,
     reflection::{BXDF_ALL, BXDF_SPECULAR, BXDF_TRANSMISSION},
     samplers::{ISampler, Sampler},
     sampling::Distribution1D,

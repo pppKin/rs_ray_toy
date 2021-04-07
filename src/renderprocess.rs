@@ -239,10 +239,12 @@ fn fetch_vector2f(config: &Value, key: &str, default_value: Vector2f) -> Vector2
 
 fn make_to_world(root: &Value) -> Transform {
     let world_pos = fetch_point3f(root, "world_pos", Point3f::zero());
-    let rotation_axis = fetch_vector3f(root, "rotation_axis", Vector3f::new(1.0, 0.0, 0.0));
+    let rotation_axis = fetch_vector3f(root, "rotation_axis", Vector3f::new(0.0, 0.0, 0.0));
     let rotation_angle = read_f64(root, "rotation_angle", 0.0);
-    let to_world = Transform::translate(&(Point3f::zero() - world_pos))
-        * Transform::rotate(rotation_angle, &rotation_axis);
+    let scale = fetch_vector3f(root, "scale", Vector3f::new(1.0, 1.0, 1.0));
+    let to_world = Transform::translate(&(world_pos.into()))
+        * Transform::rotate(rotation_angle, &rotation_axis)
+        * Transform::scale(scale.x, scale.y, scale.z);
     to_world
 }
 
@@ -260,6 +262,10 @@ fn make_scene(scene_config: &Value, scene_config_root: &str) -> Scene {
     scene_global_data.triangle_mesh = make_triangle_mesh(&scene_config, &scene_global_data);
 
     let aggregate = make_aggregate(&scene_config, &scene_global_data);
+    eprintln!(
+        "Generated aggregate with world bound {:?}",
+        aggregate.world_bound()
+    );
     let (lights, infinite_lights) = make_all_lights(
         &scene_config,
         &scene_global_data,
@@ -882,6 +888,8 @@ fn make_triangle_mesh(
                             result.n_triangles,
                             result.n_vertices,
                             result.vertex_indices,
+                            result.normal_indices,
+                            result.uv_indices,
                             result.p,
                             result.n,
                             result.s,
@@ -1369,6 +1377,7 @@ fn make_camera(camera_config: &Value, film: Film) -> RealisticCamera {
     let focus_distance = read_f64(camera_config, "focus_distance", 10.0);
     let simple_weighting = read_bool(camera_config, "simple_weighting", true);
     let lens_data = read_num_array(camera_config.get("lens_data").unwrap(), 0).unwrap();
+
     let mut m = None;
     if let Some(medium_config) = camera_config.get("medium") {
         if let Ok(medium) = make_medium(medium_config) {

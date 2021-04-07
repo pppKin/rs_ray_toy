@@ -40,6 +40,8 @@ pub struct ParseResult {
     pub n_triangles: usize,
     pub n_vertices: usize,
     pub vertex_indices: Vec<usize>,
+    pub normal_indices: Vec<usize>,
+    pub uv_indices: Vec<usize>,
     pub p: Vec<Point3f>,
     pub n: Vec<Normal3f>,
     pub s: Vec<Vector3f>,
@@ -49,15 +51,27 @@ pub struct ParseResult {
 impl ParseResult {
     pub fn new(
         vertex_indices: Vec<usize>,
+        normal_indices: Vec<usize>,
+        uv_indices: Vec<usize>,
         p: Vec<Point3f>,
         n: Vec<Normal3f>,
         s: Vec<Vector3f>,
         uv: Vec<Point2f>,
     ) -> Self {
+        let n_triangles = vertex_indices.len() / 3;
+        let n_vertices = p.len();
+        if uv_indices.len() > 0 {
+            assert!(vertex_indices.len() == uv_indices.len())
+        }
+        if normal_indices.len() > 0 {
+            assert!(vertex_indices.len() == normal_indices.len())
+        }
         Self {
-            n_triangles: (vertex_indices.len() / 3),
-            n_vertices: p.len(),
+            n_triangles,
+            n_vertices,
             vertex_indices,
+            normal_indices,
+            uv_indices,
             p,
             n,
             s,
@@ -73,10 +87,14 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
 
     let mut vertex_indices = vec![];
     let mut p = vec![];
-    let mut n = vec![];
+
     let s = vec![];
+
+    let mut n = vec![];
     let mut uv = vec![];
 
+    let mut normal_indices = vec![];
+    let mut uv_indices = vec![];
     for line_r in lines {
         err.err_line += 1;
         err.element_type = "unknown".to_string();
@@ -119,10 +137,32 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
             Some("f") => {
                 // geometric vertices
                 match make_face(&mut sp) {
-                    Ok((t_idx1, t_idx2, t_idx3)) => {
-                        vertex_indices.push(t_idx1);
-                        vertex_indices.push(t_idx2);
-                        vertex_indices.push(t_idx3);
+                    Ok((f1, f2, f3)) => {
+                        if let (Some(v1), Some(v2), Some(v3)) = (f1.0, f2.0, f3.0) {
+                            vertex_indices.push(v1);
+                            vertex_indices.push(v2);
+                            vertex_indices.push(v3);
+                            if let (Some(vt1), Some(vt2), Some(vt3)) = (f1.1, f2.1, f3.1) {
+                                if !uv.is_empty()
+                                    && vt1 < uv.len()
+                                    && vt2 < uv.len()
+                                    && vt3 < uv.len()
+                                {
+                                    uv_indices.push(vt1);
+                                    uv_indices.push(vt2);
+                                    uv_indices.push(vt3);
+                                }
+                            }
+
+                            if let (Some(vn1), Some(vn2), Some(vn3)) = (f1.2, f2.2, f3.2) {
+                                if !n.is_empty() && vn1 < n.len() && vn2 < n.len() && vn3 < n.len()
+                                {
+                                    normal_indices.push(vn1);
+                                    normal_indices.push(vn2);
+                                    normal_indices.push(vn3);
+                                }
+                            }
+                        }
                     }
                     Err(desc) => {
                         err.desc = desc;
@@ -138,7 +178,15 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
             }
         }
     }
-    Ok(ParseResult::new(vertex_indices, p, n, s, uv))
+    Ok(ParseResult::new(
+        vertex_indices,
+        normal_indices,
+        uv_indices,
+        p,
+        n,
+        s,
+        uv,
+    ))
 }
 
 fn make_vertex(sp: &mut SplitWhitespace) -> Result<Point3f, String> {
@@ -158,23 +206,34 @@ fn make_uv(sp: &mut SplitWhitespace) -> Result<Point2f, String> {
     Ok(Point2f::new(u, v))
 }
 
-fn parse_face_element(f_str: &str) -> (usize, usize, usize) {
+fn parse_face_element(f_str: &str) -> (Option<usize>, Option<usize>, Option<usize>) {
     let mut tmp = vec![];
     for idx in f_str.split("/") {
         if let Ok(i) = usize::from_str(idx) {
-            tmp.push(i);
+            tmp.push(Some(i - 1));
+        } else {
+            tmp.push(None)
         }
     }
-    tmp.resize(3, 1);
-    (tmp[0] - 1, tmp[1] - 1, tmp[2] - 1)
+    tmp.resize(3, None);
+    (tmp[0], tmp[1], tmp[2])
 }
 
-fn make_face(sp: &mut SplitWhitespace) -> Result<(usize, usize, usize), String> {
+fn make_face(
+    sp: &mut SplitWhitespace,
+) -> Result<
+    (
+        (Option<usize>, Option<usize>, Option<usize>),
+        (Option<usize>, Option<usize>, Option<usize>),
+        (Option<usize>, Option<usize>, Option<usize>),
+    ),
+    String,
+> {
     if let (Some(v1), Some(v2), Some(v3)) = (sp.next(), sp.next(), sp.next()) {
         let v1_element = parse_face_element(v1);
         let v2_element = parse_face_element(v2);
         let v3_element = parse_face_element(v3);
-        return Ok((v1_element.0, v2_element.0, v3_element.0));
+        return Ok((v1_element, v2_element, v3_element));
     } else {
         return Err("ParseObjError: Failed to get face element".to_string());
     }
@@ -197,6 +256,8 @@ mod tests {
                     result.n_triangles,
                     result.n_vertices,
                     result.vertex_indices,
+                    result.normal_indices,
+                    result.uv_indices,
                     result.p,
                     result.n,
                     result.s,

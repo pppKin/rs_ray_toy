@@ -3,7 +3,6 @@ use std::sync::Arc;
 use crate::{
     geometry::{cross, dot3, faceforward, IntersectP, RayDifferential, Vector3f},
     interaction::SurfaceInteraction,
-    primitives::Primitive,
     samplers::{ISampler, RoundCount, Sampler},
     sampling::{
         cosine_hemisphere_pdf, cosine_sample_hemisphere, uniform_hemisphere_pdf,

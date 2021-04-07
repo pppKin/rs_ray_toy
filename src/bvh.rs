@@ -83,6 +83,7 @@ struct MortonPrimitive {
     morton_code: u32,
 }
 
+#[derive(Debug)]
 struct LBVHTreelet {
     start_index: u32,
     n_primitives: u32,
@@ -128,7 +129,7 @@ impl IntersectP for BVHAccel {
                 (inv_dir.y < 0.0) as u8,
                 (inv_dir.z < 0.0) as u8,
             ];
-            // int nodesToVisit[64];
+
             let mut nodes_to_visit: [usize; 64] = [0; 64];
             let mut to_visit_offset = 0;
             let mut current_node_index = 0;
@@ -179,7 +180,7 @@ impl Primitive for BVHAccel {
         }
         Bounds3f::default()
     }
-    fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
+    fn intersect(self: Arc<Self>, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
         let mut hit = false;
         if !self.nodes.is_empty() {
             let inv_dir = Vector3f::new(1.0 / r.d.x, 1.0 / r.d.y, 1.0 / r.d.z);
@@ -198,7 +199,10 @@ impl Primitive for BVHAccel {
                     // Process BVH node _node_ for traversal
                     if node.n_primitives > 0 {
                         for i in 0..node.n_primitives {
-                            if self.primitives[(node.offset + i) as usize].intersect(r, si) {
+                            if self.primitives[(node.offset + i) as usize]
+                                .clone()
+                                .intersect(r, si)
+                            {
                                 hit = true;
                             }
                         }
@@ -365,7 +369,6 @@ impl BVHAccel {
         ordered_prims: &mut Vec<Option<Arc<dyn Primitive>>>,
     ) -> BVHBuildNode {
         // Compute bounding box of all primitive centroids
-        //     Bounds3f bounds;
         let mut bounds = Bounds3f::default();
         for pi in &*primitive_info {
             bounds = Bounds3f::union(&bounds, &pi.centroid);
@@ -376,8 +379,8 @@ impl BVHAccel {
             primitive_info.len()
         ]));
         let (done_tx, done_rx): (
-            Sender<(u32, MortonPrimitive)>,
-            Receiver<(u32, MortonPrimitive)>,
+            Sender<(usize, usize, Vec<MortonPrimitive>)>,
+            Receiver<(usize, usize, Vec<MortonPrimitive>)>,
         ) = mpsc::channel();
         let mut encode_morton_hns = vec![];
         let primitive_info_len = primitive_info.len();
@@ -393,6 +396,7 @@ impl BVHAccel {
             }
             let pis = Arc::clone(&primitive_info);
             encode_morton_hns.push(thread::spawn(move || {
+                let mut mps = Vec::with_capacity(end - start);
                 for i in start..end {
                     let pi = &pis[i]; //borrow it here
                     let mut mp = MortonPrimitive::default();
@@ -401,8 +405,9 @@ impl BVHAccel {
                     mp.primitive_index = pi.primitive_number;
                     let centroid_offset = bounds.offset(&pi.centroid);
                     mp.morton_code = encode_mortoncode3(&(centroid_offset * morton_scale));
-                    d_tx.send((i as u32, mp)).unwrap();
+                    mps.push(mp);
                 }
+                d_tx.send((start, end, mps)).unwrap();
             }));
         }
 
@@ -410,9 +415,15 @@ impl BVHAccel {
         let e_morton_prims = Arc::clone(&morton_prims);
         encode_morton_hns.push(thread::spawn(move || loop {
             match done_rx.recv() {
-                Ok((idx, mp)) => {
+                Ok((start_idx, end_idx, mut p_mps)) => {
                     let mut mps = e_morton_prims.lock().unwrap();
-                    mps[idx as usize] = mp;
+                    for idx in (start_idx..end_idx).rev() {
+                        if p_mps.len() > 0 {
+                            mps[idx as usize] = p_mps.pop().unwrap();
+                        } else {
+                            break;
+                        }
+                    }
                 }
                 Err(_e) => {
                     break;
@@ -743,7 +754,14 @@ impl BVHAccel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::pnt3_lerp;
+    use crate::primitives::*;
+    use crate::shape::triangle::*;
+    use crate::spectrum::*;
+    use crate::texture::*;
+    use crate::transform::*;
+    use crate::SPECTRUM_N;
+    use crate::{geometry::*, objparser::parse_obj};
+    use crate::{material::matte::*, medium::MediumInterface};
     // use crate::lights::*;
     // use crate::material::*;
     // use crate::primitives::*;
@@ -791,78 +809,90 @@ mod tests {
         radix_sort(&mut mp_v);
     }
 
-    // #[test]
-    // fn test_tri_bvh() {
-    //     let mut rng = rand::thread_rng();
+    #[test]
+    fn test_tri_bvh() {
+        let mut rng = rand::thread_rng();
 
-    //     let obj_to_world = Transform::default();
-    //     let world_to_obj = Transform::default();
-    //     let mut vertices = vec![];
-    //     for _i in 0..134 {
-    //         vertices.push(Point3f::new(
-    //             rng.gen_range(-100.0, 100.0),
-    //             rng.gen_range(-100.0, 100.0),
-    //             rng.gen_range(-100.0, 100.0),
-    //         ));
-    //     }
-    //     let mesh = create_triangle_mesh(
-    //         obj_to_world,
-    //         world_to_obj,
-    //         120,
-    //         132,
-    //         vec![
-    //             0, 1, 2, 1, 0, 3, 4, 2, 1, 2, 4, 5, 6, 5, 4, 5, 6, 7, 8, 7, 6, 7, 8, 9, 10, 9, 8,
-    //             9, 10, 11, 12, 11, 10, 11, 12, 13, 14, 13, 12, 13, 14, 15, 16, 15, 14, 15, 16, 17,
-    //             18, 17, 16, 17, 18, 19, 20, 19, 18, 19, 20, 21, 22, 23, 24, 23, 22, 25, 26, 24, 23,
-    //             24, 26, 27, 28, 27, 26, 27, 28, 29, 30, 29, 28, 29, 30, 31, 32, 31, 30, 31, 32, 33,
-    //             34, 33, 32, 33, 34, 35, 36, 35, 34, 35, 36, 37, 38, 37, 36, 37, 38, 39, 40, 39, 38,
-    //             39, 40, 41, 42, 41, 40, 41, 42, 43, 44, 45, 46, 45, 44, 47, 48, 46, 45, 46, 48, 49,
-    //             50, 49, 48, 49, 50, 51, 52, 51, 50, 51, 52, 53, 54, 53, 52, 53, 54, 55, 56, 55, 54,
-    //             55, 56, 57, 58, 57, 56, 57, 58, 59, 60, 59, 58, 59, 60, 61, 62, 61, 60, 61, 62, 63,
-    //             64, 63, 62, 63, 64, 65, 66, 67, 68, 67, 66, 69, 70, 68, 67, 68, 70, 71, 72, 71, 70,
-    //             71, 72, 73, 74, 73, 72, 73, 74, 75, 76, 75, 74, 75, 76, 77, 78, 77, 76, 77, 78, 79,
-    //             80, 79, 78, 79, 80, 81, 82, 81, 80, 81, 82, 83, 84, 83, 82, 83, 84, 85, 86, 85, 84,
-    //             85, 86, 87, 88, 89, 90, 89, 88, 91, 92, 90, 89, 90, 92, 93, 94, 93, 92, 93, 94, 95,
-    //             96, 95, 94, 95, 96, 97, 98, 97, 96, 97, 98, 99, 100, 99, 98, 99, 100, 101, 102,
-    //             101, 100, 101, 102, 103, 104, 103, 102, 103, 104, 105, 106, 105, 104, 105, 106,
-    //             107, 108, 107, 106, 107, 108, 109, 110, 111, 112, 111, 110, 113, 114, 112, 111,
-    //             112, 114, 115, 116, 115, 114, 115, 116, 117, 118, 117, 116, 117, 118, 119, 120,
-    //             119, 118, 119, 120, 121, 122, 121, 120, 121, 122, 123, 124, 123, 122, 123, 124,
-    //             125, 126, 125, 124, 125, 126, 127, 128, 127, 126, 127, 128, 129, 130, 129, 128,
-    //             129, 130, 131,
-    //         ],
-    //         vertices,
-    //         vec![],
-    //         vec![],
-    //         vec![],
-    //     );
+        let kd = Spectrum::<SPECTRUM_N>::from(0.5);
+        let sigma = 0.0;
+        let matte = MatteMaterial::new(
+            Arc::new(ConstantTexture::new(kd)),
+            Arc::new(ConstantTexture::new(sigma)),
+            None,
+        );
 
-    //     let mut pris = vec![];
-    //     for tri_a in mesh {
-    //         let tri = Arc::clone(&tri_a);
-    //         pris.push(Arc::new(GeometricPrimitive::new(
-    //             tri,
-    //             Arc::new(Material::default()),
-    //             Arc::new(Light::default()),
-    //         )) as Arc<dyn Primitive>);
-    //     }
-    //     let bvhaccel = BVHAccel::new(pris, 8, BVHSplitMethod::HLBVH);
-    //     assert!(bvhaccel.intersect_p(&Ray::new_od(
-    //         Point3f::new(
-    //             rng.gen_range(-10.0, 10.0),
-    //             rng.gen_range(-10.0, 10.0),
-    //             rng.gen_range(-10.0, 10.0),
-    //         ),
-    //         Vector3f::new(
-    //             rng.gen_range(-1.0, 1.0),
-    //             rng.gen_range(-1.0, 1.0),
-    //             rng.gen_range(-1.0, 1.0),
-    //         )
-    //     )));
-    //     println!(
-    //         "bvhaccel.nodes.len() {} {}",
-    //         bvhaccel.nodes.len(),
-    //         &bvhaccel.nodes[0].n_primitives
-    //     );
-    // }
+        let material = Arc::new(matte);
+        let mi = MediumInterface::default();
+        let r = parse_obj("samples/cube.obj");
+        match r {
+            Ok(result) => {
+                // println!("result : {} triangles", result.n_triangles);
+                let tm = create_triangle_mesh(
+                    Transform::default(),
+                    Transform::default(),
+                    result.n_triangles,
+                    result.n_vertices,
+                    result.vertex_indices,
+                    result.normal_indices,
+                    result.uv_indices,
+                    result.p,
+                    result.n,
+                    result.s,
+                    result.uv,
+                );
+                println!("result : {} triangles", tm.len());
+
+                let mut gs = vec![];
+                for tri in tm {
+                    gs.push(Arc::new(GeometricPrimitive::new(
+                        tri.clone(),
+                        material.clone(),
+                        None,
+                        mi.clone(),
+                    )))
+                }
+
+                let mut ts: Vec<Arc<dyn Primitive>> = vec![];
+                for _ins_idx in 0..20 {
+                    let to_world = Transform::translate(&Vector3f::new(
+                        rng.gen_range(20.0..31.0),
+                        rng.gen_range(20.0..31.0),
+                        rng.gen_range(20.0..31.0),
+                    ));
+                    for g in &gs {
+                        let t = TransformedPrimitive::new(g.clone(), to_world);
+                        ts.push(Arc::new(t));
+                    }
+                }
+
+                let aggregate = BVHAccel::new(ts, 4, BVHSplitMethod::HLBVH);
+                eprintln!(
+                    "Generated {:?} primitives\nwith world bound {:?}",
+                    aggregate.primitives.len(),
+                    aggregate.world_bound()
+                );
+                let mut hit_count = 0_u32;
+                for _test_ray_idx in 0..100 {
+                    let r = Ray::new_od(
+                        Point3f::default(),
+                        Vector3f::new(
+                            rng.gen_range(20.0..31.0),
+                            rng.gen_range(20.0..31.0),
+                            rng.gen_range(20.0..31.0),
+                        )
+                        .normalize(),
+                    );
+                    let hit = aggregate.intersect_p(&r);
+                    // eprintln!("{:?} >> {}", r.d, hit);
+                    if hit {
+                        hit_count += 1;
+                    }
+                }
+                assert!(hit_count > 0);
+            }
+            Err(err) => {
+                panic!("{}", err.to_string())
+            }
+        }
+    }
 }

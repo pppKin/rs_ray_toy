@@ -10,7 +10,6 @@ use crate::{
     geometry::{abs_dot3, dot3, Bounds2i, Normal3f, Point2f, Point2i, RayDifferential, Vector3f},
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
-    primitives::Primitive,
     reflection::{BXDF_ALL, BXDF_NONE, BXDF_REFLECTION, BXDF_SPECULAR, BXDF_TRANSMISSION},
     samplers::{ISampler, Sampler, StartPixel},
     sampling::{power_heuristic, Distribution1D},
@@ -57,7 +56,7 @@ trait SamplerIntegrator: Send + Sync {
             "Rendering {}x{} tiles for a {}x{} image!",
             n_tiles_x, n_tiles_y, sample_extent.x, sample_extent.y
         );
-        let total_pixel_count = AtomicU64::new(0);
+        let total_ray_count = AtomicU64::new(0);
         (0..n_tiles_x).into_par_iter().for_each(|tile_x| {
             (0..n_tiles_y).into_par_iter().for_each(|tile_y| {
                 // Compute sample bounds for tile
@@ -79,7 +78,6 @@ trait SamplerIntegrator: Send + Sync {
                     if !Bounds2i::inside_exclusive(&pixel, &itgt.pixel_bounds) {
                         continue;
                     }
-                    total_pixel_count.fetch_add(1, Ordering::Relaxed);
 
                     while tile_sampler.start_next_sample() {
                         // Initialize _CameraSample_ for current sample
@@ -96,15 +94,12 @@ trait SamplerIntegrator: Send + Sync {
                         // Evaluate radiance along camera ray
                         let mut l = Spectrum::zero();
                         if ray_weight > 0.0 {
+                            total_ray_count.fetch_add(1, Ordering::Relaxed);
                             l = self.li(&mut ray, scene, &mut tile_sampler, 1);
                         }
                         // Issue warning if unexpected radiance value returned
                         if l.has_nan() {
-                            // TODO:     LOG(ERROR) << StringPrintf(
-                            //         "Not-a-number radiance value returned "
-                            //         "for pixel (%d, %d), sample %d. Setting to black.",
-                            //         pixel.x, pixel.y,
-                            //         (int)tileSampler->CurrentSampleNumber());
+                            eprintln!("Not-a-number radiance value returned for pixel ({}, {}), sample {}. Setting to black.", pixel.x, pixel.y, tile_sampler.current_sample_number());
                             l = Spectrum::zero();
                         } else if l.y() < -1e-5 {
                             // TODO:      LOG(ERROR) << StringPrintf(
@@ -135,10 +130,7 @@ trait SamplerIntegrator: Send + Sync {
             });
         });
 
-        eprintln!(
-            "{} pixels processed",
-            total_pixel_count.load(Ordering::Relaxed),
-        );
+        eprintln!("{} rays generated", total_ray_count.load(Ordering::Relaxed),);
         self.itgt().cam.film.write_image(1.0)
     }
     fn preprocess(&mut self, _scene: &Scene, _sampler: &mut Sampler) {

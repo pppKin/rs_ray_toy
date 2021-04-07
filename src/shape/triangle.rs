@@ -18,6 +18,8 @@ pub struct TriangleMesh {
     pub n_vertices: usize,  // The total number of vertices in the mesh.
     // A pointer to an array of vertex indices. For the ith triangle, its three vertex positions are
     pub vertex_indices: Vec<usize>,
+    pub normal_indices: Vec<usize>,
+    pub uv_indices: Vec<usize>,
     pub p: Vec<Point3f>,  // An array of n_vertices vertex positions.
     pub n: Vec<Normal3f>, // An optional array of normals
     pub s: Vec<Vector3f>, // An optional array of tangent vectors, one per vertex, used to compute shading tangents.
@@ -30,15 +32,25 @@ impl TriangleMesh {
         n_triangles: usize,
         n_vertices: usize,
         vertex_indices: Vec<usize>,
+        normal_indices: Vec<usize>,
+        uv_indices: Vec<usize>,
         p: Vec<Point3f>,
         n: Vec<Normal3f>,
         s: Vec<Vector3f>,
         uv: Vec<Point2f>,
     ) -> Self {
+        if uv_indices.len() > 0 {
+            assert!(vertex_indices.len() == uv_indices.len())
+        }
+        if normal_indices.len() > 0 {
+            assert!(vertex_indices.len() == normal_indices.len())
+        }
         TriangleMesh {
             n_triangles,
             n_vertices,
             vertex_indices,
+            normal_indices,
+            uv_indices,
             p,
             n,
             s,
@@ -52,6 +64,8 @@ pub struct Triangle {
     obj_to_world: Transform,
     world_to_obj: Transform,
     v: [usize; 3],
+    n: [usize; 3],
+    uv: [usize; 3],
     mesh: Arc<TriangleMesh>,
 }
 
@@ -62,14 +76,37 @@ impl Triangle {
         tri_num: usize,
         mesh: Arc<TriangleMesh>,
     ) -> Self {
+        let n;
+        if !mesh.n.is_empty() && !mesh.normal_indices.is_empty() {
+            n = [
+                mesh.normal_indices[3 * tri_num],
+                mesh.normal_indices[3 * tri_num + 1],
+                mesh.normal_indices[3 * tri_num + 2],
+            ]
+        } else {
+            n = [0, 0, 0];
+        }
+        let uv;
+        if !mesh.uv.is_empty() && !mesh.uv_indices.is_empty() {
+            uv = [
+                mesh.uv_indices[3 * tri_num],
+                mesh.uv_indices[3 * tri_num + 1],
+                mesh.uv_indices[3 * tri_num + 2],
+            ]
+        } else {
+            uv = [0, 0, 0];
+        }
+
         Triangle {
             obj_to_world,
             world_to_obj,
             v: [
-                mesh.vertex_indices[3 * tri_num] as usize,
-                mesh.vertex_indices[3 * tri_num + 1] as usize,
-                mesh.vertex_indices[3 * tri_num + 2] as usize,
+                mesh.vertex_indices[3 * tri_num],
+                mesh.vertex_indices[3 * tri_num + 1],
+                mesh.vertex_indices[3 * tri_num + 2],
             ], //mesh.vertex_indices[3 * tri_num .. 3 * tri_num + 3],
+            n,
+            uv,
             mesh,
         }
     }
@@ -83,9 +120,9 @@ impl Triangle {
             ]
         } else {
             [
-                self.mesh.uv[self.v[0]],
-                self.mesh.uv[self.v[1]],
-                self.mesh.uv[self.v[2]],
+                self.mesh.uv[self.uv[0]],
+                self.mesh.uv[self.uv[1]],
+                self.mesh.uv[self.uv[2]],
             ]
         }
     }
@@ -97,6 +134,8 @@ pub fn create_triangle_mesh(
     n_triangles: usize,
     n_vertices: usize,
     vertex_indices: Vec<usize>,
+    normal_indices: Vec<usize>,
+    uv_indices: Vec<usize>,
     p: Vec<Point3f>,
     n: Vec<Normal3f>,
     s: Vec<Vector3f>,
@@ -106,6 +145,8 @@ pub fn create_triangle_mesh(
         n_triangles,
         n_vertices,
         vertex_indices,
+        normal_indices,
+        uv_indices,
         p,
         n,
         s,
@@ -268,14 +309,16 @@ impl Shape for Triangle {
         let ist_n = Normal3f::from(cross(&dp02, &dp12).normalize());
         ist.ist.n = ist_n;
         ist.shading.n = ist_n;
-        if !self.mesh.n.is_empty() || !self.mesh.s.is_empty() {
+        if (!self.mesh.n.is_empty() && !self.mesh.normal_indices.is_empty())
+            || (!self.mesh.s.is_empty() && !self.mesh.uv_indices.is_empty())
+        {
             // Initialize _Triangle_ shading geometry
             // Compute shading normal _ns_ for triangle
             let mut ns;
             if !self.mesh.n.is_empty() {
-                ns = self.mesh.n[self.v[0]] * (1.0 - u - v)
-                    + self.mesh.n[self.v[1]] * u
-                    + self.mesh.n[self.v[2]] * v;
+                ns = self.mesh.n[self.n[0]] * (1.0 - u - v)
+                    + self.mesh.n[self.n[1]] * u
+                    + self.mesh.n[self.n[2]] * v;
 
                 if ns.length_squared() > 0.0 {
                     ns = ns.normalize();
@@ -315,8 +358,8 @@ impl Shape for Triangle {
                 // Compute deltas for triangle partial derivatives of normal
                 let duv02 = uv[0] - uv[2];
                 let duv12 = uv[1] - uv[2];
-                let dn1 = self.mesh.n[self.v[0]] - self.mesh.n[self.v[2]];
-                let dn2 = self.mesh.n[self.v[1]] - self.mesh.n[self.v[2]];
+                let dn1 = self.mesh.n[self.n[0]] - self.mesh.n[self.n[2]];
+                let dn2 = self.mesh.n[self.n[1]] - self.mesh.n[self.n[2]];
                 // Float determinant = duv02[0] * duv12[1] - duv02[1] * duv12[0];
                 let determinant = duv02[0] * duv12[1] - duv02[1] * duv12[0];
                 let degenerate_uv = determinant.abs() < 1e-8;
@@ -328,8 +371,8 @@ impl Shape for Triangle {
                     // rays reflected from triangles with degenerate
                     // parameterizations are still reasonable.
                     let dn = cross(
-                        &Vector3f::from(self.mesh.n[self.v[2]] - self.mesh.n[self.v[0]]),
-                        &Vector3f::from(self.mesh.n[self.v[1]] - self.mesh.n[self.v[0]]),
+                        &Vector3f::from(self.mesh.n[self.n[2]] - self.mesh.n[self.n[0]]),
+                        &Vector3f::from(self.mesh.n[self.n[1]] - self.mesh.n[self.n[0]]),
                     );
                     if dn.length_squared() != 0.0 {
                         let mut dnu = Vector3f::default();
@@ -366,9 +409,9 @@ impl Shape for Triangle {
         // Ensure correct orientation of the geometric normal; follow the same
         // approach as was used in Triangle::Intersect().
         if !self.mesh.n.is_empty() {
-            let ns = self.mesh.n[self.v[0]] * b[0]
-                + self.mesh.n[self.v[1]] * b[1]
-                + self.mesh.n[self.v[2]] * b[2];
+            let ns = self.mesh.n[self.n[0]] * b[0]
+                + self.mesh.n[self.n[1]] * b[1]
+                + self.mesh.n[self.n[2]] * b[2];
 
             it.n = faceforward(&it.n, &ns);
         }
@@ -450,6 +493,8 @@ mod tests {
             2,
             6,
             vec![0, 1, 2, 3, 4, 5],
+            vec![],
+            vec![],
             vec![
                 Point3f::new(-1.0, -1.0, -1.0),
                 Point3f::new(1.0, 1.0, 1.0),

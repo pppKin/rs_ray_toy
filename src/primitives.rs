@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 pub trait Primitive: IntersectP + Send + Sync {
     fn world_bound(&self) -> Bounds3f;
-    fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool;
+    fn intersect(self: Arc<Self>, r: &mut Ray, si: &mut SurfaceInteraction) -> bool;
 }
 
 #[derive(Debug)]
@@ -25,12 +25,12 @@ pub struct GeometricPrimitive {
 }
 
 pub struct TransformedPrimitive {
-    primitive: Arc<dyn Primitive>,
+    primitive: Arc<GeometricPrimitive>,
     primitive_to_world: Transform,
 }
 
 impl TransformedPrimitive {
-    pub fn new(primitive: Arc<dyn Primitive>, primitive_to_world: Transform) -> Self {
+    pub fn new(primitive: Arc<GeometricPrimitive>, primitive_to_world: Transform) -> Self {
         Self {
             primitive,
             primitive_to_world,
@@ -48,13 +48,21 @@ impl Primitive for GeometricPrimitive {
     fn world_bound(&self) -> Bounds3f {
         self.shape.world_bound()
     }
-    fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
-        // Float tHit;
-        let mut thit: f64 = 0.0;
-        if !self.shape.intersect(r, &mut thit, si, false) {
+    fn intersect(self: Arc<Self>, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
+        let mut t_hit: f64 = 0.0;
+        if !self.shape.intersect(r, &mut t_hit, si, false) {
             return false;
         }
-        r.t_max = thit;
+        si.primitive = Some(self.clone());
+        r.t_max = t_hit;
+        if self.clone().is_medium_transition() {
+            si.ist.mi = Some(self.medium_interface.clone());
+        } else {
+            si.ist.mi = Some(MediumInterface {
+                inside: r.medium.clone(),
+                outside: r.medium.clone(),
+            });
+        }
         assert!(dot3(&si.ist.n, &si.shading.n) >= 0.0);
         true
     }
@@ -92,6 +100,16 @@ impl GeometricPrimitive {
         self.material
             .compute_scattering_functions(si, mode, allow_multiple_lobes)
     }
+
+    pub fn is_medium_transition(&self) -> bool {
+        if let (Some(inside), Some(outside)) = (
+            &self.medium_interface.inside,
+            &self.medium_interface.outside,
+        ) {
+            return Arc::ptr_eq(&inside.clone(), &outside.clone());
+        }
+        false
+    }
 }
 
 impl IntersectP for TransformedPrimitive {
@@ -105,10 +123,10 @@ impl Primitive for TransformedPrimitive {
     fn world_bound(&self) -> Bounds3f {
         self.primitive_to_world.t(&self.primitive.world_bound())
     }
-    fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
+    fn intersect(self: Arc<Self>, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
         let world_to_prim = Transform::inverse(&self.primitive_to_world);
         let mut ray = world_to_prim.t(r);
-        if !self.primitive.intersect(&mut ray, si) {
+        if !self.primitive.clone().intersect(&mut ray, si) {
             return false;
         }
         r.t_max = ray.t_max;

@@ -61,14 +61,14 @@ impl Scene {
     }
 }
 
-impl Primitive for Scene {
-    fn world_bound(&self) -> Bounds3f {
+impl Scene {
+    pub fn world_bound(&self) -> Bounds3f {
         self.w_bound
     }
 
-    fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
+    pub fn intersect(&self, r: &mut Ray, si: &mut SurfaceInteraction) -> bool {
         assert_ne!(r.d.length(), 0.0);
-        self.aggregate.intersect(r, si)
+        self.aggregate.clone().intersect(r, si)
     }
 }
 

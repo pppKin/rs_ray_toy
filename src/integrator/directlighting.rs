@@ -3,7 +3,6 @@ use std::sync::Arc;
 use crate::{
     geometry::RayDifferential,
     interaction::{Interaction, SurfaceInteraction},
-    primitives::Primitive,
     samplers::{ISampler, RoundCount, Sampler},
     scene::Scene,
     spectrum::Spectrum,
