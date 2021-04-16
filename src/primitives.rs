@@ -138,3 +138,102 @@ impl Primitive for TransformedPrimitive {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::geometry::{Point3f, Vector3f};
+    use crate::shape::triangle::*;
+    use crate::{material::plastic::PlasticMaterial, spectrum::Spectrum, texture::ConstantTexture};
+
+    use super::*;
+
+    #[test]
+    fn test_primitive() {
+        let obj_to_world = Transform::default();
+        let world_to_obj = Transform::default();
+        let mesh = create_triangle_mesh(
+            obj_to_world,
+            world_to_obj,
+            12,
+            8,
+            vec![
+                0, 4, 6, 4, 6, 2, 3, 2, 6, 2, 6, 7, 7, 6, 4, 6, 4, 5, 5, 1, 3, 1, 3, 7, 1, 0, 2, 0,
+                2, 3, 5, 4, 0, 4, 0, 1,
+            ],
+            vec![],
+            vec![],
+            vec![
+                Point3f::new(1.0, 1.0, -1.0),
+                Point3f::new(1.0, -1.0, -1.0),
+                Point3f::new(1.0, 1.0, 1.0),
+                Point3f::new(1.0, -1.0, 1.0),
+                Point3f::new(-1.0, 1.0, -1.0),
+                Point3f::new(-1.0, -1.0, -1.0),
+                Point3f::new(-1.0, 1.0, 1.0),
+                Point3f::new(-1.0, -1.0, 1.0),
+            ],
+            vec![],
+            vec![],
+            vec![],
+        );
+
+        let kd = ConstantTexture::new(Spectrum::from(0.25));
+        let ks = ConstantTexture::new(Spectrum::from(0.25));
+        let roughness = ConstantTexture::new(0.1);
+        let bump_map = None;
+        let remap_roughness = false;
+        let m = Arc::new(PlasticMaterial::new(
+            Arc::new(kd),
+            Arc::new(ks),
+            Arc::new(roughness),
+            bump_map,
+            remap_roughness,
+        ));
+
+        let mut gs = Vec::with_capacity(mesh.len());
+        for tri in mesh {
+            gs.push(Arc::new(GeometricPrimitive::new(
+                tri.clone(),
+                m.clone(),
+                None,
+                MediumInterface {
+                    inside: None,
+                    outside: None,
+                },
+            )))
+        }
+        let world_pos_instances = vec![
+            Transform::translate(&Vector3f::new(10.0, 10.0, 15.0))
+                * Transform::scale(1.0, 1.0, 1.0),
+            Transform::translate(&Vector3f::new(15.0, 10.0, 15.0))
+                * Transform::scale(1.0, 1.0, 1.0),
+            Transform::translate(&Vector3f::new(3.0, 3.0, 3.0)) * Transform::scale(1.0, 1.0, 1.0),
+        ];
+
+        let test_rays = vec![
+            Ray::new_od(Point3f::default(), Vector3f::new(0.8, 1.0, 0.8)),
+            Ray::new_od(Point3f::default(), Vector3f::new(1.0, 0.9, 0.9)),
+            Ray::new_od(Point3f::default(), Vector3f::new(1.0, 1.0, 1.0)),
+        ];
+
+        let mut hit_count = 0_usize;
+        let mut intersect_tested = 0_usize;
+        for i in 0..3 {
+            let r = &test_rays[i];
+            let mut ts_tri = vec![];
+            for g in &gs {
+                ts_tri.push(TransformedPrimitive::new(g.clone(), world_pos_instances[i]));
+            }
+            for tri in ts_tri {
+                intersect_tested += 1;
+                if tri.intersect_p(r) {
+                    hit_count += 1;
+                } else {
+                    // eprintln!("world bound {:?}\n ==> {:?}", tri.world_bound(), r);
+                }
+            }
+        }
+        eprintln!("Hit Count {}/{}", hit_count, intersect_tested);
+        assert!(hit_count > 0);
+    }
+}

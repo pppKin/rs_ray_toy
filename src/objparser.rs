@@ -137,7 +137,7 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
             Some("f") => {
                 // geometric vertices
                 match make_face(&mut sp) {
-                    Ok((f1, f2, f3)) => {
+                    Ok((f1, f2, f3, f4_opt)) => {
                         if let (Some(v1), Some(v2), Some(v3)) = (f1.0, f2.0, f3.0) {
                             vertex_indices.push(v1);
                             vertex_indices.push(v2);
@@ -162,6 +162,36 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
                                     normal_indices.push(vn3);
                                 }
                             }
+
+                            if let Some(f4) = f4_opt {
+                                if let Some(v4) = f4.0 {
+                                    vertex_indices.push(v2);
+                                    vertex_indices.push(v3);
+                                    vertex_indices.push(v4);
+                                }
+                                if let (Some(vt2), Some(vt3), Some(vt4)) = (f2.1, f3.1, f4.1) {
+                                    if !uv.is_empty()
+                                        && vt2 < uv.len()
+                                        && vt3 < uv.len()
+                                        && vt4 < uv.len()
+                                    {
+                                        uv_indices.push(vt2);
+                                        uv_indices.push(vt3);
+                                        uv_indices.push(vt4);
+                                    }
+                                }
+                                if let (Some(vn2), Some(vn3), Some(vn4)) = (f2.2, f3.2, f4.2) {
+                                    if !n.is_empty()
+                                        && vn2 < n.len()
+                                        && vn3 < n.len()
+                                        && vn4 < n.len()
+                                    {
+                                        normal_indices.push(vn2);
+                                        normal_indices.push(vn3);
+                                        normal_indices.push(vn4);
+                                    }
+                                }
+                            }
                         }
                     }
                     Err(desc) => {
@@ -178,6 +208,12 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
             }
         }
     }
+    eprintln!(
+        "Parse {} succeed! {} verteices, {} triangles!",
+        filename,
+        p.len(),
+        vertex_indices.len() / 3
+    );
     Ok(ParseResult::new(
         vertex_indices,
         normal_indices,
@@ -226,6 +262,7 @@ fn make_face(
         (Option<usize>, Option<usize>, Option<usize>),
         (Option<usize>, Option<usize>, Option<usize>),
         (Option<usize>, Option<usize>, Option<usize>),
+        Option<(Option<usize>, Option<usize>, Option<usize>)>,
     ),
     String,
 > {
@@ -233,7 +270,13 @@ fn make_face(
         let v1_element = parse_face_element(v1);
         let v2_element = parse_face_element(v2);
         let v3_element = parse_face_element(v3);
-        return Ok((v1_element, v2_element, v3_element));
+        let v4_element;
+        if let Some(v4) = sp.next() {
+            v4_element = Some(parse_face_element(v4));
+        } else {
+            v4_element = None;
+        }
+        return Ok((v1_element, v2_element, v3_element, v4_element));
     } else {
         return Err("ParseObjError: Failed to get face element".to_string());
     }

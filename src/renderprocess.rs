@@ -1090,7 +1090,6 @@ fn make_light_shape(shape_config: &Value, scene_global: &SceneGlobalData) -> Arc
 
 fn make_sphere(sphere_config: &Value) -> Sphere {
     let to_world = make_to_world(sphere_config);
-
     let to_local = Transform::inverse(&to_world);
 
     let radius = read_f64(sphere_config, "radius", 1.0);
@@ -1215,8 +1214,6 @@ fn make_aggregate(scene_config: &Value, scene_global: &SceneGlobalData) -> Arc<d
                                 primitives
                                     .push(Arc::new(TransformedPrimitive::new(g.clone(), to_world)));
                             }
-                        } else {
-                            primitives.push(g);
                         }
                     }
                 }
@@ -1370,7 +1367,7 @@ fn make_camera(camera_config: &Value, film: Film) -> RealisticCamera {
     let world_pos = fetch_point3f(camera_config, "world_pos", Point3f::zero());
     let cam_look = fetch_point3f(camera_config, "look", Point3f::new(1.0, 1.0, 1.0));
     let cam_up = fetch_vector3f(camera_config, "up", Vector3f::new(0.0, 0.0, 1.0));
-    let to_world = Transform::look_at(&world_pos, &cam_look, &cam_up);
+    let to_camera = Transform::look_at(&world_pos, &cam_look, &cam_up);
     let shutter_open = read_f64(camera_config, "shutter_open", 0.0);
     let shutter_close = read_f64(camera_config, "shutter_close", 1.0);
     let aperture_diameter = read_f64(camera_config, "aperture_diameter", 1.0);
@@ -1385,7 +1382,7 @@ fn make_camera(camera_config: &Value, film: Film) -> RealisticCamera {
         }
     }
     RealisticCamera::new(
-        to_world,
+        Transform::inverse(&to_camera),
         shutter_open,
         shutter_close,
         aperture_diameter,
@@ -1491,23 +1488,34 @@ pub fn write_image(filename: &str, rgb: &[f64], output_bounds: Bounds2i) -> Resu
     let resolution = output_bounds.diagonal();
 
     let mut img_buf = ImageBuffer::new(resolution.x as u32, resolution.y as u32);
+    let mut colored_pixels = 0_usize;
     for y in 0..resolution.y {
         for x in 0..resolution.x {
             let r = rgb[(3 * (y * resolution.x + x) + 0) as usize];
             let g = rgb[(3 * (y * resolution.x + x) + 1) as usize];
             let b = rgb[(3 * (y * resolution.x + x) + 2) as usize];
+            let clamped_r = (clamp_t(255.0 * gamma_correct(r) + 0.5, 0.0, 255.0)) as u8;
+            let clamped_g = (clamp_t(255.0 * gamma_correct(g) + 0.5, 0.0, 255.0)) as u8;
+            let clamped_b = (clamp_t(255.0 * gamma_correct(b) + 0.5, 0.0, 255.0)) as u8;
+            let tmp = (clamped_r + clamped_g + clamped_b) as usize;
+            if tmp > 0 {
+                colored_pixels += 1;
+                // clamped_r = 128;
+                // clamped_g = 0;
+                // clamped_b = 0;
+            }
             img_buf.put_pixel(
                 x as u32,
                 y as u32,
-                Rgba([
-                    (clamp_t(255.0 * gamma_correct(r) + 0.5, 0.0, 255.0)) as u8,
-                    (clamp_t(255.0 * gamma_correct(g) + 0.5, 0.0, 255.0)) as u8,
-                    (clamp_t(255.0 * gamma_correct(b) + 0.5, 0.0, 255.0)) as u8,
-                    255 as u8,
-                ]),
+                Rgba([clamped_r, clamped_g, clamped_b, 255 as u8]),
             )
         }
     }
+    eprintln!(
+        "Total pixels: {}. Colored Pixels: {}",
+        resolution.x * resolution.y,
+        colored_pixels
+    );
     img_buf.save(filename)
 }
 

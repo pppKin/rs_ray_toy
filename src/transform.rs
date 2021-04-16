@@ -359,7 +359,7 @@ impl Transform {
         // initialize first three columns of viewing matrix
         let dir: Vector3f = (*look - *pos).normalize();
         if cross(&up.normalize(), &dir).length() == 0.0 {
-            println!(
+            eprintln!(
                 "\"up\" vector ({}, {}, {}) and viewing direction ({}, {}, {}) passed to \
                  LookAt are pointing in the same direction.  Using the identity \
                  transformation.",

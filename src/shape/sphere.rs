@@ -116,22 +116,10 @@ impl Shape for Sphere {
         &self.world_to_obj
     }
     fn object_bound(&self) -> Bounds3f {
-        let mut obj_b = Bounds3f::new(
+        Bounds3f::new(
             Point3f::new(-self.radius, -self.radius, self.z_min),
             Point3f::new(self.radius, self.radius, self.z_max),
-        );
-        if self.theta_max <= 1.5 * PI {
-            if self.theta_max > PI {
-                obj_b.p_min.y = -f64::sin(self.theta_max - PI) * self.radius;
-            } else if self.theta_max > 0.5 * PI {
-                obj_b.p_min.y = 0.0;
-                obj_b.p_min.x = -f64::sin(self.theta_max - 0.5 * PI) * self.radius;
-            } else {
-                obj_b.p_min.x = 0.0;
-                obj_b.p_min.y = 0.0;
-            }
-        }
-        obj_b
+        )
     }
     fn intersect(
         &self,
@@ -310,5 +298,20 @@ impl Shape for Sphere {
         let cos_theta = f64::sqrt(f64::max(0.0, 1.0 - sin_theta2));
 
         return 2.0 * PI * (1.0 - cos_theta);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sphere() {
+        let to_world = Transform::translate(&Vector3f::new(1.0, 0.0, 0.0));
+        let to_obj = Transform::inverse(&to_world);
+        let sp = Sphere::new(to_world, to_obj, 1.0, -1.0, 1.0, 360.0);
+        eprintln!("sp world_bound {:?}", sp.world_bound());
+        let r = Ray::new_od(Point3f::default(), Vector3f::new(1.0, 0.0, 0.0));
+        assert!(sp.intersect_p(&r));
     }
 }
