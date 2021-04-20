@@ -25,7 +25,7 @@ pub struct AOIntegrator {
 
 impl AOIntegrator {
     pub fn new(cos_sample: bool, ns: u32, i: Arc<SamplerIntegratorData>) -> Self {
-        let mut s = (*i.sampler).clone();
+        let mut s = i.sampler.build();
         let n_samples = s.round_count(ns);
         if n_samples != ns {
             // TODO: warn n_samples != ns

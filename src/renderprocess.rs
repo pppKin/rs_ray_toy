@@ -40,7 +40,7 @@ use crate::{
     misc::{clamp_t, gamma_correct},
     objparser::parse_obj,
     primitives::{GeometricPrimitive, Primitive, TransformedPrimitive},
-    samplers::{halton::create_halton, stratified::create_stratified, Sampler},
+    samplers::{halton::HaltonBuilder, stratified::StratifiedBuilder, SamplerBuilder},
     scene::Scene,
     shape::{
         sphere::Sphere,
@@ -1214,6 +1214,8 @@ fn make_aggregate(scene_config: &Value, scene_global: &SceneGlobalData) -> Arc<d
                                 primitives
                                     .push(Arc::new(TransformedPrimitive::new(g.clone(), to_world)));
                             }
+                        } else {
+                            primitives.push(g.clone());
                         }
                     }
                 }
@@ -1295,26 +1297,20 @@ fn make_aggregate(scene_config: &Value, scene_global: &SceneGlobalData) -> Arc<d
     ))
 }
 
-fn make_sampler(sampler_config: &Value, sample_bounds: &Bounds2i) -> Arc<Sampler> {
+fn make_sampler(sampler_config: &Value, sample_bounds: &Bounds2i) -> Arc<dyn SamplerBuilder> {
     match read_string(sampler_config, "sampler_type", "").as_str() {
         "StratifiedSampler" => {
             let jitter = read_bool(sampler_config, "jitter", true);
             let xsamp = read_i64(sampler_config, "xsamp", 4) as u32;
             let ysamp = read_i64(sampler_config, "ysamp", 4) as u32;
             let dimension = read_i64(sampler_config, "dimension", 4) as u32;
-            Arc::new(Sampler::Stratified(create_stratified(
-                dimension, xsamp, ysamp, jitter,
-            )))
+            Arc::new(StratifiedBuilder::new(dimension, xsamp, ysamp, jitter))
         }
         "HaltonSampler" => {
             // int nsamp = params.FindOneInt("pixelsamples", 16);
             let nsamp = read_i64(sampler_config, "nsamp", 16) as u64;
             let sample_at_center = read_bool(sampler_config, "sample_at_center", false);
-            Arc::new(Sampler::Halton(create_halton(
-                nsamp,
-                sample_bounds,
-                sample_at_center,
-            )))
+            Arc::new(HaltonBuilder::new(nsamp, *sample_bounds, sample_at_center))
         }
         _ => {
             panic!("Unsupported Sampler type: {:?}", sampler_config);

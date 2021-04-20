@@ -23,12 +23,8 @@ pub trait ISampler: RoundCount + StartPixel + Debug + Send + Sync {
     fn get_2d_array(&mut self, n: u32) -> &[Point2f];
     fn samples_per_pixel(&self) -> u64;
 
-    fn get_1d(&mut self) -> f64 {
-        0.0
-    }
-    fn get_2d(&mut self) -> Point2f {
-        Point2f::new(0.0, 0.0)
-    }
+    fn get_1d(&mut self) -> f64;
+    fn get_2d(&mut self) -> Point2f;
     fn get_camerasample(&mut self, p_raster: &Point2i) -> CameraSample {
         CameraSample {
             p_film: Point2f::new(p_raster.x as f64, p_raster.y as f64) + self.get_2d(),
@@ -221,7 +217,7 @@ where
         assert!(self.bsplr.current_pixel_sample_index < self.bsplr.samples_per_pixel);
         if (self.psplr.current2d_dimension as usize) < self.psplr.samples2d.len() {
             self.psplr.current2d_dimension += 1;
-            return self.psplr.samples2d[(self.psplr.current1d_dimension - 1) as usize]
+            return self.psplr.samples2d[(self.psplr.current2d_dimension - 1) as usize]
                 [self.bsplr.current_pixel_sample_index as usize];
         } else {
             let mut rng = thread_rng();
@@ -506,6 +502,20 @@ impl ISampler for Sampler {
         }
     }
 
+    fn get_1d(&mut self) -> f64 {
+        match self {
+            Sampler::Halton(s) => s.get_1d(),
+            Sampler::Stratified(s) => s.get_1d(),
+        }
+    }
+
+    fn get_2d(&mut self) -> Point2f {
+        match self {
+            Sampler::Halton(s) => s.get_2d(),
+            Sampler::Stratified(s) => s.get_2d(),
+        }
+    }
+
     fn get_1d_array(&mut self, n: u32) -> &[f64] {
         match self {
             Sampler::Halton(s) => s.get_1d_array(n),
@@ -533,4 +543,8 @@ impl ISampler for Sampler {
             Sampler::Stratified(s) => s.current_sample_number(),
         }
     }
+}
+
+pub trait SamplerBuilder: Send + Sync + Debug {
+    fn build(&self) -> Sampler;
 }

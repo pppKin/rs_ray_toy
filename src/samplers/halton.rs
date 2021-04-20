@@ -158,6 +158,37 @@ pub fn create_halton(
     HaltonSampler::new(samples_per_pixel, g)
 }
 
+#[derive(Debug)]
+pub struct HaltonBuilder {
+    samples_per_pixel: u64,
+    sample_bounds: Bounds2i,
+    sample_at_pixel_center: bool,
+}
+
+impl HaltonBuilder {
+    pub fn new(
+        samples_per_pixel: u64,
+        sample_bounds: Bounds2i,
+        sample_at_pixel_center: bool,
+    ) -> Self {
+        Self {
+            samples_per_pixel,
+            sample_bounds,
+            sample_at_pixel_center,
+        }
+    }
+}
+
+impl SamplerBuilder for HaltonBuilder {
+    fn build(&self) -> Sampler {
+        Sampler::Halton(create_halton(
+            self.samples_per_pixel,
+            &self.sample_bounds,
+            self.sample_at_pixel_center,
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // use super::*;

@@ -134,6 +134,41 @@ pub fn create_stratified(
     );
 }
 
+#[derive(Debug)]
+pub struct StratifiedBuilder {
+    n_sampled_dimensions: u32,
+    x_pixel_samples: u32,
+    y_pixel_samples: u32,
+    jitter_samples: bool,
+}
+
+impl StratifiedBuilder {
+    pub fn new(
+        n_sampled_dimensions: u32,
+        x_pixel_samples: u32,
+        y_pixel_samples: u32,
+        jitter_samples: bool,
+    ) -> Self {
+        Self {
+            n_sampled_dimensions,
+            x_pixel_samples,
+            y_pixel_samples,
+            jitter_samples,
+        }
+    }
+}
+
+impl SamplerBuilder for StratifiedBuilder {
+    fn build(&self) -> Sampler {
+        Sampler::Stratified(create_stratified(
+            self.n_sampled_dimensions,
+            self.x_pixel_samples,
+            self.y_pixel_samples,
+            self.jitter_samples,
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

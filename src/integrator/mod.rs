@@ -11,7 +11,7 @@ use crate::{
     interaction::{Interaction, SurfaceInteraction},
     lights::{is_delta_light, Light, VisibilityTester},
     reflection::{BXDF_ALL, BXDF_NONE, BXDF_REFLECTION, BXDF_SPECULAR, BXDF_TRANSMISSION},
-    samplers::{ISampler, Sampler, StartPixel},
+    samplers::{ISampler, Sampler, SamplerBuilder, StartPixel},
     sampling::{power_heuristic, Distribution1D},
     scene::Scene,
     spectrum::{ISpectrum, Spectrum},
@@ -25,12 +25,16 @@ pub trait Integrator: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct SamplerIntegratorData {
     pub cam: Arc<RealisticCamera>,
-    pub sampler: Arc<Sampler>,
+    pub sampler: Arc<dyn SamplerBuilder>,
     pub pixel_bounds: Bounds2i,
 }
 
 impl SamplerIntegratorData {
-    pub fn new(cam: Arc<RealisticCamera>, sampler: Arc<Sampler>, pixel_bounds: Bounds2i) -> Self {
+    pub fn new(
+        cam: Arc<RealisticCamera>,
+        sampler: Arc<dyn SamplerBuilder>,
+        pixel_bounds: Bounds2i,
+    ) -> Self {
         Self {
             cam,
             sampler,
@@ -43,7 +47,7 @@ trait SamplerIntegrator: Send + Sync {
     fn itgt(&self) -> Arc<SamplerIntegratorData>;
     fn si_render(&mut self, scene: &Scene) {
         let itgt = self.itgt();
-        let mut pre_sampler = (*itgt.sampler).clone();
+        let mut pre_sampler = itgt.sampler.build();
         self.preprocess(scene, &mut pre_sampler);
 
         let sample_bounds = self.itgt().cam.film.get_sample_bounds();
@@ -66,7 +70,7 @@ trait SamplerIntegrator: Send + Sync {
                 let y1 = (y0 + tile_size).min(sample_bounds.p_max.y);
                 let tile_bounds = Bounds2i::new(Point2i::new(x0, y0), Point2i::new(x1, y1));
 
-                let mut tile_sampler = (*itgt.sampler).clone();
+                let mut tile_sampler = itgt.sampler.build();
                 let mut film_tile = itgt.cam.film.get_film_tile(&tile_bounds);
                 // Loop over pixels in tile to render them
                 for pixel in tile_bounds.into_iter() {
