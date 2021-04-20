@@ -239,7 +239,8 @@ fn fetch_vector2f(config: &Value, key: &str, default_value: Vector2f) -> Vector2
 
 fn make_to_world(root: &Value) -> Transform {
     let world_pos = fetch_point3f(root, "world_pos", Point3f::zero());
-    let rotation_axis = fetch_vector3f(root, "rotation_axis", Vector3f::new(0.0, 0.0, 0.0));
+    let rotation_axis =
+        fetch_vector3f(root, "rotation_axis", Vector3f::new(0.0, 0.0, 0.0)).normalize();
     let rotation_angle = read_f64(root, "rotation_angle", 0.0);
     let scale = fetch_vector3f(root, "scale", Vector3f::new(1.0, 1.0, 1.0));
     let to_world = Transform::translate(&(world_pos.into()))

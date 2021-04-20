@@ -126,7 +126,7 @@ pub fn parse_obj(filename: &str) -> Result<ParseResult, Box<dyn Error>> {
                 // geometric vertices
                 match make_vertex(&mut sp) {
                     Ok(tmp_p) => {
-                        n.push(Normal3f::new(tmp_p.x, tmp_p.y, tmp_p.z));
+                        n.push(Normal3f::new(tmp_p.x, tmp_p.y, tmp_p.z).normalize());
                     }
                     Err(desc) => {
                         err.desc = desc;

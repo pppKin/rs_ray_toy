@@ -195,8 +195,7 @@ impl IntersectP for Triangle {
         if v < 0.0 || (u + v) > 1.0 {
             return false;
         }
-        // // At this stage we can compute t to find out where the intersection point is on the line.
-        // float t = f * edge2.dotProduct(q);
+        // At this stage we can compute t to find out where the intersection point is on the line.
         let t = f * dot3(&E2, &Q);
         if t < 0.0000001 {
             return false;
@@ -237,11 +236,10 @@ impl Shape for Triangle {
         let p1 = self.mesh.p[self.v[1]];
         let p2 = self.mesh.p[self.v[2]];
         let E1 = p1 - p0;
-        let E2 = p2 - p1;
+        let E2 = p2 - p0;
         let D = r.d;
         // [E1, E2, -D] Transpose([t,u,v]) = T
         // use Cramer's rule
-
         let P = cross(&D, &E2);
         let a = dot3(&E1, &P);
         if a > -0.0000001 && a < 0.0000001 {
@@ -260,8 +258,7 @@ impl Shape for Triangle {
         if v < 0.0 || (u + v) > 1.0 {
             return false;
         }
-        // // At this stage we can compute t to find out where the intersection point is on the line.
-        // float t = f * edge2.dotProduct(q);
+        // At this stage we can compute t to find out where the intersection point is on the line.
         let t = f * dot3(&E2, &Q);
         if t < 0.0000001 {
             return false;
@@ -396,7 +393,6 @@ impl Shape for Triangle {
     fn sample(&self, u: &Point2f, pdf: &mut f64) -> BaseInteraction {
         let mut it: BaseInteraction = BaseInteraction::default();
 
-        // Point2f b = UniformSampleTriangle(u);
         let b = uniform_sample_sphere(*u);
         // Get triangle vertices in _p0_, _p1_, and _p2_
         let p0 = self.mesh.p[self.v[0]];
