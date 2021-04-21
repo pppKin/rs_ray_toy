@@ -572,6 +572,7 @@ fn compute_light_power_distribution(scene: &Scene) -> Option<Arc<Distribution1D>
 
 pub mod ao;
 pub mod directlighting;
+pub mod intersect_debug;
 pub mod path;
 pub mod sppm;
 pub mod volpath;

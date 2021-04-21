@@ -15,7 +15,8 @@ use crate::{
         Bounds2f, Bounds2i, Bounds3f, Cxyz, Point2, Point2f, Point2i, Point3f, Vector2f, Vector3f,
     },
     integrator::{
-        ao::*, directlighting::*, path::*, sppm::*, volpath::*, Integrator, SamplerIntegratorData,
+        ao::*, directlighting::*, intersect_debug::*, path::*, sppm::*, volpath::*, Integrator,
+        SamplerIntegratorData,
     },
     lights::{
         diffuse::DiffuseAreaLight, distant::DistantLight, infinite::InfiniteAreaLight,
@@ -1461,6 +1462,18 @@ fn make_integrator(scene_config: &Value, save_to: &str) -> Box<dyn Integrator> {
                     max_depth,
                     photons_per_iter,
                     write_freq,
+                ));
+            }
+            "Debug" => {
+                let max_depth = read_i64(integrator_config, "max_depth", 5) as usize;
+
+                return Box::new(IntersectDebugIntegrator::new(
+                    max_depth,
+                    Arc::new(SamplerIntegratorData::new(
+                        Arc::new(cam),
+                        sampler,
+                        pixel_bounds,
+                    )),
                 ));
             }
             _ => {

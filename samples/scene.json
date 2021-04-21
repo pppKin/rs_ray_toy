@@ -44,8 +44,8 @@
             "spectrum": {
                 "values": [
                     865.20,
-                    965.20,
-                    40.20
+                    9605.20,
+                    400.20
                 ]
             }
         },
@@ -58,9 +58,9 @@
             ],
             "spectrum": {
                 "values": [
-                    65.20,
+                    605.20,
                     5.20,
-                    450.20
+                    4.20
                 ]
             }
         }
@@ -121,7 +121,7 @@
                         "world_pos": [
                             22.20,
                             0.0,
-                            2.3
+                            1.8
                         ],
                         "scale": [
                             1,
@@ -129,7 +129,7 @@
                             1
                         ],
                         "rotation_axis": [
-                            0.0,
+                            1.0,
                             0.0,
                             1.0
                         ],
@@ -149,7 +149,7 @@
                         "rotation_axis": [
                             0.0,
                             1.0,
-                            0.0
+                            1.0
                         ],
                         "rotation_angle": 35
                     },
@@ -166,8 +166,8 @@
                         ],
                         "rotation_axis": [
                             1.0,
-                            0.0,
-                            0.0
+                            1.0,
+                            1.0
                         ],
                         "rotation_angle": 78
                     }
@@ -176,7 +176,7 @@
         ]
     },
     "Integrator": {
-        "integrator_type": "Path",
+        "integrator_type": "Debug",
         "light_strategy": "all"
     },
     "Sampler": {
