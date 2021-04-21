@@ -23,6 +23,7 @@ use crate::{
         point::PointLight, Light,
     },
     material::{
+        debug_material::DebugMaterial,
         disney::DisneyMaterial,
         glass::GlassMaterial,
         matte::MatteMaterial,
@@ -856,6 +857,9 @@ fn make_materials(
                             bump_map,
                         )),
                     );
+                }
+                "Debug" => {
+                    materials_map.insert(material_name, Arc::new(DebugMaterial {}));
                 }
                 _ => {
                     eprintln!("Unsupported Material Type {}", material_type)

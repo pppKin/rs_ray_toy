@@ -62,6 +62,7 @@ pub trait Material: std::fmt::Debug + Send + Sync {
     }
 }
 
+pub mod debug_material;
 pub mod disney;
 pub mod glass;
 pub mod matte;
