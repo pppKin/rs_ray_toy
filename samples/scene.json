@@ -51,9 +51,9 @@
             ],
             "spectrum": {
                 "values": [
-                    865.20,
-                    9605.20,
-                    400.20
+                    800,
+                    800,
+                    800
                 ]
             }
         },
@@ -61,14 +61,14 @@
             "light_type": "point",
             "world_pos": [
                 25.66,
-                -3.69,
+                6.69,
                 -4.00
             ],
             "spectrum": {
                 "values": [
-                    605.20,
-                    5.20,
-                    4.20
+                    800,
+                    800,
+                    800
                 ]
             }
         }
@@ -78,51 +78,8 @@
         "max_prims_in_node": 4,
         "primitives": [
             {
-                "primitive_type": "sphere",
-                "material_name": "mat_plastic",
-                "radius": 1.0,
-                "instances": [
-                    {
-                        "world_pos": [
-                            68.18,
-                            1.50,
-                            1.80
-                        ],
-                        "scale": [
-                            1,
-                            1,
-                            1
-                        ]
-                    },
-                    {
-                        "world_pos": [
-                            79.62,
-                            2.60,
-                            1.30
-                        ],
-                        "scale": [
-                            1,
-                            1,
-                            1
-                        ]
-                    },
-                    {
-                        "world_pos": [
-                            91.26,
-                            1.50,
-                            -0.20
-                        ],
-                        "scale": [
-                            1,
-                            1,
-                            1
-                        ]
-                    }
-                ]
-            },
-            {
                 "primitive_type": "triangle",
-                "material_name": "mat_debug",
+                "material_name": "mat_matte",
                 "obj_name": "cube_01",
                 "instances": [
                     {
@@ -139,7 +96,7 @@
                         "rotation_axis": [
                             1.0,
                             0.0,
-                            1.0
+                            0.0
                         ],
                         "rotation_angle": 15
                     },
@@ -156,7 +113,7 @@
                         ],
                         "rotation_axis": [
                             0.0,
-                            1.0,
+                            0.0,
                             1.0
                         ],
                         "rotation_angle": 35
@@ -173,8 +130,8 @@
                             1
                         ],
                         "rotation_axis": [
-                            1.0,
-                            1.0,
+                            0.0,
+                            0.0,
                             1.0
                         ],
                         "rotation_angle": 78
@@ -184,7 +141,7 @@
         ]
     },
     "Integrator": {
-        "integrator_type": "Debug",
+        "integrator_type": "Volpath",
         "light_strategy": "all"
     },
     "Sampler": {
@@ -253,8 +210,13 @@
         ],
         "focus_distance": 30,
         "aperture_diameter": 50.0,
+        "world_pos": [
+            0.0,
+            15,
+            15.0
+        ],
         "look": [
-            1,
+            35,
             0,
             0
         ],

@@ -1,33 +1,38 @@
 use std::sync::Arc;
 
 use crate::{
-    interaction::SurfaceInteraction,
-    reflection::{Bsdf, BxDF},
-    spectrum::Spectrum,
+    geometry::Vector3f, interaction::SurfaceInteraction, reflection::*, spectrum::Spectrum,
     SPECTRUM_N,
 };
 
 use super::{Material, TransportMode};
 
 #[derive(Debug)]
-pub struct DebugBsdf {}
+pub struct DebugDiffuseBxdf {}
+
+impl BxDF for DebugDiffuseBxdf {
+    fn f(&self, _wo: &Vector3f, _wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
+        return Spectrum::new([0.0, 1.0, 0.0]);
+    }
+    fn bxdf_type(&self) -> BxDFType {
+        BXDF_DIFFUSE | BXDF_REFLECTION
+    }
+}
+
+#[derive(Debug)]
+pub struct DebugSpecularBxdf {}
+
+impl BxDF for DebugSpecularBxdf {
+    fn f(&self, _wo: &Vector3f, _wi: &Vector3f) -> Spectrum<SPECTRUM_N> {
+        return Spectrum::new([0.0, 0.0, 1.0]);
+    }
+    fn bxdf_type(&self) -> BxDFType {
+        BXDF_SPECULAR | BXDF_REFLECTION
+    }
+}
 
 #[derive(Debug)]
 pub struct DebugMaterial {}
-
-impl BxDF for DebugBsdf {
-    fn f(
-        &self,
-        _wo: &crate::geometry::Vector3f,
-        _wi: &crate::geometry::Vector3f,
-    ) -> Spectrum<SPECTRUM_N> {
-        return Spectrum::from(0.5);
-    }
-
-    fn bxdf_type(&self) -> crate::reflection::BxDFType {
-        return crate::reflection::BXDF_ALL;
-    }
-}
 
 impl Material for DebugMaterial {
     fn compute_scattering_functions(
@@ -37,7 +42,8 @@ impl Material for DebugMaterial {
         _allow_multiple_lobes: bool,
     ) {
         let mut bsdf = Bsdf::new(si, 1.0);
-        bsdf.add(Arc::new(DebugBsdf {}));
+        bsdf.add(Arc::new(DebugDiffuseBxdf {}));
+        bsdf.add(Arc::new(DebugSpecularBxdf {}));
         si.bsdf = Some(bsdf);
     }
 }

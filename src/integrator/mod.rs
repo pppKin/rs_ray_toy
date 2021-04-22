@@ -413,7 +413,7 @@ pub fn estimate_direct(
     let bsdf_flags = if specular {
         BXDF_ALL
     } else {
-        BXDF_ALL & !BXDF_SPECULAR
+        BXDF_ALL & (!BXDF_SPECULAR)
     };
     let mut ld = Spectrum::zero();
     // Sample light source with multiple importance sampling

@@ -895,35 +895,6 @@ impl BxDF for LambertianTransmission {
     fn bxdf_type(&self) -> BxDFType {
         BXDF_DIFFUSE | BXDF_TRANSMISSION
     }
-
-    fn match_flags(&self, flags: BxDFType) -> bool {
-        (self.bxdf_type() & flags) == self.bxdf_type()
-    }
-
-    fn is_refl(&self) -> bool {
-        let t = self.bxdf_type();
-        t & BXDF_REFLECTION > 0
-    }
-
-    fn is_trans(&self) -> bool {
-        let t = self.bxdf_type();
-        t & BXDF_TRANSMISSION > 0
-    }
-
-    fn is_diff(&self) -> bool {
-        let t = self.bxdf_type();
-        t & BXDF_DIFFUSE > 0
-    }
-
-    fn is_glos(&self) -> bool {
-        let t = self.bxdf_type();
-        t & BXDF_GLOSSY > 0
-    }
-
-    fn is_spec(&self) -> bool {
-        let t = self.bxdf_type();
-        t & BXDF_SPECULAR > 0
-    }
 }
 
 #[derive(Debug)]

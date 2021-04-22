@@ -22,7 +22,6 @@ impl IntersectDebugIntegrator {
         Self {
             max_depth,
             n_light_samples: vec![],
-
             i,
         }
     }
@@ -61,18 +60,19 @@ impl SamplerIntegrator for IntersectDebugIntegrator {
         sampler: &mut Sampler,
         depth: usize,
     ) -> Spectrum<SPECTRUM_N> {
-        let mut l;
+        let l;
         // Find closest ray intersection or return background radiance
         let mut isect = SurfaceInteraction::default();
         if !scene.intersect(&mut ray.ray, &mut isect) {
             return Spectrum::zero();
         } else {
-            l = Spectrum::new([0.1, 0.0, 0.0]);
+            l = Spectrum::new([0.1, 0.1, 0.1]);
         }
         isect.compute_scattering_functions(ray, false, crate::material::TransportMode::Radiance);
 
+        let mut s_l = Spectrum::zero();
         if scene.lights.len() > 0 {
-            l += uniform_sample_all_lights(
+            s_l += uniform_sample_all_lights(
                 &Interaction::Surface(isect.clone()),
                 scene,
                 sampler,
@@ -82,9 +82,9 @@ impl SamplerIntegrator for IntersectDebugIntegrator {
         }
         if (depth + 1) < self.max_depth {
             // Trace rays for specular reflection and refraction
-            l += self.specular_reflect(ray, &isect, scene, sampler, depth);
-            l += self.specular_transmit(ray, &isect, scene, sampler, depth);
+            s_l += self.specular_reflect(ray, &isect, scene, sampler, depth);
+            s_l += self.specular_transmit(ray, &isect, scene, sampler, depth);
         }
-        l
+        l + s_l
     }
 }

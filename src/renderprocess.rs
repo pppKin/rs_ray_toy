@@ -1511,12 +1511,8 @@ pub fn write_image(filename: &str, rgb: &[f64], output_bounds: Bounds2i) -> Resu
             let clamped_r = (clamp_t(255.0 * gamma_correct(r) + 0.5, 0.0, 255.0)) as u8;
             let clamped_g = (clamp_t(255.0 * gamma_correct(g) + 0.5, 0.0, 255.0)) as u8;
             let clamped_b = (clamp_t(255.0 * gamma_correct(b) + 0.5, 0.0, 255.0)) as u8;
-            let tmp = (clamped_r + clamped_g + clamped_b) as usize;
-            if tmp > 0 {
+            if (clamped_r as u32 + clamped_g as u32 + clamped_b as u32) > 0 {
                 colored_pixels += 1;
-                // clamped_r = 128;
-                // clamped_g = 0;
-                // clamped_b = 0;
             }
             img_buf.put_pixel(
                 x as u32,
