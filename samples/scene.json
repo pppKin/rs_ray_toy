@@ -67,8 +67,23 @@
             "spectrum": {
                 "values": [
                     800,
-                    800,
-                    800
+                    0,
+                    0
+                ]
+            }
+        },
+        {
+            "light_type": "point",
+            "world_pos": [
+                30,
+                -3.69,
+                -6.00
+            ],
+            "spectrum": {
+                "values": [
+                    0,
+                    1000,
+                    1000
                 ]
             }
         }
@@ -84,9 +99,9 @@
                 "instances": [
                     {
                         "world_pos": [
-                            22.20,
-                            0.0,
-                            1.8
+                            35.20,
+                            1.0,
+                            2.8
                         ],
                         "scale": [
                             1,
@@ -141,7 +156,7 @@
         ]
     },
     "Integrator": {
-        "integrator_type": "Volpath",
+        "integrator_type": "Debug",
         "light_strategy": "all"
     },
     "Sampler": {
@@ -213,7 +228,7 @@
         "world_pos": [
             0.0,
             15,
-            15.0
+            -25.0
         ],
         "look": [
             35,
