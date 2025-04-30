@@ -1,15 +1,13 @@
-use image::io::Reader as ImageReader;
-
 use std::{
-    f64::{consts::PI, INFINITY},
+    f64::{INFINITY, consts::PI},
     sync::Arc,
 };
 
 use crate::{
-    geometry::{spherical_phi, spherical_theta, vec3_coordinate_system, Bounds3f, Point2},
+    geometry::{Bounds3f, Point2, spherical_phi, spherical_theta, vec3_coordinate_system},
     mipmap::{ImageWrap, MIPMap},
     misc::{INV_2_PI, INV_PI},
-    sampling::{concentric_sample_disk, Distribution2D},
+    sampling::{Distribution2D, concentric_sample_disk},
     transform::Transform,
 };
 
@@ -44,7 +42,7 @@ impl InfiniteAreaLight {
         let resolution;
         let texels;
 
-        let decoded = ImageReader::open(texmap)
+        let decoded = image::ImageReader::open(texmap)
             .expect((format!("Failed to open {}", texmap)).as_str())
             .decode()
             .expect((format!("Failed to decode {}", texmap)).as_str());
@@ -98,9 +96,9 @@ impl InfiniteAreaLight {
         let mut world_radius = 0.0;
         Bounds3f::bounding_sphere(&scene_world_bound, &mut world_center, &mut world_radius);
         Self {
-            l_map: l_map,
+            l_map,
             distribution: Arc::new(distribution),
-            l: l,
+            l,
             w_light: Vector3f::default(),
             world_center,
             world_radius,

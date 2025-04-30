@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    misc::{round_up_pow2, ONE_MINUS_EPSILON},
+    misc::{ONE_MINUS_EPSILON, round_up_pow2},
     sampling::{latin_hypercube, shuffle},
 };
 
@@ -95,10 +95,14 @@ impl PixelSamplerStartPixel for Stratified {
 }
 
 fn stratified_sample1d(samp: &mut [f64], n_samples: u32, jitter: bool) {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     let inv_n_samples = 1.0 / (n_samples as f64);
     for i in 0..n_samples as usize {
-        let delta = if jitter { rng.gen_range(0.0..1.0) } else { 0.5 };
+        let delta = if jitter {
+            rng.random_range(0.0..1.0)
+        } else {
+            0.5
+        };
         samp[i] = f64::min((i as f64 + delta) * inv_n_samples, ONE_MINUS_EPSILON);
     }
 }
@@ -106,13 +110,21 @@ fn stratified_sample1d(samp: &mut [f64], n_samples: u32, jitter: bool) {
 fn stratified_sample2d(samp: &mut [Point2f], nx: u32, ny: u32, jitter: bool) {
     let dx = 1_f64 / nx as f64;
     let dy = 1_f64 / ny as f64;
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     let mut samp_iter = samp.iter_mut();
     for y in 0..ny {
         for x in 0..nx {
-            let jx = if jitter { rng.gen_range(0.0..1.0) } else { 0.5 };
-            let jy = if jitter { rng.gen_range(0.0..1.0) } else { 0.5 };
+            let jx = if jitter {
+                rng.random_range(0.0..1.0)
+            } else {
+                0.5
+            };
+            let jy = if jitter {
+                rng.random_range(0.0..1.0)
+            } else {
+                0.5
+            };
             if let Some(p) = samp_iter.next() {
                 p.x = f64::min((x as f64 + jx) * dx, ONE_MINUS_EPSILON);
                 p.y = f64::min((y as f64 + jy) * dy, ONE_MINUS_EPSILON)

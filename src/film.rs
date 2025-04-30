@@ -1,12 +1,12 @@
 use crate::{
+    SPECTRUM_N,
     filters::Filter,
     geometry::{
-        bnd2_intersect_bnd2, pnt2_ceil, pnt2_floor, pnt2_max_pnt2, pnt2_min_pnt2, Bounds2f,
-        Bounds2i, Point2f, Point2i, Vector2f,
+        Bounds2f, Bounds2i, Point2f, Point2i, Vector2f, bnd2_intersect_bnd2, pnt2_ceil, pnt2_floor,
+        pnt2_max_pnt2, pnt2_min_pnt2,
     },
     renderprocess::write_image,
-    spectrum::{xyz_to_rgb, ISpectrum, Spectrum},
-    SPECTRUM_N,
+    spectrum::{ISpectrum, Spectrum, xyz_to_rgb},
 };
 use std::sync::RwLock;
 
@@ -322,7 +322,7 @@ impl Film {
 
     pub fn write_image(&self, splat_scale: f64) {
         // Convert image to RGB and compute final pixel values
-        println!("Converting image to RGB and computing final weighted pixel values");
+        log::info!("Converting image to RGB and computing final weighted pixel values");
         let mut rgb = vec![0_f64; (self.cropped_pixel_bounds.area() * 3) as usize];
 
         let mut offset = 0;

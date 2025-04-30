@@ -5,12 +5,12 @@ use std::{
 
 use super::*;
 use crate::{
-    geometry::{max_component, Bounds3f, Point3f, Point3i},
+    geometry::{Bounds3f, Point3f, Point3i, max_component},
     lowdiscrepancy::radical_inverse,
     material::TransportMode,
     misc::{clamp_t, lerp},
-    reflection::{Bsdf, BXDF_DIFFUSE, BXDF_GLOSSY},
-    samplers::{halton::Halton, GlobalSampler, StartPixel},
+    reflection::{BXDF_DIFFUSE, BXDF_GLOSSY, Bsdf},
+    samplers::{GlobalSampler, StartPixel, halton::Halton},
 };
 
 #[derive(Debug)]

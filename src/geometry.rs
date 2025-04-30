@@ -1,10 +1,10 @@
 use crate::{
+    MAX_DIST,
     medium::MediumOpArc,
     misc::{clamp_t, float_nearly_equal, gamma, lerp, next_float_down, next_float_up},
-    MAX_DIST,
 };
 use std::{
-    f64::{consts::PI, INFINITY},
+    f64::{INFINITY, consts::PI},
     fmt::Debug,
     ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
 };
@@ -1115,11 +1115,7 @@ pub fn max_component(v: &impl Cxyz<f64>) -> f64 {
 /// Return the index of the component with the largest value.
 pub fn vec3_max_dimension(v: &Vector3<f64>) -> usize {
     if v.x > v.y {
-        if v.x > v.z {
-            0_usize
-        } else {
-            2_usize
-        }
+        if v.x > v.z { 0_usize } else { 2_usize }
     } else if v.y > v.z {
         1_usize
     } else {
@@ -1379,11 +1375,7 @@ pub fn nrm_abs(n: &Normal3<f64>) -> Normal3<f64> {
 /// Flip a surface normal so that it lies in the same hemisphere as a
 /// given vector/normal.
 pub fn faceforward(n: &Normal3f, v: &impl Cxyz<f64>) -> Normal3f {
-    if dot3(n, v) < 0.0 as f64 {
-        -(*n)
-    } else {
-        *n
-    }
+    if dot3(n, v) < 0.0 as f64 { -(*n) } else { *n }
 }
 
 impl<T> Bounds2<T> {

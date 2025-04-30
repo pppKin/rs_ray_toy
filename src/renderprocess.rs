@@ -1,56 +1,59 @@
-use image::{io::Reader as ImageReader, ImageBuffer, ImageError, Rgba};
+use image::{ImageBuffer, ImageError, ImageReader, Rgba};
 use serde_json::Value;
 
-use std::{collections::HashMap, error::Error, f64::INFINITY, fmt::Display, fs, sync::Arc};
+use std::{collections::HashMap, error::Error, f64::INFINITY, fs, sync::Arc};
 
 use crate::{
+    SPECTRUM_N,
     bvh::{BVHAccel, BVHSplitMethod},
     camera::RealisticCamera,
     film::Film,
     filters::{
-        boxfilter::create_box_filter, gaussian::create_gaussian_filter,
-        trianglefilter::create_triangle_filter, Filter,
+        Filter, boxfilter::create_box_filter, gaussian::create_gaussian_filter,
+        trianglefilter::create_triangle_filter,
     },
     geometry::{
         Bounds2f, Bounds2i, Bounds3f, Cxyz, Point2, Point2f, Point2i, Point3f, Vector2f, Vector3f,
     },
     integrator::{
-        ao::*, directlighting::*, intersect_debug::*, path::*, sppm::*, volpath::*, Integrator,
-        SamplerIntegratorData,
+        Integrator, SamplerIntegratorData, ao::*, directlighting::*, intersect_debug::*, path::*,
+        sppm::*, volpath::*,
     },
     lights::{
-        diffuse::DiffuseAreaLight, distant::DistantLight, infinite::InfiniteAreaLight,
-        point::PointLight, Light,
+        Light, diffuse::DiffuseAreaLight, distant::DistantLight, infinite::InfiniteAreaLight,
+        point::PointLight,
     },
     material::{
+        Material,
         debug_material::DebugMaterial,
         disney::DisneyMaterial,
         glass::GlassMaterial,
         matte::MatteMaterial,
-        metal::{MetalMaterial, COPPER_K, COPPER_N},
+        metal::{COPPER_K, COPPER_N, MetalMaterial},
         mirror::MirrorMaterial,
         mixmat::MixMaterial,
         plastic::PlasticMaterial,
         translucent::TranslucentMaterial,
-        Material,
     },
     medium::{
-        grid::GridDensityMedium, homogeneous::HomogeneousMedium, Medium, MediumInterface,
-        SUBSURFACE_PARAMETER_TABLE,
+        Medium, MediumInterface, SUBSURFACE_PARAMETER_TABLE, grid::GridDensityMedium,
+        homogeneous::HomogeneousMedium,
     },
     mipmap::{ImageWrap, MIPMap},
     misc::{clamp_t, gamma_correct},
     objparser::parse_obj,
     primitives::{GeometricPrimitive, Primitive, TransformedPrimitive},
-    samplers::{halton::HaltonBuilder, stratified::StratifiedBuilder, SamplerBuilder},
+    samplers::{SamplerBuilder, halton::HaltonBuilder, stratified::StratifiedBuilder},
     scene::Scene,
     shape::{
-        sphere::Sphere,
-        triangle::{create_triangle_mesh, Triangle},
         Shape,
+        sphere::Sphere,
+        triangle::{Triangle, create_triangle_mesh},
     },
     spectrum::{ISpectrum, Spectrum, SpectrumType},
     texture::{
+        ConstantTexture, CylindricalMapping2D, IdentityMapping3D, PlanarMapping2D,
+        SphericalMapping2D, Texture, TextureMapping2D, UVMapping2D,
         bilerp::BilerpTexture,
         checkerboard::{AAMethod, Checkerboard2DTexture, Checkerboard3DTexture},
         imagemap::{ImageTexture, TexInfo},
@@ -59,25 +62,9 @@ use crate::{
         uv::UVTexture,
         windy::WindyTexture,
         wrinkled::WrinkledTexture,
-        ConstantTexture, CylindricalMapping2D, IdentityMapping3D, PlanarMapping2D,
-        SphericalMapping2D, Texture, TextureMapping2D, UVMapping2D,
     },
     transform::Transform,
-    SPECTRUM_N,
 };
-
-#[derive(Debug, Default)]
-struct RenderProcessError {
-    msg: String,
-}
-
-impl Display for RenderProcessError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Error During Render Process {}", self.msg)
-    }
-}
-
-impl Error for RenderProcessError {}
 
 struct SceneGlobalData {
     scene_config_root: String,

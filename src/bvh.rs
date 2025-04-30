@@ -7,9 +7,9 @@ use crate::{
 use std::{
     rc::Rc,
     sync::{
+        Arc, Mutex,
         atomic::{AtomicU32, Ordering},
         mpsc::{self, Receiver, Sender},
-        Arc, Mutex,
     },
     thread,
 };
@@ -413,20 +413,22 @@ impl BVHAccel {
 
         drop(done_tx);
         let e_morton_prims = Arc::clone(&morton_prims);
-        encode_morton_hns.push(thread::spawn(move || loop {
-            match done_rx.recv() {
-                Ok((start_idx, end_idx, mut p_mps)) => {
-                    let mut mps = e_morton_prims.lock().unwrap();
-                    for idx in (start_idx..end_idx).rev() {
-                        if p_mps.len() > 0 {
-                            mps[idx as usize] = p_mps.pop().unwrap();
-                        } else {
-                            break;
+        encode_morton_hns.push(thread::spawn(move || {
+            loop {
+                match done_rx.recv() {
+                    Ok((start_idx, end_idx, mut p_mps)) => {
+                        let mut mps = e_morton_prims.lock().unwrap();
+                        for idx in (start_idx..end_idx).rev() {
+                            if p_mps.len() > 0 {
+                                mps[idx as usize] = p_mps.pop().unwrap();
+                            } else {
+                                break;
+                            }
                         }
                     }
-                }
-                Err(_e) => {
-                    break;
+                    Err(_e) => {
+                        break;
+                    }
                 }
             }
         }));
@@ -754,12 +756,12 @@ impl BVHAccel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SPECTRUM_N;
     use crate::primitives::*;
     use crate::shape::triangle::*;
     use crate::spectrum::*;
     use crate::texture::*;
     use crate::transform::*;
-    use crate::SPECTRUM_N;
     use crate::{geometry::*, objparser::parse_obj};
     use crate::{material::matte::*, medium::MediumInterface};
     // use crate::lights::*;
@@ -770,25 +772,25 @@ mod tests {
     use rand::prelude::*;
     #[test]
     fn test_morton_sort() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let mut pi_vec = Vec::<BVHPrimitiveInfo>::with_capacity(50);
         for idx in 0..10 {
             let p1 = Point3f::new(
-                rng.gen_range(-10.0..10.0),
-                rng.gen_range(-20.0..5.0),
-                rng.gen_range(6.0..50.0),
+                rng.random_range(-10.0..10.0),
+                rng.random_range(-20.0..5.0),
+                rng.random_range(6.0..50.0),
             );
             let p2 = Point3f::new(
-                rng.gen_range(11.0..54.0),
-                rng.gen_range(6.0..33.0),
-                rng.gen_range(51.0..88.0),
+                rng.random_range(11.0..54.0),
+                rng.random_range(6.0..33.0),
+                rng.random_range(51.0..88.0),
             );
             let bd = Bounds3f::new(p1, p2);
             let pi = BVHPrimitiveInfo {
                 primitive_number: idx,
                 bounds: bd,
-                centroid: pnt3_lerp(rng.gen(), &p1, &p2),
+                centroid: pnt3_lerp(rng.random(), &p1, &p2),
             };
             pi_vec.push(pi);
         }
@@ -811,7 +813,7 @@ mod tests {
 
     #[test]
     fn test_tri_bvh() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let kd = Spectrum::<SPECTRUM_N>::from(0.5);
         let sigma = 0.0;
@@ -855,9 +857,9 @@ mod tests {
                 let mut ts: Vec<Arc<dyn Primitive>> = vec![];
                 for _ins_idx in 0..20 {
                     let to_world = Transform::translate(&Vector3f::new(
-                        rng.gen_range(20.0..31.0),
-                        rng.gen_range(20.0..31.0),
-                        rng.gen_range(20.0..31.0),
+                        rng.random_range(20.0..31.0),
+                        rng.random_range(20.0..31.0),
+                        rng.random_range(20.0..31.0),
                     ));
                     for g in &gs {
                         let t = TransformedPrimitive::new(g.clone(), to_world);
@@ -876,9 +878,9 @@ mod tests {
                     let r = Ray::new_od(
                         Point3f::default(),
                         Vector3f::new(
-                            rng.gen_range(20.0..31.0),
-                            rng.gen_range(20.0..31.0),
-                            rng.gen_range(20.0..31.0),
+                            rng.random_range(20.0..31.0),
+                            rng.random_range(20.0..31.0),
+                            rng.random_range(20.0..31.0),
                         )
                         .normalize(),
                     );

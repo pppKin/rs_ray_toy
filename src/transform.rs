@@ -1,5 +1,5 @@
 use crate::{
-    geometry::{cross, faceforward, Bounds3f, Normal3f, Point3f, Ray, Vector3f},
+    geometry::{Bounds3f, Normal3f, Point3f, Ray, Vector3f, cross, faceforward},
     interaction::{BaseInteraction, SurfaceInteraction},
     misc::{copy_option_arc, radians},
 };
@@ -85,7 +85,7 @@ impl Matrix4x4 {
                                 icol = k;
                             }
                         } else if *item > 1 {
-                            println!("Singular matrix in MatrixInvert");
+                            log::info!("Singular matrix in MatrixInvert");
                         }
                     }
                 }
@@ -103,7 +103,7 @@ impl Matrix4x4 {
             indxr[i] = irow;
             indxc[i] = icol;
             if minv.m[icol][icol] == 0.0 {
-                println!("Singular matrix in MatrixInvert");
+                log::info!("Singular matrix in MatrixInvert");
             }
             // set $m[icol][icol]$ to one by scaling row _icol_ appropriately
             let pivinv: f64 = 1.0 / minv.m[icol][icol];

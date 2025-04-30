@@ -209,8 +209,8 @@ where
             return self.psplr.samples1d[(self.psplr.current1d_dimension - 1) as usize]
                 [self.bsplr.current_pixel_sample_index as usize];
         } else {
-            let mut rng = thread_rng();
-            return rng.gen_range(-1.0..1.0);
+            let mut rng = rand::rng();
+            return rng.random_range(-1.0..1.0);
         }
     }
     fn get_2d(&mut self) -> Point2f {
@@ -220,9 +220,9 @@ where
             return self.psplr.samples2d[(self.psplr.current2d_dimension - 1) as usize]
                 [self.bsplr.current_pixel_sample_index as usize];
         } else {
-            let mut rng = thread_rng();
+            let mut rng = rand::rng();
 
-            return Point2f::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
+            return Point2f::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0));
         }
     }
 

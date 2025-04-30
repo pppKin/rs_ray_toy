@@ -4,7 +4,7 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterato
 
 use crate::{
     film::Film,
-    geometry::{faceforward, Bounds2f, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f},
+    geometry::{Bounds2f, Normal3f, Point2f, Point3f, Ray, RayDifferential, Vector3f, faceforward},
     lowdiscrepancy::radical_inverse,
     medium::MediumOpArc,
     misc::{copy_option_arc, lerp, quadratic},
@@ -351,25 +351,16 @@ impl RealisticCamera {
     }
     fn focus_thick_lens(&self, focus_distance: f64) -> f64 {
         let (pz, fz) = self.compute_thick_lens_approximation();
-        println!(
-            "Secondary focal point f\' = {}, Secondary principal plane p\' = {}",
-            fz[0], pz[0]
-        );
-        println!(
-            "Primary focal point f = {}, Primary principal plane p = {}",
-            fz[1], pz[1]
-        );
-        println!(
-            "effective focal length = {}, lens thickness = {}",
-            fz[0] - pz[0],
-            pz[0] - pz[1]
-        );
         // Compute translation of lens, _delta_, to focus at _focusDistance_
         let f = fz[0] - pz[0];
         let z = -focus_distance;
         let c = (pz[1] - z - pz[0]) * (pz[1] - z - 4.0 * f - pz[0]);
 
-        assert!(c>0.0, "Coefficient must be positive. It looks focusDistance: {} is too short for a given lenses configuration", focus_distance);
+        assert!(
+            c > 0.0,
+            "Coefficient must be positive. It looks focusDistance: {} is too short for a given lenses configuration",
+            focus_distance
+        );
         let delta = 0.5 * (pz[1] - z + pz[0] - c.sqrt());
         self.element_interfaces
             .last()
@@ -434,7 +425,10 @@ impl RealisticCamera {
                 return z_focus;
             }
             None => {
-                eprintln!("Focus ray at lens pos({},0) didn't make it through the lenses with film distance {}", lu, film_dist);
+                eprintln!(
+                    "Focus ray at lens pos({},0) didn't make it through the lenses with film distance {}",
+                    lu, film_dist
+                );
                 return INFINITY;
             }
         }

@@ -1,7 +1,6 @@
 #![feature(iter_partition_in_place)]
 #![allow(dead_code)]
 #![allow(non_snake_case)]
-#![feature(associated_type_bounds)]
 
 mod bssrdf;
 mod bvh;
@@ -53,9 +52,16 @@ pub const SMALL: f64 = 0.000000001;
 pub const MACHINE_EPSILON: f64 = std::f64::EPSILON * 0.5;
 
 fn main() {
+    colog::init(); // initialize log
+
     let args: Vec<String> = env::args().collect();
 
     let filepath = &args[1];
     let save_to = &args[2];
+    log::info!(
+        "read scene from {}, will save rendered image to {}",
+        filepath,
+        save_to
+    );
     deploy_render(filepath, save_to);
 }
