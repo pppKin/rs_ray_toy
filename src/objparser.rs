@@ -253,7 +253,7 @@ mod tests {
     use crate::transform::Transform;
     #[test]
     fn test_parse_obj() {
-        let r = parse_obj("../example.obj");
+        let r = parse_obj("samples/cube.obj");
         match r {
             Ok(result) => {
                 // println!("result : {} triangles", result.n_triangles);
